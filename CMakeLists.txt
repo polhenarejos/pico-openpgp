@@ -1,0 +1,101 @@
+ # 
+ # This file is part of the Pico OpenPGP distribution (https://github.com/polhenarejos/pico-openpgp).
+ # Copyright (c) 2022 Pol Henarejos.
+ # 
+ # This program is free software: you can redistribute it and/or modify  
+ # it under the terms of the GNU General Public License as published by  
+ # the Free Software Foundation, version 3.
+ #
+ # This program is distributed in the hope that it will be useful, but 
+ # WITHOUT ANY WARRANTY; without even the implied warranty of 
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+ # General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License 
+ # along with this program. If not, see <http://www.gnu.org/licenses/>.
+ #
+
+cmake_minimum_required(VERSION 3.13)
+
+include(pico_sdk_import.cmake)
+
+project(pico_openpgp C CXX ASM)
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
+
+pico_sdk_init()
+
+add_executable(pico_openpgp)
+
+if (NOT DEFINED USB_VID)
+    set(USB_VID 0xFEFF)
+endif()
+add_definitions(-DUSB_VID=${USB_VID})
+if (NOT DEFINED USB_PID)
+    set(USB_PID 0xFCFD)
+endif()
+add_definitions(-DUSB_PID=${USB_PID})
+        
+target_sources(pico_openpgp PUBLIC
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/ccid2040.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/openpgp.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/files.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/usb/usb_descriptors.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs/file.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs/flash.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs/low_flash.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/rng/random.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/rng/neug.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/crypto_utils.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/eac.c
+        
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/sha256.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/aes.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/sha512.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/rsa.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/bignum.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/platform_util.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/md.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/oid.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/rsa_alt_helpers.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/constant_time.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ecdsa.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ecp.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ecp_curves.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/asn1write.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/hmac_drbg.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/md5.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ripemd160.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/sha1.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ecdh.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/cmac.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/cipher.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/cipher_wrap.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/chachapoly.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/camellia.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/chacha20.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/aria.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/poly1305.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/gcm.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ccm.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/des.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/nist_kw.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/hkdf.c
+        )
+
+target_include_directories(pico_openpgp PUBLIC
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/rng
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/usb
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/include
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library
+        )
+        
+pico_add_extra_outputs(pico_openpgp)
+
+#target_compile_definitions(pico_openpgp PRIVATE MBEDTLS_ECDSA_DETERMINISTIC=1)
+
+target_link_libraries(pico_openpgp PRIVATE pico_stdlib tinyusb_device tinyusb_board pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id hardware_rtc)

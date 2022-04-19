@@ -1,0 +1,3 @@
+[submodule "pico-ccid"]
+	path = pico-ccid
+	url = https://github.com/polhenarejos/pico-ccid.git
