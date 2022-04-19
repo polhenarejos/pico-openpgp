@@ -17,11 +17,18 @@
 
 #include "openpgp.h"
 #include "version.h"
+#include "files.h"
 #include "eac.h"
 
-const uint8_t openpgp_aid[] = {
+uint8_t openpgp_aid[] = {
     6, 
-    0xD2,0x76,0x00,0x01,0x24,0x01
+    0xD2,0x76,0x00,0x01,0x24,0x01,
+};
+
+uint8_t openpgp_aid_full[] = {
+    16,00, 
+    0xD2,0x76,0x00,0x01,0x24,0x01,
+    OPGP_VERSION_MAJOR,OPGP_VERSION_MINOR,0xff,0xfe,0xff,0xff,0xff,0xff,0x00,0x00
 };
 
 char atr_openpgp[] = { 
@@ -121,8 +128,17 @@ static int cmd_select() {
     return SW_OK ();
 }
 
+void scan_files() {
+    file_t *ef;
+    if ((ef = search_by_fid(EF_FULL_AID, NULL, SPECIFY_ANY))) {
+        ef->data = openpgp_aid_full;
+        pico_get_unique_board_id_string(ef->data+12, 4);
+    }
+}
+
 void init_openpgp() {
     isUserAuthenticated = false;
+    scan_files();
     cmd_select();
 }
 
@@ -132,11 +148,7 @@ int openpgp_unload() {
 }
 
 app_t *openpgp_select_aid(app_t *a) {
-    printf("AIDS \r\n");
-    DEBUG_PAYLOAD(apdu.cmd_apdu_data,apdu.cmd_apdu_data_len);
-    DEBUG_PAYLOAD(openpgp_aid+1,openpgp_aid[0]);
-    if (!memcmp(apdu.cmd_apdu_data, openpgp_aid+1, MIN(apdu.cmd_apdu_data_len,openpgp_aid[0]))) {
-        printf("SELECTING OPENPGP\r\n");
+    if (!memcmp(apdu.cmd_apdu_data, openpgp_aid+1, openpgp_aid[0])) {
         a->aid = openpgp_aid;
         a->process_apdu = openpgp_process_apdu;
         a->unload = openpgp_unload;
@@ -151,13 +163,147 @@ void __attribute__ ((constructor)) openpgp_ctor() {
     register_app(openpgp_select_aid);
 }
 
+int parse_do(uint16_t *fids, int mode) {
+    int len = 0;
+    file_t *ef;
+    for (int i = 0; i < fids[0]; i++) {
+        if ((ef = search_by_fid(fids[i+1], NULL, SPECIFY_EF)) && ef->data) {
+            uint16_t data_len;
+            if ((ef->type & FILE_DATA_FUNC) == FILE_DATA_FUNC) {
+                data_len = ((int (*)(const file_t *, int))(ef->data))((const file_t *)ef, 1);
+            }
+            else {
+                data_len = file_read_uint16(ef->data);
+                if (mode == 1) {
+                    if (fids[0] > 1) {
+                        if (fids[i+1] < 0x0100) {
+                            res_APDU[res_APDU_size++] = fids[i+1] & 0xff;
+                        }
+                        else {
+                            res_APDU[res_APDU_size++] = fids[i+1] >> 8;
+                            res_APDU[res_APDU_size++] = fids[i+1] & 0xff;
+                        }
+                        res_APDU_size += format_tlv_len(data_len, res_APDU);
+                    }
+                    memcpy(res_APDU+res_APDU_size, file_read(ef->data+2), data_len);
+                    res_APDU_size += data_len;
+                }
+            }
+            len += data_len;
+        }
+    }
+    return len;
+}
+
+int parse_trium(uint16_t fid, uint8_t num, size_t size) {
+    for (uint8_t i = 0; i < num; i++) {
+        file_t *ef;
+        if ((ef = search_by_fid(fid+i, NULL, SPECIFY_EF)) && ef->data) {
+            uint16_t data_len = file_read_uint16(ef->data);
+            memcpy(res_APDU+res_APDU_size, file_read(ef->data+2), data_len);
+            res_APDU_size += data_len;
+        }
+        else {
+            memset(res_APDU+res_APDU_size, 0, size);
+            res_APDU_size += size;
+        }
+    }
+    return num*size;
+}
+
+int parse_ch_data(const file_t *f, int mode) {
+    uint16_t fids[] = {
+        3,
+        EF_CH_NAME, EF_LANG_PREF, EF_SEX
+    };
+    return parse_do(fids, mode);
+}
+
+int parse_sec_tpl(const file_t *f, int mode) {
+    
+}
+
+int parse_ch_cert(const file_t *f, int mode) {
+    
+}
+
+int parse_exlen_info(const file_t *f, int mode) {
+    
+}
+
+int parse_gfm(const file_t *f, int mode) {
+    
+}
+
+int parse_fp(const file_t *f, int mode) {
+    return parse_trium(EF_FP_SIG, 3, 20);
+}
+
+int parse_cafp(const file_t *f, int mode) {
+    return parse_trium(EF_FP_CA1, 3, 20);
+}
+
+int parse_ts(const file_t *f, int mode) {
+    return parse_trium(EF_TS_SIG, 3, 4);    
+}
+
+int parse_keyinfo(const file_t *f, int mode) {
+    
+}
+
+int parse_algoinfo(const file_t *f, int mode) {
+    
+}
+
+int parse_app_data(const file_t *f, int mode) {
+    uint16_t fids[] = {
+        5,
+        EF_FULL_AID, EF_HIST_BYTES, EF_EXLEN_INFO, EF_GFM, EF_DISCRETE_DO
+    };
+    return parse_do(fids, mode);
+}
+
+int parse_discrete_do(const file_t *f, int mode) {
+    uint16_t fids[] = {
+        11,
+        EF_EXT_CAP, EF_ALGO_SIG, EF_ALGO_DEC, EF_ALGO_AUT, EF_PW_STATUS, EF_FP, EF_CA_FP, EF_TS_ALL, EF_UIF_SIG, EF_UIF_DEC, EF_UIF_AUT
+    };
+    return parse_do(fids, mode);
+}
+
+
+static int cmd_get_data() {
+    if (apdu.cmd_apdu_data_len > 0)
+        return SW_WRONG_LENGTH();
+    uint16_t fid = (P1(apdu) << 8) | P2(apdu);
+    file_t *ef;
+    if (!(ef = search_by_fid(fid, NULL, SPECIFY_EF)))
+        return SW_FILE_NOT_FOUND();
+    if (!authenticate_action(ef, ACL_OP_READ_SEARCH)) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
+    if (ef->data) {
+        uint16_t fids[] = {1,fid};
+        uint16_t data_len = parse_do(fids, 1);
+        if (apdu.expected_res_size > data_len)
+            apdu.expected_res_size = data_len;
+    }
+
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
   int (*cmd_handler)();
 } cmd_t;
 
+#define INS_SELECT          0xA4
+#define INS_GET_DATA        0xCA
+
 static const cmd_t cmds[] = {
+    { INS_GET_DATA, cmd_get_data },
+    { INS_SELECT, cmd_select },
     { 0x00, 0x0}
 };
 
