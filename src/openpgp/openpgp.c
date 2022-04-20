@@ -617,6 +617,8 @@ static int cmd_verify() {
 static int cmd_put_data() {
     uint16_t fid = (P1(apdu) << 8) | P2(apdu);
     file_t *ef;
+    if (fid == EF_RESET_CODE)
+        fid = EF_RC;
     if (!(ef = search_by_fid(fid, NULL, SPECIFY_EF)))
         return SW_FILE_NOT_FOUND();
     if (!authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
@@ -650,6 +652,43 @@ static int cmd_change_pin() {
     return SW_OK();
 }
 
+static int cmd_reset_retry() {
+    if (P2(apdu) != 0x81)
+        return SW_REFERENCE_NOT_FOUND();
+    if (P1(apdu) == 0x0 || P1(apdu) == 0x2) {
+        int newpin_len = 0;
+        file_t *pw = NULL;
+        if (!(pw = search_by_fid(EF_PW1, NULL, SPECIFY_EF)))
+            return SW_REFERENCE_NOT_FOUND();
+        if (P1(apdu) == 0x0) {
+            file_t *rc, *pw;
+            if (!(rc = search_by_fid(EF_RC, NULL, SPECIFY_EF)))
+                return SW_REFERENCE_NOT_FOUND();
+            uint8_t pin_len = file_read_uint8(rc->data+2);
+            if (apdu.cmd_apdu_data_len <= pin_len)
+                return SW_WRONG_LENGTH();
+            uint16_t r = check_pin(rc, apdu.cmd_apdu_data, pin_len);
+            if (r != 0x9000)
+                return r;
+            newpin_len = apdu.cmd_apdu_data_len-pin_len;
+        }
+        else if (P1(apdu) == 0x2) {    
+            if (!has_pw3)
+                return SW_CONDITIONS_NOT_SATISFIED();
+            newpin_len = apdu.cmd_apdu_data_len;
+        }
+        uint8_t dhash[33];
+        dhash[0] = newpin_len;
+        double_hash_pin(apdu.cmd_apdu_data+(apdu.cmd_apdu_data_len-newpin_len), newpin_len, dhash+1);
+        flash_write_data_to_file(pw, dhash, sizeof(dhash));
+        if (pin_reset_retries(pw, true) != CCID_OK)
+            return SW_MEMORY_FAILURE();
+        low_flash_available();
+        return SW_OK();
+    }
+    return SW_INCORRECT_P1P2();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -658,6 +697,7 @@ typedef struct cmd
 
 #define INS_VERIFY          0x20
 #define INS_CHANGE_PIN      0x24
+#define INS_RESET_RETRY     0x2C
 #define INS_SELECT          0xA4
 #define INS_GET_DATA        0xCA
 #define INS_PUT_DATA        0xDA
@@ -668,6 +708,7 @@ static const cmd_t cmds[] = {
     { INS_VERIFY, cmd_verify },
     { INS_PUT_DATA, cmd_put_data },
     { INS_CHANGE_PIN, cmd_change_pin },
+    { INS_RESET_RETRY, cmd_reset_retry },
     { 0x00, 0x0}
 };
 
