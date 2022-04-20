@@ -27,6 +27,9 @@
 #define EF_PW1_RETRIES  0x1084
 #define EF_RC_RETRIES   0x1085
 #define EF_PW3_RETRIES  0x1086
+#define EF_ALGO_PRIV1   0x10c1
+#define EF_ALGO_PRIV2   0x10c2
+#define EF_ALGO_PRIV3   0x10c3
 
 #define EF_EXT_HEADER   0x004d //C
 #define EF_FULL_AID     0x004f //S

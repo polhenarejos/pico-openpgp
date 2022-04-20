@@ -437,37 +437,47 @@ int parse_algo(const uint8_t *algo, uint16_t tag) {
 }
 
 int parse_algoinfo(const file_t *f, int mode) {
-    uint8_t *lp = NULL;
     uint8_t datalen = 0;
     if (f->fid == EF_ALGO_INFO) {
         res_APDU[res_APDU_size++] = EF_ALGO_INFO & 0xff;
         uint8_t *lp = res_APDU+res_APDU_size;
         res_APDU_size++;
-    }
-    if (f->fid == EF_ALGO_INFO || f->fid == EF_ALGO_SIG) {
         datalen += parse_algo(algorithm_attr_rsa2k, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_rsa4k, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_p256k1, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_ed25519, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_ed448, EF_ALGO_SIG);
-    }
-    if (f->fid == EF_ALGO_INFO || f->fid == EF_ALGO_DEC) {
         datalen += parse_algo(algorithm_attr_rsa2k, EF_ALGO_DEC);
         datalen += parse_algo(algorithm_attr_rsa4k, EF_ALGO_DEC);
         datalen += parse_algo(algorithm_attr_p256k1, EF_ALGO_DEC);
         datalen += parse_algo(algorithm_attr_cv25519, EF_ALGO_DEC);
         datalen += parse_algo(algorithm_attr_x448, EF_ALGO_DEC);
-    }
-    if (f->fid == EF_ALGO_INFO || f->fid == EF_ALGO_AUT) {
         datalen += parse_algo(algorithm_attr_rsa2k, EF_ALGO_AUT);
         datalen += parse_algo(algorithm_attr_rsa4k, EF_ALGO_AUT);
         datalen += parse_algo(algorithm_attr_p256k1, EF_ALGO_AUT);
         datalen += parse_algo(algorithm_attr_ed25519, EF_ALGO_AUT);
         datalen += parse_algo(algorithm_attr_ed448, EF_ALGO_AUT);
-    }
-    if (lp)
         *lp = res_APDU+res_APDU_size-lp-1;
-    return lp ? *lp+2 : datalen;
+        datalen = *lp;
+    }
+    else if (f->fid == EF_ALGO_SIG || f->fid == EF_ALGO_DEC || f->fid == EF_ALGO_AUT) {
+        uint16_t fid = 0x1000 | f->fid;
+        file_t *ef;
+        if (!(ef = search_by_fid(fid, NULL, SPECIFY_EF)) || !ef->data)
+            datalen += parse_algo(algorithm_attr_rsa2k, f->fid);
+        else {
+            uint16_t len = file_read_uint16(ef->data);
+            if (res_APDU_size > 0) {
+                res_APDU[res_APDU_size++] = f->fid & 0xff;
+                res_APDU[res_APDU_size++] = len & 0xff;
+                datalen += 2;
+            }
+            memcpy(res_APDU+res_APDU_size, file_read(ef->data+2), len);
+            res_APDU_size += len;
+            datalen += len;
+        }
+    }
+    return datalen;
 }
 
 int parse_app_data(const file_t *f, int mode) {
@@ -618,6 +628,8 @@ static int cmd_put_data() {
     file_t *ef;
     if (fid == EF_RESET_CODE)
         fid = EF_RC;
+    else if (fid == EF_ALGO_SIG || fid == EF_ALGO_DEC || fid == EF_ALGO_AUT)
+        fid |= 0x1000;
     if (!(ef = search_by_fid(fid, NULL, SPECIFY_EF)))
         return SW_FILE_NOT_FOUND();
     if (!authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
