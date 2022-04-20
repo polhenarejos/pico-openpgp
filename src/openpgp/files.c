@@ -123,12 +123,12 @@ file_t file_entries[] = {
     /* 37 */ { .fid = EF_APP_DATA, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF | FILE_DATA_FUNC, .data = (uint8_t *)parse_app_data, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
     /* 38 */ { .fid = EF_DISCRETE_DO, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF | FILE_DATA_FUNC, .data = (uint8_t *)parse_discrete_do, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
     
-    /* 39 */ { .fid = EF_PW1, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_NONE }, //PIN (PIN1)
-    /* 40 */ { .fid = EF_RC, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_NONE }, //PIN (PIN1)
-    /* 41 */ { .fid = EF_PW3, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_NONE }, //PIN (PIN1)
-    /* 42 */ { .fid = EF_PW1_RETRIES, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_NONE }, //PIN (PIN1)
-    /* 43 */ { .fid = EF_RC_RETRIES, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_NONE }, //PIN (PIN1)
-    /* 44 */ { .fid = EF_PW3_RETRIES, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_NONE }, //PIN (PIN1)
+    /* 39 */ { .fid = EF_PW1, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_WP }, 
+    /* 40 */ { .fid = EF_RC, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_WP }, 
+    /* 41 */ { .fid = EF_PW3, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_WP },
+    /* 42 */ { .fid = EF_PW1_RETRIES, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_WP },
+    /* 43 */ { .fid = EF_RC_RETRIES, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_WP }, 
+    /* 44 */ { .fid = EF_PW3_RETRIES, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_WP },
     
     /* 45 */ { .fid = 0x0000, .parent = 0, .name = openpgp_aid, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
     /* 46 */ { .fid = 0x0000, .parent = 0xff, .name = NULL, .type = FILE_TYPE_UNKNOWN, .data = NULL, .ef_structure = 0, .acl = ACL_NONE } //end
