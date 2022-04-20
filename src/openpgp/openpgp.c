@@ -503,7 +503,6 @@ int parse_discrete_do(const file_t *f, int mode) {
     return lpdif+4;
 }
 
-
 static int cmd_get_data() {
     if (apdu.cmd_apdu_data_len > 0)
         return SW_WRONG_LENGTH();
@@ -615,6 +614,23 @@ static int cmd_verify() {
     return set_res_sw(0x63, 0xc0 | file_read_uint8(retries->data+2));
 }
 
+static int cmd_put_data() {
+    uint16_t fid = (P1(apdu) << 8) | P2(apdu);
+    file_t *ef;
+    if (!(ef = search_by_fid(fid, NULL, SPECIFY_EF)))
+        return SW_FILE_NOT_FOUND();
+    if (!authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
+    if (apdu.cmd_apdu_data_len > 0) {
+        int r = flash_write_data_to_file(ef, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
+        if (r != CCID_OK)
+            return SW_MEMORY_FAILURE();
+        low_flash_available();
+    }
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -624,11 +640,13 @@ typedef struct cmd
 #define INS_VERIFY          0x20
 #define INS_SELECT          0xA4
 #define INS_GET_DATA        0xCA
+#define INS_PUT_DATA        0xDA
 
 static const cmd_t cmds[] = {
     { INS_GET_DATA, cmd_get_data },
     { INS_SELECT, cmd_select },
     { INS_VERIFY, cmd_verify },
+    { INS_PUT_DATA, cmd_put_data },
     { 0x00, 0x0}
 };
 
