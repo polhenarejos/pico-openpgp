@@ -631,6 +631,25 @@ static int cmd_put_data() {
     return SW_OK();
 }
 
+static int cmd_change_pin() {
+    if (P1(apdu) != 0x0)
+        return SW_WRONG_P1P2();
+    uint16_t fid = 0x1000 | P2(apdu);
+    file_t *pw;
+    if (!(pw = search_by_fid(fid, NULL, SPECIFY_EF)))
+        return SW_REFERENCE_NOT_FOUND();
+    uint8_t pin_len = file_read_uint8(pw->data+2);
+    uint16_t r = check_pin(pw, apdu.cmd_apdu_data, pin_len);
+    if (r != 0x9000)
+        return r;
+    uint8_t dhash[33];
+    dhash[0] = apdu.cmd_apdu_data_len-pin_len;
+    double_hash_pin(apdu.cmd_apdu_data+pin_len, apdu.cmd_apdu_data_len-pin_len, dhash+1);
+    flash_write_data_to_file(pw, dhash, sizeof(dhash));
+    low_flash_available();
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -638,6 +657,7 @@ typedef struct cmd
 } cmd_t;
 
 #define INS_VERIFY          0x20
+#define INS_CHANGE_PIN      0x24
 #define INS_SELECT          0xA4
 #define INS_GET_DATA        0xCA
 #define INS_PUT_DATA        0xDA
@@ -647,6 +667,7 @@ static const cmd_t cmds[] = {
     { INS_SELECT, cmd_select },
     { INS_VERIFY, cmd_verify },
     { INS_PUT_DATA, cmd_put_data },
+    { INS_CHANGE_PIN, cmd_change_pin },
     { 0x00, 0x0}
 };
 
