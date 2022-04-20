@@ -18,7 +18,7 @@
 #ifndef __VERSION_H_
 #define __VERSION_H_
 
-#define OPGP_VERSION 0x0100
+#define OPGP_VERSION 0x0304
 
 #define OPGP_VERSION_MAJOR ((OPGP_VERSION >> 8) & 0xff)
 #define OPGP_VERSION_MINOR (OPGP_VERSION & 0xff)

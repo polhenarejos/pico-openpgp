@@ -21,6 +21,13 @@
 
 #include "file.h"
 
+#define EF_PW1          0x1081
+#define EF_RC           0x1082
+#define EF_PW3          0x1083
+#define EF_PW1_RETRIES  0x1084
+#define EF_RC_RETRIES   0x1085
+#define EF_PW3_RETRIES  0x1086
+
 #define EF_EXT_HEADER   0x004d //C
 #define EF_FULL_AID     0x004f //S
 #define EF_CH_NAME      0x005b //S
