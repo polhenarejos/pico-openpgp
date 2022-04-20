@@ -232,7 +232,6 @@ int parse_do(uint16_t *fids, int mode) {
     int len = 0;
     file_t *ef;
     for (int i = 0; i < fids[0]; i++) {
-        printf("FID %x\r\n",fids[i+1]);
         if ((ef = search_by_fid(fids[i+1], NULL, SPECIFY_EF))) {
             uint16_t data_len;
             if ((ef->type & FILE_DATA_FUNC) == FILE_DATA_FUNC) {
@@ -624,7 +623,7 @@ static int cmd_put_data() {
     if (!authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    if (apdu.cmd_apdu_data_len > 0) {
+    if (apdu.cmd_apdu_data_len > 0 && (ef->type & FILE_DATA_FLASH)) {
         int r = flash_write_data_to_file(ef, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
         if (r != CCID_OK)
             return SW_MEMORY_FAILURE();
