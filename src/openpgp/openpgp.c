@@ -19,6 +19,10 @@
 #include "version.h"
 #include "files.h"
 #include "eac.h"
+#include "crypto_utils.h"
+
+bool has_pw1 = false;
+bool has_pw3 = false;
 
 uint8_t openpgp_aid[] = {
     6, 
@@ -138,8 +142,11 @@ void scan_files() {
     if ((ef = search_by_fid(EF_PW1, NULL, SPECIFY_ANY))) {
         if (!ef->data) {
             TU_LOG1("PW1 is empty. Initializing with default password\r\n");
-            const uint8_t empty[33] = { 0 };
-            flash_write_data_to_file(ef, empty, sizeof(empty));
+            const uint8_t def[6] = { 0x31,0x32,0x33,0x34,0x35,0x36 };
+            uint8_t dhash[33];
+            dhash[0] = sizeof(def);
+            double_hash_pin(def, sizeof(def), dhash+1);
+            flash_write_data_to_file(ef, dhash, sizeof(dhash));
             
             ef = search_by_fid(EF_PW1_RETRIES, NULL, SPECIFY_ANY);
             if (ef && !ef->data) {
@@ -151,8 +158,12 @@ void scan_files() {
     if ((ef = search_by_fid(EF_RC, NULL, SPECIFY_ANY))) {
         if (!ef->data) {
             TU_LOG1("RC is empty. Initializing with default password\r\n");
-            const uint8_t empty[33] = { 0 };
-            flash_write_data_to_file(ef, empty, sizeof(empty));
+            
+            const uint8_t def[8] = { 0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38 };
+            uint8_t dhash[33];
+            dhash[0] = sizeof(def);
+            double_hash_pin(def, sizeof(def), dhash+1);
+            flash_write_data_to_file(ef, dhash, sizeof(dhash));
             
             ef = search_by_fid(EF_RC_RETRIES, NULL, SPECIFY_ANY);
             if (ef && !ef->data) {
@@ -164,8 +175,12 @@ void scan_files() {
     if ((ef = search_by_fid(EF_PW3, NULL, SPECIFY_ANY))) {
         if (!ef->data) {
             TU_LOG1("PW3 is empty. Initializing with default password\r\n");
-            const uint8_t empty[33] = { 0 };
-            flash_write_data_to_file(ef, empty, sizeof(empty));
+            
+            const uint8_t def[8] = { 0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38 };
+            uint8_t dhash[33];
+            dhash[0] = sizeof(def);
+            double_hash_pin(def, sizeof(def), dhash+1);
+            flash_write_data_to_file(ef, dhash, sizeof(dhash));
             
             ef = search_by_fid(EF_PW3_RETRIES, NULL, SPECIFY_ANY);
             if (ef && !ef->data) {
@@ -186,12 +201,14 @@ void scan_files() {
 
 void init_openpgp() {
     isUserAuthenticated = false;
+    has_pw1 = has_pw3 = false;
     scan_files();
     //cmd_select();
 }
 
 int openpgp_unload() {
     isUserAuthenticated = false;
+    has_pw1 = has_pw3 = false;
     return CCID_OK;
 }
 
@@ -506,18 +523,112 @@ static int cmd_get_data() {
     return SW_OK();
 }
 
+int pin_reset_retries(const file_t *pin, bool force) {
+    if (!pin)
+        return CCID_ERR_NULL_PARAM; 
+    const file_t *act = search_by_fid(pin->fid+3, NULL, SPECIFY_EF);
+    if (!act)
+        return CCID_ERR_FILE_NOT_FOUND;
+    uint8_t retries = file_read_uint8(act->data+2);
+    if (retries == 0 && force == false) //blocked
+        return CCID_ERR_BLOCKED;
+    retries = 3;
+    int r = flash_write_data_to_file((file_t *)act, &retries, sizeof(retries));
+    low_flash_available();
+    return r;
+}
+
+int pin_wrong_retry(const file_t *pin) {
+    if (!pin)
+        return CCID_ERR_NULL_PARAM; 
+    const file_t *act = search_by_fid(pin->fid+3, NULL, SPECIFY_EF);
+    if (!act)
+        return CCID_ERR_FILE_NOT_FOUND;
+    uint8_t retries = file_read_uint8(act->data+2);
+    if (retries > 0) {
+        retries -= 1;
+        int r = flash_write_data_to_file((file_t *)act, &retries, sizeof(retries));
+        if (r != CCID_OK)
+            return r;
+        low_flash_available();
+        if (retries == 0)
+            return CCID_ERR_BLOCKED;
+        return retries;
+    }
+    return CCID_ERR_BLOCKED;
+}
+
+int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
+    if (!pin)
+        return SW_REFERENCE_NOT_FOUND();
+    if (!pin->data) {
+        return SW_REFERENCE_NOT_FOUND();
+    }
+    isUserAuthenticated = false;
+    has_pw1 = has_pw3 = false;
+
+    uint8_t dhash[32];
+    double_hash_pin(data, len, dhash);
+    if (sizeof(dhash) != file_read_uint16(pin->data)-1) //1 byte for pin len
+        return SW_CONDITIONS_NOT_SATISFIED();
+    if (memcmp(file_read(pin->data+3), dhash, sizeof(dhash)) != 0) {
+        uint8_t retries;
+        if ((retries = pin_wrong_retry(pin)) < CCID_OK)
+            return SW_PIN_BLOCKED();
+        return set_res_sw(0x63, 0xc0 | retries);
+    }
+
+    int r = pin_reset_retries(pin, false);
+    if (r == CCID_ERR_BLOCKED)
+        return SW_PIN_BLOCKED();
+    if (r != CCID_OK)
+        return SW_MEMORY_FAILURE();
+    isUserAuthenticated = true;
+    //hash_multi(data, len, session_pin);
+    if (pin->fid == EF_PW1)
+        has_pw1 = true;
+    else if (pin->fid == EF_PW3)
+        has_pw3 = true;
+    return SW_OK();
+}
+
+static int cmd_verify() {
+    uint8_t p1 = P1(apdu);
+    uint8_t p2 = P2(apdu);
+    
+    if (p1 != 0x0 || (p2 & 0x60) != 0x0)
+        return SW_WRONG_P1P2();
+    uint8_t qualifier = p2&0x1f;
+    uint16_t fid = 0x1000 | p2;
+    file_t *pw, *retries;
+    if (!(pw = search_by_fid(fid, NULL, SPECIFY_EF)))
+        return SW_REFERENCE_NOT_FOUND();
+    if (!(retries = search_by_fid(fid+3, NULL, SPECIFY_EF)))
+        return SW_REFERENCE_NOT_FOUND();
+    if (file_read_uint8(pw->data+2) == 0) //not initialized
+        return SW_REFERENCE_NOT_FOUND();
+    if (apdu.cmd_apdu_data_len > 0) {
+        return check_pin(pw, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
+    }
+    if (file_read_uint8(retries->data+2) == 0)
+        return SW_PIN_BLOCKED();
+    return set_res_sw(0x63, 0xc0 | file_read_uint8(retries->data+2));
+}
+
 typedef struct cmd
 {
   uint8_t ins;
   int (*cmd_handler)();
 } cmd_t;
 
+#define INS_VERIFY          0x20
 #define INS_SELECT          0xA4
 #define INS_GET_DATA        0xCA
 
 static const cmd_t cmds[] = {
     { INS_GET_DATA, cmd_get_data },
     { INS_SELECT, cmd_select },
+    { INS_VERIFY, cmd_verify },
     { 0x00, 0x0}
 };
 
