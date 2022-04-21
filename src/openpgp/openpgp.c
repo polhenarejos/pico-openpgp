@@ -750,11 +750,11 @@ int store_keys(void *key_ctx, int type, uint16_t key_id) {
     int r, key_size;
     uint8_t kdata[4096/8]; //worst 
     
-    if (!has_pw3)
-        return CCID_NO_LOGIN;
-    file_t *pw3 = search_by_fid(EF_PW3, NULL, SPECIFY_EF);
-    if (!pw3)
-        return CCID_ERR_FILE_NOT_FOUND;
+    //if (!has_pw3)
+    //    return CCID_NO_LOGIN;
+    //file_t *pw3 = search_by_fid(EF_PW3, NULL, SPECIFY_EF);
+    //if (!pw3)
+    //    return CCID_ERR_FILE_NOT_FOUND;
     file_t *ef = search_by_fid(key_id, NULL, SPECIFY_EF);
     if (!ef)
         return CCID_ERR_FILE_NOT_FOUND;
@@ -780,9 +780,9 @@ int store_keys(void *key_ctx, int type, uint16_t key_id) {
             key_size = 32;
         memcpy(kdata, key_ctx, key_size);
     }
-    r = aes_encrypt_cfb_256(file_read(pw3->data+2), session_pw3, kdata, key_size);
-    if (r != CCID_OK)
-        return r;
+    //r = aes_encrypt_cfb_256(file_read(pw3->data+2), session_pw3, kdata, key_size);
+    //if (r != CCID_OK)
+    //    return r;
     r = flash_write_data_to_file(ef, kdata, key_size);
     if (r != CCID_OK)
         return r;
@@ -794,15 +794,15 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
     //wait_button();
     int key_size = file_read_uint16(fkey->data);
     uint8_t kdata[4096/8];
-    if (!has_pw3)
-        return CCID_NO_LOGIN;
-    file_t *pw3 = search_by_fid(EF_PW3, NULL, SPECIFY_EF);
-    if (!pw3)
-        return CCID_ERR_FILE_NOT_FOUND;
+    //if (!has_pw3)
+    //    return CCID_NO_LOGIN;
+    //file_t *pw3 = search_by_fid(EF_PW3, NULL, SPECIFY_EF);
+    //if (!pw3)
+    //    return CCID_ERR_FILE_NOT_FOUND;
     memcpy(kdata, file_read(fkey->data+2), key_size);
-    int r = aes_decrypt_cfb_256(file_read(pw3->data+2), session_pw3, kdata, key_size);
-    if (r != CCID_OK)
-        return r;
+    //int r = aes_decrypt_cfb_256(file_read(pw3->data+2), session_pw3, kdata, key_size);
+    //if (r != CCID_OK)
+    //    return r;
     if (mbedtls_mpi_read_binary(&ctx->P, kdata, key_size/2) != 0) {
         mbedtls_rsa_free(ctx);
         return CCID_WRONG_DATA;
@@ -961,6 +961,61 @@ static int cmd_keypair_gen() {
     return SW_INCORRECT_P1P2();
 }
 
+static int cmd_pso_sig() {
+    if (P1(apdu) != 0x9E || P2(apdu) != 0x9A) 
+        return SW_INCORRECT_P1P2();
+    int r = CCID_OK;
+    file_t *algo_ef = search_by_fid(EF_ALGO_PRIV1, NULL, SPECIFY_EF);
+    if (!algo_ef)
+        return SW_FILE_NOT_FOUND();
+    const uint8_t *algo = algorithm_attr_rsa2k+1;
+    uint16_t algo_len = algorithm_attr_rsa2k[0];
+    if (algo_ef && algo_ef->data) {
+        algo_len = file_read_uint16(algo_ef->data);
+        algo = file_read(algo_ef->data+2);
+    }
+    file_t *ef = search_by_fid(EF_PK_SIG, NULL, SPECIFY_EF);
+    if (!ef)
+        return SW_FILE_NOT_FOUND();
+    if (algo[0] == ALGO_RSA) {
+        int key_size = file_read_uint16(ef->data);
+        mbedtls_rsa_context ctx;
+        mbedtls_rsa_init(&ctx);
+        r = load_private_key_rsa(&ctx, ef);
+        if (r != CCID_OK)
+            return SW_EXEC_ERROR();
+        mbedtls_md_type_t md = MBEDTLS_MD_NONE;
+        if (memcmp(apdu.cmd_apdu_data, "\x30\x51\x30\x0D\x06\x09\x60\x86\x48\x01\x65\x03\x04\x02\x01\x05\x00",17))
+            md = MBEDTLS_MD_SHA256;
+        else if (memcmp(apdu.cmd_apdu_data, "\x30\x51\x30\x0D\x06\x09\x60\x86\x48\x01\x65\x03\x04\x02\x02\x05\x00",17))
+            md = MBEDTLS_MD_SHA384;
+        else if (memcmp(apdu.cmd_apdu_data, "\x30\x51\x30\x0D\x06\x09\x60\x86\x48\x01\x65\x03\x04\x02\x03\x05\x00",17))
+            md = MBEDTLS_MD_SHA512;
+        uint8_t hash_len = apdu.cmd_apdu_data[18];
+        printf("md %d, hash_len %d\r\n",md,hash_len);
+        if (md == MBEDTLS_MD_SHA256 && hash_len != 32)
+            return SW_WRONG_DATA();
+        else if (md == MBEDTLS_MD_SHA384 && hash_len != 48)
+            return SW_WRONG_DATA();
+        else if (md == MBEDTLS_MD_SHA512 && hash_len != 64)
+            return SW_WRONG_DATA();
+        const uint8_t *hash = apdu.cmd_apdu_data+19;
+        uint8_t *signature = (uint8_t *)calloc(key_size, sizeof(uint8_t));
+        r = mbedtls_rsa_pkcs1_sign(&ctx, random_gen, NULL, md, hash_len, hash, signature);
+        printf("sign r %d\r\n",r);
+        memcpy(res_APDU, signature, key_size);
+        free(signature);
+        if (r != 0) {
+            mbedtls_rsa_free(&ctx);
+            return SW_EXEC_ERROR();
+        }
+        res_APDU_size = key_size;
+        apdu.expected_res_size = key_size;
+        mbedtls_rsa_free(&ctx);
+    }
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -969,6 +1024,7 @@ typedef struct cmd
 
 #define INS_VERIFY          0x20
 #define INS_CHANGE_PIN      0x24
+#define INS_PSO_SIG         0x2A
 #define INS_RESET_RETRY     0x2C
 #define INS_KEYPAIR_GEN     0x47
 #define INS_SELECT          0xA4
@@ -983,6 +1039,7 @@ static const cmd_t cmds[] = {
     { INS_CHANGE_PIN, cmd_change_pin },
     { INS_RESET_RETRY, cmd_reset_retry },
     { INS_KEYPAIR_GEN, cmd_keypair_gen },
+    { INS_PSO_SIG, cmd_pso_sig },
     { 0x00, 0x0}
 };
 
