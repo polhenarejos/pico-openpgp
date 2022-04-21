@@ -832,6 +832,20 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
     return CCID_OK;
 }
 
+int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
+    //wait_button();
+    int key_size = file_read_uint16(fkey->data);
+    uint8_t kdata[67]; //Worst case, 521 bit + 1byte
+    memcpy(kdata, file_read(fkey->data+2), key_size);
+    mbedtls_ecp_group_id gid = kdata[0];
+    int r = mbedtls_ecp_read_key(gid, ctx, kdata+1, key_size-1);
+    if (r != 0) {
+        mbedtls_ecdsa_free(ctx);
+        return CCID_EXEC_ERROR;
+    }
+    return CCID_OK;
+}
+
 mbedtls_ecp_group_id get_ec_group_id_from_attr(const uint8_t *algo, size_t algo_len) {
     if (memcmp(algorithm_attr_p256k1+2, algo, algo_len) == 0)
         return MBEDTLS_ECP_DP_SECP256K1;
@@ -990,7 +1004,7 @@ static int cmd_pso_sig() {
         r = load_private_key_rsa(&ctx, ef);
         if (r != CCID_OK)
             return SW_EXEC_ERROR();
-        mbedtls_md_type_t md = MBEDTLS_MD_NONE;
+        mbedtls_md_type_t  md = MBEDTLS_MD_NONE;
         if (memcmp(apdu.cmd_apdu_data, "\x30\x51\x30\x0D\x06\x09\x60\x86\x48\x01\x65\x03\x04\x02\x01\x05\x00",17))
             md = MBEDTLS_MD_SHA256;
         else if (memcmp(apdu.cmd_apdu_data, "\x30\x51\x30\x0D\x06\x09\x60\x86\x48\x01\x65\x03\x04\x02\x02\x05\x00",17))
@@ -1020,6 +1034,31 @@ static int cmd_pso_sig() {
     }
     else if (algo[0] == ALGO_ECDH || algo[0] == ALGO_ECDSA) {
         
+        mbedtls_ecdsa_context ctx;
+        mbedtls_ecdsa_init(&ctx);
+        mbedtls_md_type_t md = MBEDTLS_MD_SHA256;
+        if (apdu.cmd_apdu_data_len == 32)
+            md = MBEDTLS_MD_SHA256;
+        else if (apdu.cmd_apdu_data_len == 20)
+            md = MBEDTLS_MD_SHA1;
+        else if (apdu.cmd_apdu_data_len == 28)
+            md = MBEDTLS_MD_SHA224;
+        else if (apdu.cmd_apdu_data_len == 48)
+            md = MBEDTLS_MD_SHA384;
+        else if (apdu.cmd_apdu_data_len == 64)
+            md = MBEDTLS_MD_SHA512;
+        r = load_private_key_ecdsa(&ctx, ef);
+        if (r != CCID_OK)
+            return SW_CONDITIONS_NOT_SATISFIED();
+        size_t olen = 0;
+        uint8_t buf[MBEDTLS_ECDSA_MAX_LEN];
+        if (mbedtls_ecdsa_write_signature(&ctx, md, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, buf, MBEDTLS_ECDSA_MAX_LEN, &olen, random_gen, NULL) != 0) {
+            mbedtls_ecdsa_free(&ctx);
+            return SW_EXEC_ERROR();
+        }
+        memcpy(res_APDU, buf, olen);
+        res_APDU_size = olen;
+        mbedtls_ecdsa_free(&ctx);
     }
     return SW_OK();
 }
