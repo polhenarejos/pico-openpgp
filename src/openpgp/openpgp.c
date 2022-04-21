@@ -780,13 +780,53 @@ int store_keys(void *key_ctx, int type, uint16_t key_id) {
             key_size = 32;
         memcpy(kdata, key_ctx, key_size);
     }
-    r = aes_decrypt_cfb_256(file_read(pw3->data+2), session_pw3, kdata, key_size);
+    r = aes_encrypt_cfb_256(file_read(pw3->data+2), session_pw3, kdata, key_size);
     if (r != CCID_OK)
         return r;
     r = flash_write_data_to_file(ef, kdata, key_size);
     if (r != CCID_OK)
         return r;
     low_flash_available();
+    return CCID_OK;
+}
+
+int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
+    //wait_button();
+    int key_size = file_read_uint16(fkey->data);
+    uint8_t kdata[4096/8];
+    if (!has_pw3)
+        return CCID_NO_LOGIN;
+    file_t *pw3 = search_by_fid(EF_PW3, NULL, SPECIFY_EF);
+    if (!pw3)
+        return CCID_ERR_FILE_NOT_FOUND;
+    memcpy(kdata, file_read(fkey->data+2), key_size);
+    int r = aes_decrypt_cfb_256(file_read(pw3->data+2), session_pw3, kdata, key_size);
+    if (r != CCID_OK)
+        return r;
+    if (mbedtls_mpi_read_binary(&ctx->P, kdata, key_size/2) != 0) {
+        mbedtls_rsa_free(ctx);
+        return CCID_WRONG_DATA;
+    }
+    if (mbedtls_mpi_read_binary(&ctx->Q, kdata+key_size/2, key_size/2) != 0) {
+        mbedtls_rsa_free(ctx);
+        return CCID_WRONG_DATA;
+    }
+    if (mbedtls_mpi_lset(&ctx->E, 0x10001) != 0) {
+        mbedtls_rsa_free(ctx);
+        return CCID_EXEC_ERROR;
+    }
+    if (mbedtls_rsa_import(ctx, NULL, &ctx->P, &ctx->Q, NULL, &ctx->E) != 0) {
+        mbedtls_rsa_free(ctx);
+        return CCID_WRONG_DATA;
+    }
+    if (mbedtls_rsa_complete(ctx) != 0) {
+        mbedtls_rsa_free(ctx);
+        return CCID_WRONG_DATA;
+    }
+    if (mbedtls_rsa_check_privkey(ctx) != 0) {
+        mbedtls_rsa_free(ctx);
+        return CCID_WRONG_DATA;
+    }
     return CCID_OK;
 }
 
@@ -812,6 +852,19 @@ mbedtls_ecp_group_id get_ec_group_id_from_attr(const uint8_t *algo, size_t algo_
     return MBEDTLS_ECP_DP_NONE;
 }
 
+void make_rsa_response(mbedtls_rsa_context *rsa) {
+    memcpy(res_APDU, "\x7f\x49\x82\x00\x00", 5);
+    res_APDU_size = 5;
+    res_APDU[res_APDU_size++] = 0x81;
+    res_APDU[res_APDU_size++] = 0x82;
+    put_uint16_t(mbedtls_mpi_size(&rsa->N), res_APDU+res_APDU_size); res_APDU_size += 2;
+    mbedtls_mpi_write_binary(&rsa->N, res_APDU+res_APDU_size, mbedtls_mpi_size(&rsa->N)); res_APDU_size += mbedtls_mpi_size(&rsa->N);
+    res_APDU[res_APDU_size++] = 0x82;
+    res_APDU[res_APDU_size++] = mbedtls_mpi_size(&rsa->E) & 0xff;
+    mbedtls_mpi_write_binary(&rsa->E, res_APDU+res_APDU_size, mbedtls_mpi_size(&rsa->E)); res_APDU_size += mbedtls_mpi_size(&rsa->E);
+    put_uint16_t(res_APDU_size-5, res_APDU+3);
+}
+
 static int cmd_keypair_gen() {
     if (P2(apdu) != 0x0)
         return SW_INCORRECT_P1P2();
@@ -828,14 +881,17 @@ static int cmd_keypair_gen() {
         fid = EF_PK_AUT;
     else
         return SW_WRONG_DATA();
+    
+    file_t *algo_ef = search_by_fid(fid-0x0010, NULL, SPECIFY_EF);
+    if (!algo_ef)
+        return SW_FILE_NOT_FOUND();
+    const uint8_t *algo = algorithm_attr_rsa2k+1;
+    uint16_t algo_len = algorithm_attr_rsa2k[0];
+    if (algo_ef && algo_ef->data) {
+        algo_len = file_read_uint16(algo_ef->data);
+        algo = file_read(algo_ef->data+2);
+    }
     if (P1(apdu) == 0x80) { //generate
-        file_t *algo_ef = search_by_fid(fid-0x0010, NULL, SPECIFY_EF);
-        const uint8_t *algo = algorithm_attr_rsa2k+1;
-        uint16_t algo_len = algorithm_attr_rsa2k[0];
-        if (algo_ef && algo_ef->data) {
-            algo_len = file_read_uint16(algo_ef->data);
-            algo = file_read(algo_ef->data+2);
-        }
         if (algo[0] == ALGO_RSA) {
             int exponent = 65537, nlen = (algo[1] << 8) | algo[2];
             printf("KEYPAIR RSA %d\r\n",nlen);
@@ -852,17 +908,7 @@ static int cmd_keypair_gen() {
             }
             r = store_keys(&rsa, ALGO_RSA, fid);
             printf("r %d\r\n",r);
-            memcpy(res_APDU, "\x7f\x49\x82\x00\x00", 5);
-            uint8_t *lp = res_APDU+3;
-            res_APDU_size = 5;
-            res_APDU[res_APDU_size++] = 0x81;
-            res_APDU[res_APDU_size++] = 0x82;
-            put_uint16_t(mbedtls_mpi_size(&rsa.N), res_APDU+res_APDU_size); res_APDU_size += 2;
-            mbedtls_mpi_write_binary(&rsa.N, res_APDU+res_APDU_size, mbedtls_mpi_size(&rsa.N)); res_APDU_size += mbedtls_mpi_size(&rsa.N);
-            res_APDU[res_APDU_size++] = 0x82;
-            res_APDU[res_APDU_size++] = mbedtls_mpi_size(&rsa.E) & 0xff;
-            mbedtls_mpi_write_binary(&rsa.E, res_APDU+res_APDU_size, mbedtls_mpi_size(&rsa.E)); res_APDU_size += mbedtls_mpi_size(&rsa.E);   
-            put_uint16_t(res_APDU_size-5, res_APDU+3);
+            make_rsa_response(&rsa);
             mbedtls_rsa_free(&rsa);
             if (r != CCID_OK)
                 return SW_EXEC_ERROR();
@@ -889,10 +935,28 @@ static int cmd_keypair_gen() {
         }
         else
             return SW_FUNC_NOT_SUPPORTED();
+        file_t *pbef = search_by_fid(fid+3, NULL, SPECIFY_EF);
+        if (!pbef)
+            return SW_FILE_NOT_FOUND();
+        r = flash_write_data_to_file(pbef, res_APDU, res_APDU_size);
+        if (r != CCID_OK)
+            return SW_EXEC_ERROR();
+        low_flash_available();
         return SW_OK();
     }
     else if (P1(apdu) == 0x81) { //read
-        
+        if (algo[0] == ALGO_RSA) {
+            file_t *ef = search_by_fid(fid+3, NULL, SPECIFY_EF);
+            if (!ef || !ef->data)
+                return SW_FILE_NOT_FOUND();
+            res_APDU_size = file_read_uint16(ef->data);
+            memcpy(res_APDU, file_read(ef->data+2), res_APDU_size);
+        }
+        else if (algo[0] == ALGO_ECDH || algo[0] == ALGO_ECDSA) {
+        }
+        else
+            return SW_FUNC_NOT_SUPPORTED();
+        return SW_OK();
     }
     return SW_INCORRECT_P1P2();
 }
