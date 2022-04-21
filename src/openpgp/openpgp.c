@@ -654,6 +654,8 @@ static int cmd_verify() {
         return SW_WRONG_P1P2();
     uint8_t qualifier = p2&0x1f;
     uint16_t fid = 0x1000 | p2;
+    if (fid == EF_RC && apdu.cmd_apdu_data_len > 0)
+        fid = EF_PW1;
     file_t *pw, *retries;
     if (!(pw = search_by_fid(fid, NULL, SPECIFY_EF)))
         return SW_REFERENCE_NOT_FOUND();
@@ -1000,18 +1002,17 @@ static int cmd_pso_sig() {
         else if (md == MBEDTLS_MD_SHA512 && hash_len != 64)
             return SW_WRONG_DATA();
         const uint8_t *hash = apdu.cmd_apdu_data+19;
-        uint8_t *signature = (uint8_t *)calloc(key_size, sizeof(uint8_t));
+        uint8_t *signature = calloc( 1, ctx.len );
         r = mbedtls_rsa_pkcs1_sign(&ctx, random_gen, NULL, md, hash_len, hash, signature);
         printf("sign r %d\r\n",r);
         memcpy(res_APDU, signature, key_size);
         free(signature);
+        mbedtls_rsa_free(&ctx);
         if (r != 0) {
-            mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
         res_APDU_size = key_size;
-        apdu.expected_res_size = key_size;
-        mbedtls_rsa_free(&ctx);
+        //apdu.expected_res_size = key_size;
     }
     return SW_OK();
 }
