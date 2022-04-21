@@ -377,14 +377,6 @@ int parse_pw_status(const file_t *f, int mode) {
 #define ALGO_RSA   0x01
 #define ALGO_ECDH  0x12
 #define ALGO_ECDSA 0x13
-#define ALGO_EDDSA 0x16
-
-static const uint8_t algorithm_attr_ed448[] = {
-  4,
-  ALGO_EDDSA,
-  /* OID of Ed448 */
-  0x2b, 0x65, 0x71
-};
 
 static const uint8_t algorithm_attr_x448[] = {
   4,
@@ -412,20 +404,48 @@ static const uint8_t algorithm_attr_rsa4k[] = {
 static const uint8_t algorithm_attr_p256k1[] = {
   6,
   ALGO_ECDSA,
-  0x2b, 0x81, 0x04, 0x00, 0x0a /* OID of curve secp256k1 */
+  0x2b, 0x81, 0x04, 0x00, 0x0a 
 };
 
-static const uint8_t algorithm_attr_ed25519[] = {
+static const uint8_t algorithm_attr_p256r1[] = {
+  9,
+  ALGO_ECDSA,
+  0x2A,0x86,0x48,0xCE,0x3D,0x03,0x01,0x07
+};
+
+static const uint8_t algorithm_attr_p384r1[] = {
+  6,
+  ALGO_ECDSA,
+  0x2B,0x81,0x04,0x00,0x22
+};
+
+static const uint8_t algorithm_attr_p521r1[] = {
+  6,
+  ALGO_ECDSA,
+  0x2B,0x81,0x04,0x00,0x23
+};
+
+static const uint8_t algorithm_attr_bp256r1[] = {
   10,
-  ALGO_EDDSA,
-  /* OID of the curve Ed25519 */
-  0x2b, 0x06, 0x01, 0x04, 0x01, 0xda, 0x47, 0x0f, 0x01
+  ALGO_ECDSA,
+  0x2B,0x24,0x03,0x03,0x02,0x08,0x01,0x01,0x07
+};
+
+static const uint8_t algorithm_attr_bp384r1[] = {
+  10,
+  ALGO_ECDSA,
+  0x2B,0x24,0x03,0x03,0x02,0x08,0x01,0x01,0x0B
+};
+
+static const uint8_t algorithm_attr_bp512r1[] = {
+  10,
+  ALGO_ECDSA,
+  0x2B,0x24,0x03,0x03,0x02,0x08,0x01,0x01,0x0D
 };
 
 static const uint8_t algorithm_attr_cv25519[] = {
   11,
   ALGO_ECDH,
-  /* OID of the curve Curve25519 */
   0x2b, 0x06, 0x01, 0x04, 0x01, 0x97, 0x55, 0x01, 0x05, 0x01
 };
 
@@ -445,18 +465,34 @@ int parse_algoinfo(const file_t *f, int mode) {
         datalen += parse_algo(algorithm_attr_rsa2k, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_rsa4k, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_p256k1, EF_ALGO_SIG);
-        datalen += parse_algo(algorithm_attr_ed25519, EF_ALGO_SIG);
-        datalen += parse_algo(algorithm_attr_ed448, EF_ALGO_SIG);
+        datalen += parse_algo(algorithm_attr_p256r1, EF_ALGO_SIG);
+        datalen += parse_algo(algorithm_attr_p384r1, EF_ALGO_SIG);
+        datalen += parse_algo(algorithm_attr_p521r1, EF_ALGO_SIG);
+        datalen += parse_algo(algorithm_attr_bp256r1, EF_ALGO_SIG);
+        datalen += parse_algo(algorithm_attr_bp384r1, EF_ALGO_SIG);
+        datalen += parse_algo(algorithm_attr_bp512r1, EF_ALGO_SIG);
+        
         datalen += parse_algo(algorithm_attr_rsa2k, EF_ALGO_DEC);
         datalen += parse_algo(algorithm_attr_rsa4k, EF_ALGO_DEC);
         datalen += parse_algo(algorithm_attr_p256k1, EF_ALGO_DEC);
+        datalen += parse_algo(algorithm_attr_p256r1, EF_ALGO_DEC);
+        datalen += parse_algo(algorithm_attr_p384r1, EF_ALGO_DEC);
+        datalen += parse_algo(algorithm_attr_p521r1, EF_ALGO_DEC);
+        datalen += parse_algo(algorithm_attr_bp256r1, EF_ALGO_DEC);
+        datalen += parse_algo(algorithm_attr_bp384r1, EF_ALGO_DEC);
+        datalen += parse_algo(algorithm_attr_bp512r1, EF_ALGO_DEC);
         datalen += parse_algo(algorithm_attr_cv25519, EF_ALGO_DEC);
         datalen += parse_algo(algorithm_attr_x448, EF_ALGO_DEC);
+        
         datalen += parse_algo(algorithm_attr_rsa2k, EF_ALGO_AUT);
         datalen += parse_algo(algorithm_attr_rsa4k, EF_ALGO_AUT);
         datalen += parse_algo(algorithm_attr_p256k1, EF_ALGO_AUT);
-        datalen += parse_algo(algorithm_attr_ed25519, EF_ALGO_AUT);
-        datalen += parse_algo(algorithm_attr_ed448, EF_ALGO_AUT);
+        datalen += parse_algo(algorithm_attr_p256r1, EF_ALGO_AUT);
+        datalen += parse_algo(algorithm_attr_p384r1, EF_ALGO_AUT);
+        datalen += parse_algo(algorithm_attr_p521r1, EF_ALGO_AUT);
+        datalen += parse_algo(algorithm_attr_bp256r1, EF_ALGO_SIG);
+        datalen += parse_algo(algorithm_attr_bp384r1, EF_ALGO_SIG);
+        datalen += parse_algo(algorithm_attr_bp512r1, EF_ALGO_SIG);
         *lp = res_APDU+res_APDU_size-lp-1;
         datalen = *lp;
     }
@@ -700,6 +736,16 @@ static int cmd_reset_retry() {
     return SW_INCORRECT_P1P2();
 }
 
+static int cmd_keypair_gen() {
+    if (P1(apdu) == 0x80) { //generate
+        
+    }
+    else if (P1(apdu) == 0x81) { //read
+        
+    }
+    return SW_INCORRECT_P1P2();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -709,6 +755,7 @@ typedef struct cmd
 #define INS_VERIFY          0x20
 #define INS_CHANGE_PIN      0x24
 #define INS_RESET_RETRY     0x2C
+#define INS_KEYPAIR_GEN     0x47
 #define INS_SELECT          0xA4
 #define INS_GET_DATA        0xCA
 #define INS_PUT_DATA        0xDA
@@ -720,6 +767,7 @@ static const cmd_t cmds[] = {
     { INS_PUT_DATA, cmd_put_data },
     { INS_CHANGE_PIN, cmd_change_pin },
     { INS_RESET_RETRY, cmd_reset_retry },
+    { INS_KEYPAIR_GEN, cmd_keypair_gen },
     { 0x00, 0x0}
 };
 
