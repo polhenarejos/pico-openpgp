@@ -30,6 +30,12 @@
 #define EF_ALGO_PRIV1   0x10c1
 #define EF_ALGO_PRIV2   0x10c2
 #define EF_ALGO_PRIV3   0x10c3
+#define EF_PK_SIG       0x10d1
+#define EF_PK_DEC       0x10d2
+#define EF_PK_AUT       0x10d3
+#define EF_PB_SIG       0x10d4
+#define EF_PB_DEC       0x10d5
+#define EF_PB_AUT       0x10d6
 
 #define EF_EXT_HEADER   0x004d //C
 #define EF_FULL_AID     0x004f //S
