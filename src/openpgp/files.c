@@ -48,7 +48,7 @@ uint8_t historical_bytes[] = {
   0x80, 0x01, 0xC0,		/* Full DF name */
 				/* 1-byte */
 				/* Command chaining, No extended Lc and Le */
-  0x00,
+  0x05,
   0x90, 0x00			/* Status info */
 };
 

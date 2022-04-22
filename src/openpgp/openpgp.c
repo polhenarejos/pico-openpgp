@@ -129,7 +129,8 @@ static int cmd_select() {
         }
     }
     if ((p2 & 0xfc) == 0x00 || (p2 & 0xfc) == 0x04) {
-        process_fci(pe);
+        if ((p2 & 0xfc) == 0x04)
+            process_fci(pe);
     }
     else
         return SW_INCORRECT_P1P2();
@@ -625,7 +626,7 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     if (sizeof(dhash) != file_read_uint16(pin->data)-1) //1 byte for pin len
         return SW_CONDITIONS_NOT_SATISFIED();
     if (memcmp(file_read(pin->data+3), dhash, sizeof(dhash)) != 0) {
-        uint8_t retries;
+        int retries;
         if ((retries = pin_wrong_retry(pin)) < CCID_OK)
             return SW_PIN_BLOCKED();
         return set_res_sw(0x63, 0xc0 | retries);
@@ -885,9 +886,10 @@ void make_ecdsa_response(mbedtls_ecdsa_context *ecdsa) {
     memcpy(res_APDU, "\x7f\x49\x81\x00", 4);
     res_APDU_size = 4;
     res_APDU[res_APDU_size++] = 0x86;
-    size_t olen = 0;
-    mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, res_APDU+res_APDU_size, 4096);
-    res_APDU_size += olen;
+    size_t plen = mbedtls_mpi_size(&ecdsa->grp.P);
+    res_APDU[res_APDU_size++] = 0x04;
+    mbedtls_mpi_write_binary(&ecdsa->Q.X, res_APDU+res_APDU_size, plen); res_APDU_size += plen;
+    mbedtls_mpi_write_binary(&ecdsa->Q.Y, res_APDU+res_APDU_size, plen); res_APDU_size += plen;
     res_APDU[3] = res_APDU_size-4;
 }
 
@@ -1063,6 +1065,20 @@ static int cmd_pso_sig() {
     return SW_OK();
 }
 
+static int cmd_terminate_df() {
+    if (P1(apdu) != 0x0 && P2(apdu) != 0x0)
+        return SW_INCORRECT_P1P2();
+    if (apdu.cmd_apdu_data_len != 0)
+        return SW_WRONG_LENGTH();
+    initialize_flash(true);
+    scan_files();
+    return SW_OK();
+}
+
+static int cmd_activate_file() {
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -1073,10 +1089,12 @@ typedef struct cmd
 #define INS_CHANGE_PIN      0x24
 #define INS_PSO_SIG         0x2A
 #define INS_RESET_RETRY     0x2C
+#define INS_ACTIVATE_FILE   0x44
 #define INS_KEYPAIR_GEN     0x47
 #define INS_SELECT          0xA4
 #define INS_GET_DATA        0xCA
 #define INS_PUT_DATA        0xDA
+#define INS_TERMINATE_DF    0xE6
 
 static const cmd_t cmds[] = {
     { INS_GET_DATA, cmd_get_data },
@@ -1087,6 +1105,8 @@ static const cmd_t cmds[] = {
     { INS_RESET_RETRY, cmd_reset_retry },
     { INS_KEYPAIR_GEN, cmd_keypair_gen },
     { INS_PSO_SIG, cmd_pso_sig },
+    { INS_TERMINATE_DF, cmd_terminate_df },
+    { INS_ACTIVATE_FILE, cmd_activate_file },
     { 0x00, 0x0}
 };
 
