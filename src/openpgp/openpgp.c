@@ -1091,6 +1091,15 @@ static int cmd_activate_file() {
     return SW_OK();
 }
 
+static int cmd_challenge() {
+    uint8_t *rb = (uint8_t *)random_bytes_get(apdu.expected_res_size);
+    if (!rb)
+        return SW_WRONG_LENGTH();
+    memcpy(res_APDU, rb, apdu.expected_res_size);
+    res_APDU_size = apdu.expected_res_size;
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -1102,6 +1111,7 @@ typedef struct cmd
 #define INS_PSO_SIG         0x2A
 #define INS_RESET_RETRY     0x2C
 #define INS_ACTIVATE_FILE   0x44
+#define INS_CHALLENGE       0x84
 #define INS_KEYPAIR_GEN     0x47
 #define INS_SELECT          0xA4
 #define INS_GET_DATA        0xCA
@@ -1119,6 +1129,7 @@ static const cmd_t cmds[] = {
     { INS_PSO_SIG, cmd_pso_sig },
     { INS_TERMINATE_DF, cmd_terminate_df },
     { INS_ACTIVATE_FILE, cmd_activate_file },
+    { INS_CHALLENGE, cmd_challenge },
     { 0x00, 0x0}
 };
 
