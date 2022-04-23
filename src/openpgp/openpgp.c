@@ -344,14 +344,26 @@ int parse_keyinfo(const file_t *f, int mode) {
         res_APDU[res_APDU_size++] = EF_KEY_INFO & 0xff;
         res_APDU[res_APDU_size++] = 6;
     }
+    file_t *ef = search_by_fid(EF_PK_SIG, NULL, SPECIFY_ANY);
     res_APDU[res_APDU_size++] = 0x00;
-    res_APDU[res_APDU_size++] = 0x00;
+    if (ef && ef->data)
+        res_APDU[res_APDU_size++] = 0x01;
+    else
+        res_APDU[res_APDU_size++] = 0x00;
     
+    ef = search_by_fid(EF_PK_DEC, NULL, SPECIFY_ANY);
     res_APDU[res_APDU_size++] = 0x01;
-    res_APDU[res_APDU_size++] = 0x00;
+    if (ef && ef->data)
+        res_APDU[res_APDU_size++] = 0x01;
+    else
+        res_APDU[res_APDU_size++] = 0x00;
     
+    ef = search_by_fid(EF_PK_AUT, NULL, SPECIFY_ANY);
     res_APDU[res_APDU_size++] = 0x02;
-    res_APDU[res_APDU_size++] = 0x00;
+    if (ef && ef->data)
+        res_APDU[res_APDU_size++] = 0x01;
+    else
+        res_APDU[res_APDU_size++] = 0x00;
     return res_APDU_size-init_len;
 }
 
