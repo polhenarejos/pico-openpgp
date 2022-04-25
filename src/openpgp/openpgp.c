@@ -1210,13 +1210,12 @@ static int cmd_pso() {
                 return SW_DATA_INVALID();
             }
             size_t olen = 0;
-            res_APDU[0] = 0x04;
-            r = mbedtls_ecdh_calc_secret(&ctx, &olen, res_APDU+1, MBEDTLS_ECP_MAX_BYTES, random_gen, NULL);
+            r = mbedtls_ecdh_calc_secret(&ctx, &olen, res_APDU, MBEDTLS_ECP_MAX_BYTES, random_gen, NULL);
             if (r != 0) {
                 mbedtls_ecdh_free(&ctx);
                 return SW_EXEC_ERROR();
             }
-            res_APDU_size = olen+1;
+            res_APDU_size = olen;
             mbedtls_ecdh_free(&ctx);
         }
     }
