@@ -27,6 +27,7 @@
 #include "mbedtls/ecdh.h"
 
 bool has_pw1 = false;
+bool has_pw2 = false;
 bool has_pw3 = false;
 uint8_t session_pw3[32];
 
@@ -523,7 +524,9 @@ int parse_algoinfo(const file_t *f, int mode) {
         res_APDU[res_APDU_size++] = EF_ALGO_INFO & 0xff;
         uint8_t *lp = res_APDU+res_APDU_size;
         res_APDU_size++;
+        datalen += parse_algo(algorithm_attr_rsa1k, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_rsa2k, EF_ALGO_SIG);
+        datalen += parse_algo(algorithm_attr_rsa3k, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_rsa4k, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_p256k1, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_p256r1, EF_ALGO_SIG);
@@ -533,7 +536,9 @@ int parse_algoinfo(const file_t *f, int mode) {
         datalen += parse_algo(algorithm_attr_bp384r1, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_bp512r1, EF_ALGO_SIG);
         
+        datalen += parse_algo(algorithm_attr_rsa1k, EF_ALGO_DEC);
         datalen += parse_algo(algorithm_attr_rsa2k, EF_ALGO_DEC);
+        datalen += parse_algo(algorithm_attr_rsa3k, EF_ALGO_DEC);
         datalen += parse_algo(algorithm_attr_rsa4k, EF_ALGO_DEC);
         datalen += parse_algo(algorithm_attr_p256k1, EF_ALGO_DEC);
         datalen += parse_algo(algorithm_attr_p256r1, EF_ALGO_DEC);
@@ -545,7 +550,9 @@ int parse_algoinfo(const file_t *f, int mode) {
         datalen += parse_algo(algorithm_attr_cv25519, EF_ALGO_DEC);
         datalen += parse_algo(algorithm_attr_x448, EF_ALGO_DEC);
         
+        datalen += parse_algo(algorithm_attr_rsa1k, EF_ALGO_AUT);
         datalen += parse_algo(algorithm_attr_rsa2k, EF_ALGO_AUT);
+        datalen += parse_algo(algorithm_attr_rsa3k, EF_ALGO_AUT);
         datalen += parse_algo(algorithm_attr_rsa4k, EF_ALGO_AUT);
         datalen += parse_algo(algorithm_attr_p256k1, EF_ALGO_AUT);
         datalen += parse_algo(algorithm_attr_p256r1, EF_ALGO_AUT);
@@ -689,8 +696,12 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     if (r != CCID_OK)
         return SW_MEMORY_FAILURE();
     isUserAuthenticated = true;
-    if (pin->fid == EF_PW1)
-        has_pw1 = true;
+    if (pin->fid == EF_PW1) {
+        if (P1(apdu) == 0x0)
+            has_pw1 = true;
+        else
+            has_pw2 = true;
+    }
     else if (pin->fid == EF_PW3) {
         has_pw3 = true;
         hash_multi(data, len, session_pw3);
@@ -702,7 +713,18 @@ static int cmd_verify() {
     uint8_t p1 = P1(apdu);
     uint8_t p2 = P2(apdu);
     
-    if (p1 != 0x0 || (p2 & 0x60) != 0x0)
+    if (p1 == 0xFF) {
+        if (apdu.cmd_apdu_data_len != 0)
+            return SW_WRONG_DATA();
+        if (p2 == 0x81)
+            has_pw1 = false;
+        else if (p2 == 0x82)
+            has_pw2 = false;
+        else if (p2 == 0x83)
+            has_pw3 = false;
+        return SW_OK();
+    }
+    else if (p1 != 0x0 || (p2 & 0x60) != 0x0)
         return SW_WRONG_P1P2();
     uint8_t qualifier = p2&0x1f;
     uint16_t fid = 0x1000 | p2;
