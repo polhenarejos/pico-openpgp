@@ -82,6 +82,7 @@ target_sources(pico_openpgp PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/des.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/nist_kw.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/hkdf.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/asn1parse.c
         )
 
 target_include_directories(pico_openpgp PUBLIC
