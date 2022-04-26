@@ -1208,25 +1208,15 @@ static int cmd_pso() {
         else if (P1(apdu) == 0x80 && P2(apdu) == 0x86) {
             mbedtls_ecdh_context ctx;
             uint8_t kdata[67];
-            uint8_t *data = apdu.cmd_apdu_data;
-            if (*data++ != 0xA6)
+            uint8_t *data = apdu.cmd_apdu_data, *end = data+apdu.cmd_apdu_data_len;
+            size_t len = 0;
+            if (mbedtls_asn1_get_tag(&data, end, &len, 0xA6) != 0)
                 return SW_WRONG_DATA();
-            if (*data == 0x82) data += 3;
-            else if (*data == 0x81) data += 2;
-            else data++;
-            if (*data != 0x7f || *(data+1) != 0x49)
+            if (*data++ != 0x7f)
                 return SW_WRONG_DATA();
-            data += 2;
-            if (*data == 0x82) data += 3;
-            else if (*data == 0x81) data += 2;
-            else data++;
-            if (*data++ != 0x86)
+            if (mbedtls_asn1_get_tag(&data, end, &len, 0x49) != 0 || mbedtls_asn1_get_tag(&data, end, &len, 0x86) != 0)
                 return SW_WRONG_DATA();
-            uint16_t dlen = 0;
-            if (*data == 0x82) { dlen = (*(data+1) << 8) | *(data+2); data += 3; }
-            else if (*data == 0x81) { dlen = *(data+1); data += 2; }
-            else { dlen = *data++; }
-            if (dlen != 2*key_size-1)
+            if (len != 2*key_size-1)
                 return SW_WRONG_LENGTH();             
             memcpy(kdata, file_read(ef->data+2), key_size);
             mbedtls_ecdh_init(&ctx);
@@ -1241,7 +1231,7 @@ static int cmd_pso() {
                 mbedtls_ecdh_free(&ctx);
                 return SW_DATA_INVALID();
             }
-            r = mbedtls_ecdh_read_public(&ctx, data-1, dlen+1);
+            r = mbedtls_ecdh_read_public(&ctx, data-1, len+1);
             if (r != 0) {
                 mbedtls_ecdh_free(&ctx);
                 return SW_DATA_INVALID();
