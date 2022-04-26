@@ -298,15 +298,25 @@ int parse_ch_data(const file_t *f, int mode) {
 }
 
 int inc_sig_count() {
-    uint32_t counter = 0;
-    uint8_t *p = NULL;
     file_t *ef = search_by_fid(EF_SIG_COUNT, NULL, SPECIFY_ANY);
     if (!ef || !ef->data)
         return CCID_ERR_FILE_NOT_FOUND;
-    p = file_read(ef->data+2);
-    counter = (p[0] << 16) | (p[1] << 8) | p[2];
+    uint8_t *p = file_read(ef->data+2);
+    uint32_t counter = (p[0] << 16) | (p[1] << 8) | p[2];
     counter++;
     uint8_t q[3] = { (counter>>16) & 0xff, (counter>>8) & 0xff, counter&0xff };
+    int r = flash_write_data_to_file(ef, q, sizeof(q));
+    if (r != CCID_OK)
+        return CCID_EXEC_ERROR;
+    low_flash_available();
+    return CCID_OK;
+}
+
+int reset_sig_count() {
+    file_t *ef = search_by_fid(EF_SIG_COUNT, NULL, SPECIFY_ANY);
+    if (!ef || !ef->data)
+        return CCID_ERR_FILE_NOT_FOUND;
+    uint8_t q[3] = { 0 };
     int r = flash_write_data_to_file(ef, q, sizeof(q));
     if (r != CCID_OK)
         return CCID_EXEC_ERROR;
@@ -1055,6 +1065,8 @@ static int cmd_keypair_gen() {
         r = flash_write_data_to_file(pbef, res_APDU, res_APDU_size);
         if (r != CCID_OK)
             return SW_EXEC_ERROR();
+        if (fid == EF_PK_SIG)
+            reset_sig_count();
         low_flash_available();
         return SW_OK();
     }
