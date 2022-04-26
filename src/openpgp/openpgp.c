@@ -687,7 +687,7 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
         return SW_REFERENCE_NOT_FOUND();
     }
     isUserAuthenticated = false;
-    has_pw1 = has_pw3 = false;
+    //has_pw1 = has_pw3 = false;
 
     uint8_t dhash[32];
     double_hash_pin(data, len, dhash);
@@ -707,7 +707,7 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
         return SW_MEMORY_FAILURE();
     isUserAuthenticated = true;
     if (pin->fid == EF_PW1) {
-        if (P1(apdu) == 0x0)
+        if (P2(apdu) == 0x81)
             has_pw1 = true;
         else
             has_pw2 = true;
