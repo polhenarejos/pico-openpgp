@@ -759,6 +759,10 @@ static int cmd_put_data() {
     if (!authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
+    if (fid == EF_PW_STATUS) {
+        fid = EF_PW_PRIV;
+        apdu.cmd_apdu_data_len = 4; //we silently ommit the reset parameters
+    }
     if (apdu.cmd_apdu_data_len > 0 && (ef->type & FILE_DATA_FLASH)) {
         int r = flash_write_data_to_file(ef, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
         if (r != CCID_OK)
