@@ -297,6 +297,23 @@ int parse_ch_data(const file_t *f, int mode) {
     return lpdif+4;
 }
 
+int inc_sig_count() {
+    uint32_t counter = 0;
+    uint8_t *p = NULL;
+    file_t *ef = search_by_fid(EF_SIG_COUNT, NULL, SPECIFY_ANY);
+    if (!ef || !ef->data)
+        return CCID_ERR_FILE_NOT_FOUND;
+    p = file_read(ef->data);
+    counter = (p[0] << 16) | (p[1] << 8) | p[2];
+    counter++;
+    uint8_t q[3] = { (counter>>16) & 0xff, (counter>>8) & 0xff, counter&0xff };
+    int r = flash_write_data_to_file(ef, q, sizeof(q));
+    if (r != CCID_OK)
+        return CCID_EXEC_ERROR;
+    low_flash_available();
+    return CCID_OK;
+}
+
 int parse_sec_tpl(const file_t *f, int mode) {
     res_APDU[res_APDU_size++] = EF_SEC_TPL & 0xff;
     res_APDU[res_APDU_size++] = 5;
@@ -1102,6 +1119,7 @@ int rsa_sign(mbedtls_rsa_context *ctx, const uint8_t *data, size_t data_len, uin
         free(signature);
     }
     *out_len = key_size;
+    inc_sig_count();
     return r;
 }
 
@@ -1129,6 +1147,7 @@ int ecdsa_sign(mbedtls_ecdsa_context *ctx, const uint8_t *data, size_t data_len,
     }
     mbedtls_mpi_free(&ri);
     mbedtls_mpi_free(&si);
+    inc_sig_count();
     return r;
 }
 
