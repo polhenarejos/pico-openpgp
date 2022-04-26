@@ -148,12 +148,6 @@ void scan_files() {
             dhash[0] = sizeof(def);
             double_hash_pin(def, sizeof(def), dhash+1);
             flash_write_data_to_file(ef, dhash, sizeof(dhash));
-            
-            ef = search_by_fid(EF_PW1_RETRIES, NULL, SPECIFY_ANY);
-            if (ef && !ef->data) {
-                const uint8_t retries = 3;
-                flash_write_data_to_file(ef, &retries, sizeof(retries));
-            }
         }
     }
     if ((ef = search_by_fid(EF_RC, NULL, SPECIFY_ANY))) {
@@ -165,12 +159,6 @@ void scan_files() {
             dhash[0] = sizeof(def);
             double_hash_pin(def, sizeof(def), dhash+1);
             flash_write_data_to_file(ef, dhash, sizeof(dhash));
-            
-            ef = search_by_fid(EF_RC_RETRIES, NULL, SPECIFY_ANY);
-            if (ef && !ef->data) {
-                const uint8_t retries = 3;
-                flash_write_data_to_file(ef, &retries, sizeof(retries));
-            }
         }
     }
     if ((ef = search_by_fid(EF_PW3, NULL, SPECIFY_ANY))) {
@@ -182,18 +170,19 @@ void scan_files() {
             dhash[0] = sizeof(def);
             double_hash_pin(def, sizeof(def), dhash+1);
             flash_write_data_to_file(ef, dhash, sizeof(dhash));
-            
-            ef = search_by_fid(EF_PW3_RETRIES, NULL, SPECIFY_ANY);
-            if (ef && !ef->data) {
-                const uint8_t retries = 3;
-                flash_write_data_to_file(ef, &retries, sizeof(retries));
-            }
         }
     }
     if ((ef = search_by_fid(EF_SIG_COUNT, NULL, SPECIFY_ANY))) {
         if (!ef->data) {
             TU_LOG1("SigCount is empty. Initializing to zero\r\n");
             const uint8_t def[3] = { 0 };
+            flash_write_data_to_file(ef, def, sizeof(def));
+        }
+    }
+    if ((ef = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_ANY))) {
+        if (!ef->data) {
+            TU_LOG1("PW status is empty. Initializing to default\r\n");
+            const uint8_t def[] = { 0x1, 127, 127, 127, 3, 3, 3 };
             flash_write_data_to_file(ef, def, sizeof(def));
         }
     }
@@ -395,21 +384,10 @@ int parse_pw_status(const file_t *f, int mode) {
         res_APDU[res_APDU_size++] = EF_PW_STATUS & 0xff;
         res_APDU[res_APDU_size++] = 7;
     }
-    res_APDU[res_APDU_size++] = 0x1;
-    res_APDU[res_APDU_size++] = 127;
-    res_APDU[res_APDU_size++] = 127;
-    res_APDU[res_APDU_size++] = 127;
-    ef = search_by_fid(EF_PW1_RETRIES, NULL, SPECIFY_ANY);
+    ef = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_ANY);
     if (ef && ef->data) {
-        res_APDU[res_APDU_size++] = file_read_uint8(ef->data+2);
-    }
-    ef = search_by_fid(EF_RC_RETRIES, NULL, SPECIFY_ANY);
-    if (ef && ef->data) {
-        res_APDU[res_APDU_size++] = file_read_uint8(ef->data+2);
-    }
-    ef = search_by_fid(EF_PW3_RETRIES, NULL, SPECIFY_ANY);
-    if (ef && ef->data) {
-        res_APDU[res_APDU_size++] = file_read_uint8(ef->data+2);
+        memcpy(res_APDU+res_APDU_size, file_read(ef->data+2), 7);
+        res_APDU_size += 7;
     }
     return res_APDU_size-init_len;
 }
@@ -658,14 +636,16 @@ static int cmd_get_data() {
 int pin_reset_retries(const file_t *pin, bool force) {
     if (!pin)
         return CCID_ERR_NULL_PARAM; 
-    const file_t *act = search_by_fid(pin->fid+3, NULL, SPECIFY_EF);
-    if (!act)
+    file_t *pw_status = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF);
+    if (!pw_status)
         return CCID_ERR_FILE_NOT_FOUND;
-    uint8_t retries = file_read_uint8(act->data+2);
+    uint8_t p[7];
+    memcpy(p, file_read(pw_status->data+2), 7);
+    uint8_t retries = p[3+(pin->fid&0x3)];
     if (retries == 0 && force == false) //blocked
         return CCID_ERR_BLOCKED;
-    retries = 3;
-    int r = flash_write_data_to_file((file_t *)act, &retries, sizeof(retries));
+    p[3+(pin->fid&0x3)] = 3;
+    int r = flash_write_data_to_file(pw_status, p, file_read_uint16(pw_status->data));
     low_flash_available();
     return r;
 }
@@ -673,19 +653,20 @@ int pin_reset_retries(const file_t *pin, bool force) {
 int pin_wrong_retry(const file_t *pin) {
     if (!pin)
         return CCID_ERR_NULL_PARAM; 
-    const file_t *act = search_by_fid(pin->fid+3, NULL, SPECIFY_EF);
-    if (!act)
+    file_t *pw_status = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF);
+    if (!pw_status)
         return CCID_ERR_FILE_NOT_FOUND;
-    uint8_t retries = file_read_uint8(act->data+2);
-    if (retries > 0) {
-        retries -= 1;
-        int r = flash_write_data_to_file((file_t *)act, &retries, sizeof(retries));
+    uint8_t p[7];
+    memcpy(p, file_read(pw_status->data+2), 7);
+    if (p[3+(pin->fid&0x3)] > 0) {
+        p[3+(pin->fid&0x3)] -= 1;
+        int r = flash_write_data_to_file(pw_status, p, file_read_uint16(pw_status->data));
         if (r != CCID_OK)
             return r;
         low_flash_available();
-        if (retries == 0)
+        if (p[3+(pin->fid&0x3)] == 0)
             return CCID_ERR_BLOCKED;
-        return retries;
+        return p[3+(pin->fid&0x3)];
     }
     return CCID_ERR_BLOCKED;
 }
@@ -750,19 +731,20 @@ static int cmd_verify() {
     uint16_t fid = 0x1000 | p2;
     if (fid == EF_RC && apdu.cmd_apdu_data_len > 0)
         fid = EF_PW1;
-    file_t *pw, *retries;
+    file_t *pw, *pw_status;
     if (!(pw = search_by_fid(fid, NULL, SPECIFY_EF)))
         return SW_REFERENCE_NOT_FOUND();
-    if (!(retries = search_by_fid(fid+3, NULL, SPECIFY_EF)))
+    if (!(pw_status = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF)))
         return SW_REFERENCE_NOT_FOUND();
     if (file_read_uint8(pw->data+2) == 0) //not initialized
         return SW_REFERENCE_NOT_FOUND();
     if (apdu.cmd_apdu_data_len > 0) {
         return check_pin(pw, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
     }
-    if (file_read_uint8(retries->data+2) == 0)
+    uint8_t retries = file_read_uint8(pw_status->data+2+3+(fid&0x3));
+    if (retries == 0)
         return SW_PIN_BLOCKED();
-    return set_res_sw(0x63, 0xc0 | file_read_uint8(retries->data+2));
+    return set_res_sw(0x63, 0xc0 | retries);
 }
 
 static int cmd_put_data() {
@@ -1282,9 +1264,9 @@ static int cmd_terminate_df() {
     if (P1(apdu) != 0x0 && P2(apdu) != 0x0)
         return SW_INCORRECT_P1P2();
     file_t *retries;
-    if (!(retries = search_by_fid(EF_PW3_RETRIES, NULL, SPECIFY_EF)))
+    if (!(retries = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF)))
         return SW_REFERENCE_NOT_FOUND();
-    if (!has_pw3 && file_read_uint8(retries->data+2) > 0)
+    if (!has_pw3 && file_read_uint8(retries->data+2+6) > 0)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     if (apdu.cmd_apdu_data_len != 0)
         return SW_WRONG_LENGTH();

@@ -24,12 +24,10 @@
 #define EF_PW1          0x1081
 #define EF_RC           0x1082
 #define EF_PW3          0x1083
-#define EF_PW1_RETRIES  0x1084
-#define EF_RC_RETRIES   0x1085
-#define EF_PW3_RETRIES  0x1086
 #define EF_ALGO_PRIV1   0x10c1
 #define EF_ALGO_PRIV2   0x10c2
 #define EF_ALGO_PRIV3   0x10c3
+#define EF_PW_PRIV      0x10c4
 #define EF_PK_SIG       0x10d1
 #define EF_PK_DEC       0x10d2
 #define EF_PK_AUT       0x10d3
