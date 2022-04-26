@@ -749,6 +749,8 @@ static int cmd_verify() {
     uint8_t retries = file_read_uint8(pw_status->data+2+3+(fid&0x3));
     if (retries == 0)
         return SW_PIN_BLOCKED();
+    if ((p2 == 0x81 && has_pw1) || (p2 == 0x82 && has_pw2) || (p2 == 0x83 && has_pw3))
+        return SW_OK();
     return set_res_sw(0x63, 0xc0 | retries);
 }
 
