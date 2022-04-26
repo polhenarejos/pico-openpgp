@@ -303,7 +303,7 @@ int inc_sig_count() {
     file_t *ef = search_by_fid(EF_SIG_COUNT, NULL, SPECIFY_ANY);
     if (!ef || !ef->data)
         return CCID_ERR_FILE_NOT_FOUND;
-    p = file_read(ef->data);
+    p = file_read(ef->data+2);
     counter = (p[0] << 16) | (p[1] << 8) | p[2];
     counter++;
     uint8_t q[3] = { (counter>>16) & 0xff, (counter>>8) & 0xff, counter&0xff };
