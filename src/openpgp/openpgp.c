@@ -1342,12 +1342,22 @@ static int cmd_internal_aut() {
             return SW_CONDITIONS_NOT_SATISFIED();
         size_t olen = 0;
         uint8_t buf[MBEDTLS_ECDSA_MAX_LEN];
-        if (mbedtls_ecdsa_write_signature(&ctx, md, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, buf, MBEDTLS_ECDSA_MAX_LEN, &olen, random_gen, NULL) != 0) {
+        mbedtls_mpi ri, si;
+        mbedtls_mpi_init(&ri);
+        mbedtls_mpi_init(&si);
+        r = mbedtls_ecdsa_sign(&ctx.grp, &ri, &si, &ctx.d, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, random_gen, NULL);
+        if (r != 0) {
+            mbedtls_mpi_free(&ri);
+            mbedtls_mpi_free(&si);
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        memcpy(res_APDU, buf, olen);
-        res_APDU_size = olen;
+        mbedtls_mpi_write_binary(&ri, res_APDU, mbedtls_mpi_size(&ri)); 
+        res_APDU_size = mbedtls_mpi_size(&ri);
+        mbedtls_mpi_write_binary(&si, res_APDU+res_APDU_size, mbedtls_mpi_size(&si)); 
+        res_APDU_size += mbedtls_mpi_size(&si);
+        mbedtls_mpi_free(&ri);
+        mbedtls_mpi_free(&si);
         mbedtls_ecdsa_free(&ctx);
     }
     return SW_OK();
