@@ -74,18 +74,10 @@ static int cmd_select() {
     uint8_t p2 = P2(apdu);
     file_t *pe = NULL;
     uint16_t fid = 0x0;
-    
-    // Only "first or only occurence" supported 
-    //if ((p2 & 0xF3) != 0x00) {
-    //    return SW_INCORRECT_P1P2();
-    //}
-    
+
     if (apdu.cmd_apdu_data_len >= 2)
         fid = get_uint16_t(apdu.cmd_apdu_data, 0);
-        
-    //if ((fid & 0xff00) == (KEY_PREFIX << 8))
-    //    fid = (PRKD_PREFIX << 8) | (fid & 0xff);
-    
+
     if (!pe) {
         if (p1 == 0x0) { //Select MF, DF or EF - File identifier or absent
             if (apdu.cmd_apdu_data_len == 0) {
@@ -974,6 +966,8 @@ static int cmd_keypair_gen() {
         return SW_INCORRECT_P1P2();
     if (apdu.cmd_apdu_data_len != 2 && apdu.cmd_apdu_data_len != 5)
         return SW_WRONG_LENGTH();
+    if (!has_pw3 && P1(apdu) == 0x80)
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
     
     uint16_t fid = 0x0;
     int r = CCID_OK;
@@ -1141,10 +1135,14 @@ int ecdsa_sign(mbedtls_ecdsa_context *ctx, const uint8_t *data, size_t data_len,
 static int cmd_pso() {
     uint16_t algo_fid = 0x0, pk_fid = 0x0;
     if (P1(apdu) == 0x9E && P2(apdu) == 0x9A) {
+        if (!has_pw3 && !has_pw1)
+            return SW_SECURITY_STATUS_NOT_SATISFIED();
         algo_fid = EF_ALGO_PRIV1;
         pk_fid = EF_PK_SIG;
     }
     else if (P1(apdu) == 0x80 && P2(apdu) == 0x86) {
+        if (!has_pw3 && !has_pw2)
+            return SW_SECURITY_STATUS_NOT_SATISFIED();
         algo_fid = EF_ALGO_PRIV2;
         pk_fid = EF_PK_DEC;
     }
@@ -1252,6 +1250,11 @@ static int cmd_pso() {
 static int cmd_terminate_df() {
     if (P1(apdu) != 0x0 && P2(apdu) != 0x0)
         return SW_INCORRECT_P1P2();
+    file_t *retries;
+    if (!(retries = search_by_fid(EF_PW3_RETRIES, NULL, SPECIFY_EF)))
+        return SW_REFERENCE_NOT_FOUND();
+    if (!has_pw3 && file_read_uint8(retries->data+2) > 0)
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
     if (apdu.cmd_apdu_data_len != 0)
         return SW_WRONG_LENGTH();
     initialize_flash(true);
@@ -1275,6 +1278,8 @@ static int cmd_challenge() {
 static int cmd_internal_aut() {
     if (P1(apdu) != 0x00 || P2(apdu) != 0x00)
         return SW_WRONG_P1P2();
+    if (!has_pw3 && !has_pw2)
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
     file_t *algo_ef = search_by_fid(EF_ALGO_PRIV3, NULL, SPECIFY_EF);
     if (!algo_ef)
         return SW_FILE_NOT_FOUND();
