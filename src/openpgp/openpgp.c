@@ -287,6 +287,11 @@ int parse_ch_data(const file_t *f, int mode) {
 }
 
 int inc_sig_count() {
+    file_t *pw_status;
+    if (!(pw_status = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF)) || !pw_status->data)
+        return SW_REFERENCE_NOT_FOUND();
+    if (file_read_uint8(pw_status->data+2) == 1)
+        has_pw1 = false;
     file_t *ef = search_by_fid(EF_SIG_COUNT, NULL, SPECIFY_ANY);
     if (!ef || !ef->data)
         return CCID_ERR_FILE_NOT_FOUND;
