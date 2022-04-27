@@ -30,7 +30,9 @@
 bool has_pw1 = false;
 bool has_pw2 = false;
 bool has_pw3 = false;
+uint8_t session_pw1[32];
 uint8_t session_pw3[32];
+static uint8_t dek[IV_SIZE+32];
 
 uint8_t openpgp_aid[] = {
     6, 
@@ -186,7 +188,70 @@ void scan_files() {
             flash_write_data_to_file(ef, def, sizeof(def));
         }
     }
+    if ((ef = search_by_fid(EF_DEK, NULL, SPECIFY_ANY))) {
+        if (!ef->data) {
+            TU_LOG1("DEK is empty\r\n");
+            const uint8_t def1[6] = { 0x31,0x32,0x33,0x34,0x35,0x36 };
+            const uint8_t def3[8] = { 0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38 };
+            
+            uint8_t def[IV_SIZE+32+32];
+            const uint8_t *dek = random_bytes_get(IV_SIZE+32);
+            memcpy(def, dek, IV_SIZE+32);
+            memcpy(def+IV_SIZE+32, dek+IV_SIZE, 32);
+            hash_multi(def1, sizeof(def1), session_pw1);
+            aes_encrypt_cfb_256(session_pw1, def, def+IV_SIZE, 32);
+            memset(session_pw1, 0, sizeof(session_pw1));
+            
+            hash_multi(def3, sizeof(def3), session_pw3);
+            aes_encrypt_cfb_256(session_pw3, def, def+IV_SIZE+32, 32);
+            memset(session_pw1, 0, sizeof(session_pw1));
+            flash_write_data_to_file(ef, def, sizeof(def));
+        }
+    }
     low_flash_available();
+}
+
+int load_dek() {
+    if (!has_pw1 && !has_pw2 && !has_pw3)
+        return CCID_NO_LOGIN;
+    file_t *tf = search_by_fid(EF_DEK, NULL, SPECIFY_EF);
+    if (!tf)
+        return CCID_ERR_FILE_NOT_FOUND;
+    int r = CCID_OK;
+    if (has_pw1 || has_pw2) {
+        memcpy(dek, file_read(tf->data+sizeof(uint16_t)), IV_SIZE+32);
+        r = aes_decrypt_cfb_256(session_pw1, dek, dek+IV_SIZE, 32);
+    }
+    else if (has_pw3) {
+        memcpy(dek, file_read(tf->data+sizeof(uint16_t)), IV_SIZE);
+        memcpy(dek+IV_SIZE, file_read(tf->data+sizeof(uint16_t)+IV_SIZE+32), 32);
+        r = aes_decrypt_cfb_256(session_pw3, dek, dek+IV_SIZE, 32);
+    }
+    if (r != 0)
+        return CCID_EXEC_ERROR;
+    return CCID_OK;
+}
+
+void release_dek() {
+    memset(dek, 0, sizeof(dek));
+}
+
+int dek_encrypt(uint8_t *data, size_t len) {
+    int r;
+    if ((r = load_dek()) != CCID_OK)
+        return r;
+    r = aes_encrypt_cfb_256(dek+IV_SIZE, dek, data, len);
+    release_dek();
+    return r;
+}
+
+int dek_decrypt(uint8_t *data, size_t len) {
+    int r;
+    if ((r = load_dek()) != CCID_OK)
+        return r;
+    r = aes_decrypt_cfb_256(dek+IV_SIZE, dek, data, len);
+    release_dek();
+    return r;
 }
 
 void init_openpgp() {
@@ -707,6 +772,7 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
             has_pw1 = true;
         else
             has_pw2 = true;
+        hash_multi(data, len, session_pw1);
     }
     else if (pin->fid == EF_PW3) {
         has_pw3 = true;
@@ -869,6 +935,10 @@ int store_keys(void *key_ctx, int type, uint16_t key_id) {
             key_size = 32;
         memcpy(kdata, key_ctx, key_size);
     }
+    r = dek_encrypt(kdata, key_size);
+    if (r != CCID_OK) {
+        return r;
+    }
     //r = aes_encrypt_cfb_256(file_read(pw3->data+2), session_pw3, kdata, key_size);
     //if (r != CCID_OK)
     //    return r;
@@ -883,15 +953,10 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
     //wait_button();
     int key_size = file_read_uint16(fkey->data);
     uint8_t kdata[4096/8];
-    //if (!has_pw3)
-    //    return CCID_NO_LOGIN;
-    //file_t *pw3 = search_by_fid(EF_PW3, NULL, SPECIFY_EF);
-    //if (!pw3)
-    //    return CCID_ERR_FILE_NOT_FOUND;
     memcpy(kdata, file_read(fkey->data+2), key_size);
-    //int r = aes_decrypt_cfb_256(file_read(pw3->data+2), session_pw3, kdata, key_size);
-    //if (r != CCID_OK)
-    //    return r;
+    if (dek_decrypt(kdata, key_size) != 0) {
+        return SW_EXEC_ERROR();
+    }
     if (mbedtls_mpi_read_binary(&ctx->P, kdata, key_size/2) != 0) {
         mbedtls_rsa_free(ctx);
         return CCID_WRONG_DATA;
@@ -924,6 +989,9 @@ int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
     int key_size = file_read_uint16(fkey->data);
     uint8_t kdata[67]; //Worst case, 521 bit + 1byte
     memcpy(kdata, file_read(fkey->data+2), key_size);
+    if (dek_decrypt(kdata, key_size) != 0) {
+        return SW_EXEC_ERROR();
+    }
     mbedtls_ecp_group_id gid = kdata[0];
     int r = mbedtls_ecp_read_key(gid, ctx, kdata+1, key_size-1);
     if (r != 0) {
@@ -1241,6 +1309,9 @@ static int cmd_pso() {
             if (len != 2*key_size-1)
                 return SW_WRONG_LENGTH();             
             memcpy(kdata, file_read(ef->data+2), key_size);
+            if (dek_decrypt(kdata, key_size) != 0) {
+                return SW_EXEC_ERROR();
+            }
             mbedtls_ecdh_init(&ctx);
             mbedtls_ecp_group_id gid = kdata[0];
             r = mbedtls_ecdh_setup(&ctx, gid);
