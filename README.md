@@ -39,7 +39,7 @@ If the Pico is stolen the contents of private and secret keys cannot be read wit
 ## Download
 Please, go to the [Release page](https://github.com/polhenarejos/pico-openpgp/releases "Release page"))  and download the UF2 file for your board.
 
-Note that UF2 files are shiped with a dummy VID/PID to avoid license issues (FEFF:FCFD). If you are planning to use it with OpenSC or similar, you should modify Info.plist of CCID driver to add these VID/PID or use the VID/PID patcher as follows: ./patch_vidpid.sh VID:PID input_openpgp_file.uf2 output_openpgp_file.uf2
+Note that UF2 files are shiped with a dummy VID/PID to avoid license issues (FEFF:FCFD). If you are planning to use it with OpenSC or similar, you should modify Info.plist of CCID driver to add these VID/PID or use the VID/PID patcher as follows: `./patch_vidpid.sh VID:PID input_openpgp_file.uf2 output_openpgp_file.uf2`
 
 You can use whatever VID/PID (i.e., 234b:0000 from FISJ), but remember that you are not authorized to distribute the binary with a VID/PID that you do not own.
 
