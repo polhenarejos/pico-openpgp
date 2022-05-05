@@ -55,13 +55,16 @@ int openpgp_process_apdu();
 
 extern uint32_t board_button_read(void);
 
-static bool wait_button() {
+static bool wait_button(uint16_t fid) {
+    file_t *ef = search_by_fid(fid, NULL, SPECIFY_ANY);
     uint32_t val = EV_PRESS_BUTTON;
-    queue_try_add(ccid_comm, &val);
-    do {
-        queue_remove_blocking(card_comm, &val);
+    if (ef && ef->data && file_read_uint8(ef->data+2) > 0) {
+        queue_try_add(ccid_comm, &val);
+        do {
+            queue_remove_blocking(card_comm, &val);
+        }
+        while (val != EV_BUTTON_PRESSED && val != EV_BUTTON_TIMEOUT);
     }
-    while (val != EV_BUTTON_PRESSED && val != EV_BUTTON_TIMEOUT);
     return val == EV_BUTTON_TIMEOUT;
 }
 
@@ -218,6 +221,27 @@ void scan_files() {
             hash_multi(def3, sizeof(def3), session_pw3);
             aes_encrypt_cfb_256(session_pw3, def, def+IV_SIZE+32, 32);
             memset(session_pw1, 0, sizeof(session_pw1));
+            flash_write_data_to_file(ef, def, sizeof(def));
+        }
+    }
+    if ((ef = search_by_fid(EF_UIF_SIG, NULL, SPECIFY_ANY))) {
+        if (!ef->data) {
+            TU_LOG1("UIF SIG is empty. Initializing to default\r\n");
+            const uint8_t def[] = { 0x0, 0x20 };
+            flash_write_data_to_file(ef, def, sizeof(def));
+        }
+    }
+    if ((ef = search_by_fid(EF_UIF_DEC, NULL, SPECIFY_ANY))) {
+        if (!ef->data) {
+            TU_LOG1("UIF DEC is empty. Initializing to default\r\n");
+            const uint8_t def[] = { 0x0, 0x20 };
+            flash_write_data_to_file(ef, def, sizeof(def));
+        }
+    }
+    if ((ef = search_by_fid(EF_UIF_AUT, NULL, SPECIFY_ANY))) {
+        if (!ef->data) {
+            TU_LOG1("UIF AUT is empty. Initializing to default\r\n");
+            const uint8_t def[] = { 0x0, 0x20 };
             flash_write_data_to_file(ef, def, sizeof(def));
         }
     }
@@ -683,8 +707,8 @@ int parse_app_data(const file_t *f, int mode) {
 
 int parse_discrete_do(const file_t *f, int mode) {
     uint16_t fids[] = {
-        8,
-        EF_EXT_CAP, EF_ALGO_SIG, EF_ALGO_DEC, EF_ALGO_AUT, EF_PW_STATUS, EF_FP, EF_CA_FP, EF_TS_ALL, //EF_UIF_SIG, EF_UIF_DEC, EF_UIF_AUT
+        11,
+        EF_EXT_CAP, EF_ALGO_SIG, EF_ALGO_DEC, EF_ALGO_AUT, EF_PW_STATUS, EF_FP, EF_CA_FP, EF_TS_ALL, EF_UIF_SIG, EF_UIF_DEC, EF_UIF_AUT
     };
     res_APDU[res_APDU_size++] = EF_DISCRETE_DO & 0xff;
     res_APDU[res_APDU_size++] = 0x82;
@@ -963,9 +987,6 @@ int store_keys(void *key_ctx, int type, uint16_t key_id) {
 }
 
 int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
-    if (wait_button() == true) //timeout
-        return CCID_VERIFICATION_FAILED;
-        
     int key_size = file_read_uint16(fkey->data);
     uint8_t kdata[4096/8];
     memcpy(kdata, file_read(fkey->data+2), key_size);
@@ -1000,9 +1021,6 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
 }
 
 int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
-    if (wait_button() == true) //timeout
-        return CCID_VERIFICATION_FAILED;
-    
     int key_size = file_read_uint16(fkey->data);
     uint8_t kdata[67]; //Worst case, 521 bit + 1byte
     memcpy(kdata, file_read(fkey->data+2), key_size);
@@ -1267,6 +1285,8 @@ static int cmd_pso() {
     file_t *ef = search_by_fid(pk_fid, NULL, SPECIFY_EF);
     if (!ef)
         return SW_FILE_NOT_FOUND();
+    if (wait_button(pk_fid == EF_PK_SIG ? EF_UIF_SIG : EF_UIF_DEC) == true)
+        return SW_SECURE_MESSAGE_EXEC_ERROR();
     int r = CCID_OK;
     int key_size = file_read_uint16(ef->data);
     if (algo[0] == ALGO_RSA) {
@@ -1274,8 +1294,7 @@ static int cmd_pso() {
         mbedtls_rsa_init(&ctx);
         r = load_private_key_rsa(&ctx, ef);
         if (r != CCID_OK) {
-            if (r == CCID_VERIFICATION_FAILED)
-                return SW_SECURE_MESSAGE_EXEC_ERROR();
+            mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
         if (P1(apdu) == 0x9E && P2(apdu) == 0x9A) {
@@ -1305,8 +1324,7 @@ static int cmd_pso() {
             mbedtls_ecdsa_init(&ctx);
             r = load_private_key_ecdsa(&ctx, ef);
             if (r != CCID_OK) {
-                if (r == CCID_VERIFICATION_FAILED)
-                    return SW_SECURE_MESSAGE_EXEC_ERROR();
+                mbedtls_ecdsa_free(&ctx);
                 return SW_EXEC_ERROR();
             }
             size_t olen = 0;
@@ -1328,9 +1346,7 @@ static int cmd_pso() {
             if (mbedtls_asn1_get_tag(&data, end, &len, 0x49) != 0 || mbedtls_asn1_get_tag(&data, end, &len, 0x86) != 0)
                 return SW_WRONG_DATA();
             if (len != 2*key_size-1)
-                return SW_WRONG_LENGTH(); 
-            if (wait_button() == true)
-                return SW_SECURE_MESSAGE_EXEC_ERROR();            
+                return SW_WRONG_LENGTH();
             memcpy(kdata, file_read(ef->data+2), key_size);
             if (dek_decrypt(kdata, key_size) != 0) {
                 return SW_EXEC_ERROR();
@@ -1410,14 +1426,15 @@ static int cmd_internal_aut() {
     file_t *ef = search_by_fid(EF_PK_AUT, NULL, SPECIFY_EF);
     if (!ef)
         return SW_FILE_NOT_FOUND();
+    if (wait_button(EF_UIF_AUT) == true)
+        return SW_SECURE_MESSAGE_EXEC_ERROR();
     int r = CCID_OK;
     if (algo[0] == ALGO_RSA) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
         r = load_private_key_rsa(&ctx, ef);
         if (r != CCID_OK) {
-            if (r == CCID_VERIFICATION_FAILED)
-                return SW_SECURE_MESSAGE_EXEC_ERROR();
+            mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
         size_t olen = 0;
@@ -1432,8 +1449,7 @@ static int cmd_internal_aut() {
         mbedtls_ecdsa_init(&ctx);
         r = load_private_key_ecdsa(&ctx, ef);
         if (r != CCID_OK) {
-            if (r == CCID_VERIFICATION_FAILED)
-                return SW_SECURE_MESSAGE_EXEC_ERROR();
+            mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
         size_t olen = 0;
