@@ -67,6 +67,7 @@
 #define EF_UIF_DEC      0x00d7 //S
 #define EF_UIF_AUT      0x00d8 //S
 #define EF_KEY_INFO     0x00de //S
+#define EF_KDF          0x00f9 //C
 #define EF_ALGO_INFO    0x00fa //C
 #define EF_LANG_PREF    0x5f2d //S
 #define EF_SEX          0x5f35 //S

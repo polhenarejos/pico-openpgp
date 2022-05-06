@@ -245,6 +245,13 @@ void scan_files() {
             flash_write_data_to_file(ef, def, sizeof(def));
         }
     }
+    if ((ef = search_by_fid(EF_KDF, NULL, SPECIFY_ANY))) {
+        if (!ef->data) {
+            TU_LOG1("KDF is empty. Initializing to default\r\n");
+            const uint8_t def[] = { EF_KDF, 0x03, 0x81, 0x1, 0x0 };
+            flash_write_data_to_file(ef, def, sizeof(def));
+        }
+    }
     low_flash_available();
 }
 

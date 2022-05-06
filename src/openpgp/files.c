@@ -54,7 +54,7 @@ uint8_t historical_bytes[] = {
 
 uint8_t extended_capabilities[] = {
   10, 0,
-  0x76,				/*
+  0x77,				/*
 				 * No Secure Messaging supported
 				 * GET CHALLENGE supported
 				 * Key import supported
@@ -62,7 +62,7 @@ uint8_t extended_capabilities[] = {
 				 * No private_use_DO
 				 * Algorithm attrs are changable
 				 * ENC/DEC with AES
-				 * No KDF-DO available
+				 * KDF-DO available
 				 */
   0,		  /* Secure Messaging Algorithm: N/A (TDES=0, AES=1) */
   0x00, 128, 		/* Max size of GET CHALLENGE */
@@ -137,9 +137,10 @@ file_t file_entries[] = {
     /* 50 */ { .fid = EF_PB_AUT, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_R_WP },
     /* 51 */ { .fid = EF_PW_PRIV, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_R_WP },
     /* 52 */ { .fid = EF_DEK, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_NONE },
+    /* 53 */ { .fid = EF_KDF, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_R_WP },
     
-    /* 53 */ { .fid = 0x0000, .parent = 0, .name = openpgp_aid, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
-    /* 54 */ { .fid = 0x0000, .parent = 0xff, .name = NULL, .type = FILE_TYPE_UNKNOWN, .data = NULL, .ef_structure = 0, .acl = ACL_NONE } //end
+    /* 54 */ { .fid = 0x0000, .parent = 0, .name = openpgp_aid, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
+    /* 55 */ { .fid = 0x0000, .parent = 0xff, .name = NULL, .type = FILE_TYPE_UNKNOWN, .data = NULL, .ef_structure = 0, .acl = ACL_NONE } //end
 };
 
 const file_t *MF = &file_entries[0];
