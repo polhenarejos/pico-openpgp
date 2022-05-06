@@ -104,27 +104,27 @@ static int cmd_select() {
             }
             else if (apdu.cmd_apdu_data_len == 2) {
                 if (!(pe = search_by_fid(fid, NULL, SPECIFY_ANY))) {
-                    return SW_FILE_NOT_FOUND();
+                    return SW_REFERENCE_NOT_FOUND();
                 }
             }
         }
         else if (p1 == 0x01) { //Select child DF - DF identifier
             if (!(pe = search_by_fid(fid, currentDF, SPECIFY_DF))) {
-                return SW_FILE_NOT_FOUND();
+                return SW_REFERENCE_NOT_FOUND();
             }
         }
         else if (p1 == 0x02) { //Select EF under the current DF - EF identifier
             if (!(pe = search_by_fid(fid, currentDF, SPECIFY_EF))) {
-                return SW_FILE_NOT_FOUND();
+                return SW_REFERENCE_NOT_FOUND();
             }
         }
         else if (p1 == 0x03) { //Select parent DF of the current DF - Absent
             if (apdu.cmd_apdu_data_len != 0)
-                return SW_FILE_NOT_FOUND();
+                return SW_REFERENCE_NOT_FOUND();
         }
         else if (p1 == 0x04) { //Select by DF name - e.g., [truncated] application identifier
             if (!(pe = search_by_name(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len))) {
-                return SW_FILE_NOT_FOUND();
+                return SW_REFERENCE_NOT_FOUND();
             }
             if (card_terminated) {
                 return set_res_sw (0x62, 0x85);
@@ -132,12 +132,12 @@ static int cmd_select() {
         }
         else if (p1 == 0x08) { //Select from the MF - Path without the MF identifier
             if (!(pe = search_by_path(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, MF))) {
-                return SW_FILE_NOT_FOUND();
+                return SW_REFERENCE_NOT_FOUND();
             }
         }
         else if (p1 == 0x09) { //Select from the current DF - Path without the current DF identifier
             if (!(pe = search_by_path(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, currentDF))) {
-                return SW_FILE_NOT_FOUND();
+                return SW_REFERENCE_NOT_FOUND();
             }
         }
     }
@@ -727,7 +727,7 @@ static int cmd_get_data() {
     uint16_t fid = (P1(apdu) << 8) | P2(apdu);
     file_t *ef;
     if (!(ef = search_by_fid(fid, NULL, SPECIFY_EF)))
-        return SW_FILE_NOT_FOUND();
+        return SW_REFERENCE_NOT_FOUND();
     if (!authenticate_action(ef, ACL_OP_READ_SEARCH)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
@@ -865,7 +865,7 @@ static int cmd_put_data() {
     else if (fid == EF_ALGO_SIG || fid == EF_ALGO_DEC || fid == EF_ALGO_AUT)
         fid |= 0x1000;
     if (!(ef = search_by_fid(fid, NULL, SPECIFY_EF)))
-        return SW_FILE_NOT_FOUND();
+        return SW_REFERENCE_NOT_FOUND();
     if (!authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
@@ -1105,7 +1105,7 @@ static int cmd_keypair_gen() {
     
     file_t *algo_ef = search_by_fid(fid-0x0010, NULL, SPECIFY_EF);
     if (!algo_ef)
-        return SW_FILE_NOT_FOUND();
+        return SW_REFERENCE_NOT_FOUND();
     const uint8_t *algo = algorithm_attr_rsa2k+1;
     uint16_t algo_len = algorithm_attr_rsa2k[0];
     if (algo_ef && algo_ef->data) {
@@ -1155,7 +1155,7 @@ static int cmd_keypair_gen() {
             return SW_FUNC_NOT_SUPPORTED();
         file_t *pbef = search_by_fid(fid+3, NULL, SPECIFY_EF);
         if (!pbef)
-            return SW_FILE_NOT_FOUND();
+            return SW_REFERENCE_NOT_FOUND();
         r = flash_write_data_to_file(pbef, res_APDU, res_APDU_size);
         if (r != CCID_OK)
             return SW_EXEC_ERROR();
@@ -1167,7 +1167,7 @@ static int cmd_keypair_gen() {
     else if (P1(apdu) == 0x81) { //read
         file_t *ef = search_by_fid(fid+3, NULL, SPECIFY_EF);
         if (!ef || !ef->data)
-            return SW_FILE_NOT_FOUND();
+            return SW_REFERENCE_NOT_FOUND();
         res_APDU_size = file_read_uint16(ef->data);
         memcpy(res_APDU, file_read(ef->data+2), res_APDU_size);
         return SW_OK();
@@ -1275,7 +1275,7 @@ static int cmd_pso() {
         return SW_INCORRECT_P1P2();
     file_t *algo_ef = search_by_fid(algo_fid, NULL, SPECIFY_EF);
     if (!algo_ef)
-        return SW_FILE_NOT_FOUND();
+        return SW_REFERENCE_NOT_FOUND();
     const uint8_t *algo = algorithm_attr_rsa2k+1;
     uint16_t algo_len = algorithm_attr_rsa2k[0];
     if (algo_ef && algo_ef->data) {
@@ -1284,7 +1284,7 @@ static int cmd_pso() {
     }
     file_t *ef = search_by_fid(pk_fid, NULL, SPECIFY_EF);
     if (!ef)
-        return SW_FILE_NOT_FOUND();
+        return SW_REFERENCE_NOT_FOUND();
     if (wait_button(pk_fid == EF_PK_SIG ? EF_UIF_SIG : EF_UIF_DEC) == true)
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     int r = CCID_OK;
@@ -1416,7 +1416,7 @@ static int cmd_internal_aut() {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     file_t *algo_ef = search_by_fid(EF_ALGO_PRIV3, NULL, SPECIFY_EF);
     if (!algo_ef)
-        return SW_FILE_NOT_FOUND();
+        return SW_REFERENCE_NOT_FOUND();
     const uint8_t *algo = algorithm_attr_rsa2k+1;
     uint16_t algo_len = algorithm_attr_rsa2k[0];
     if (algo_ef && algo_ef->data) {
@@ -1425,7 +1425,7 @@ static int cmd_internal_aut() {
     }
     file_t *ef = search_by_fid(EF_PK_AUT, NULL, SPECIFY_EF);
     if (!ef)
-        return SW_FILE_NOT_FOUND();
+        return SW_REFERENCE_NOT_FOUND();
     if (wait_button(EF_UIF_AUT) == true)
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     int r = CCID_OK;
