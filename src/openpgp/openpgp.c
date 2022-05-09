@@ -33,6 +33,7 @@ bool has_pw3 = false;
 uint8_t session_pw1[32];
 uint8_t session_pw3[32];
 static uint8_t dek[IV_SIZE+32];
+static uint16_t algo_dec = EF_ALGO_PRIV2, algo_aut = EF_ALGO_PRIV3, pk_dec = EF_PK_DEC, pk_aut = EF_PK_AUT;
 
 uint8_t openpgp_aid[] = {
     6, 
@@ -248,7 +249,7 @@ void scan_files() {
     if ((ef = search_by_fid(EF_KDF, NULL, SPECIFY_ANY))) {
         if (!ef->data) {
             TU_LOG1("KDF is empty. Initializing to default\r\n");
-            const uint8_t def[] = { EF_KDF, 0x03, 0x81, 0x1, 0x0 };
+            const uint8_t def[] = { 0x81, 0x1, 0x0 };
             flash_write_data_to_file(ef, def, sizeof(def));
         }
     }
@@ -301,6 +302,10 @@ int dek_decrypt(uint8_t *data, size_t len) {
 void init_openpgp() {
     isUserAuthenticated = false;
     has_pw1 = has_pw3 = false;
+    algo_dec = EF_ALGO_PRIV2;
+    algo_aut = EF_ALGO_PRIV3;
+    pk_dec = EF_PK_DEC;
+    pk_aut = EF_PK_AUT;
     scan_files();
     //cmd_select();
 }
@@ -308,6 +313,10 @@ void init_openpgp() {
 int openpgp_unload() {
     isUserAuthenticated = false;
     has_pw1 = has_pw3 = false;
+    algo_dec = EF_ALGO_PRIV2;
+    algo_aut = EF_ALGO_PRIV3;
+    pk_dec = EF_PK_DEC;
+    pk_aut = EF_PK_AUT;
     return CCID_OK;
 }
 
@@ -342,7 +351,7 @@ int parse_do(uint16_t *fids, int mode) {
                 else
                     data_len = 0;
                 if (mode == 1) {
-                    if (fids[0] > 1) {
+                    if (fids[0] > 1 && res_APDU_size > 0) {
                         if (fids[i+1] < 0x0100) {
                             res_APDU[res_APDU_size++] = fids[i+1] & 0xff;
                         }
@@ -1275,8 +1284,8 @@ static int cmd_pso() {
     else if (P1(apdu) == 0x80 && P2(apdu) == 0x86) {
         if (!has_pw3 && !has_pw2)
             return SW_SECURITY_STATUS_NOT_SATISFIED();
-        algo_fid = EF_ALGO_PRIV2;
-        pk_fid = EF_PK_DEC;
+        algo_fid = algo_dec;
+        pk_fid = pk_dec;
     }
     else
         return SW_INCORRECT_P1P2();
@@ -1421,7 +1430,7 @@ static int cmd_internal_aut() {
         return SW_WRONG_P1P2();
     if (!has_pw3 && !has_pw2)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
-    file_t *algo_ef = search_by_fid(EF_ALGO_PRIV3, NULL, SPECIFY_EF);
+    file_t *algo_ef = search_by_fid(algo_aut, NULL, SPECIFY_EF);
     if (!algo_ef)
         return SW_REFERENCE_NOT_FOUND();
     const uint8_t *algo = algorithm_attr_rsa2k+1;
@@ -1430,7 +1439,7 @@ static int cmd_internal_aut() {
         algo_len = file_read_uint16(algo_ef->data);
         algo = file_read(algo_ef->data+2);
     }
-    file_t *ef = search_by_fid(EF_PK_AUT, NULL, SPECIFY_EF);
+    file_t *ef = search_by_fid(pk_aut, NULL, SPECIFY_EF);
     if (!ef)
         return SW_REFERENCE_NOT_FOUND();
     if (wait_button(EF_UIF_AUT) == true)
@@ -1469,6 +1478,34 @@ static int cmd_internal_aut() {
     return SW_OK();
 }
 
+static int cmd_mse() {
+    if (P1(apdu) != 0x41 || (P2(apdu) != 0xA4 && P2(apdu) != 0xB8))
+        return SW_WRONG_P1P2();
+    if (apdu.cmd_apdu_data[0] != 0x83 || apdu.cmd_apdu_data[1] != 0x1 || (apdu.cmd_apdu_data[2] != 0x2 && apdu.cmd_apdu_data[2] != 0x3))
+        return SW_WRONG_DATA();
+    if (P2(apdu) == 0xA4) {
+        if (apdu.cmd_apdu_data[2] == 0x2) {
+            algo_dec = EF_ALGO_PRIV2;
+            pk_dec = EF_PK_DEC;
+        }
+        else if (apdu.cmd_apdu_data[2] == 0x3) {
+            algo_dec = EF_ALGO_PRIV3;
+            pk_dec = EF_PK_AUT;
+        }
+    }
+    else if (P2(apdu) == 0xB8) {
+        if (apdu.cmd_apdu_data[2] == 0x2) {
+            algo_aut = EF_ALGO_PRIV2;
+            pk_aut = EF_PK_DEC;
+        }
+        else if (apdu.cmd_apdu_data[2] == 0x3) {
+            algo_aut = EF_ALGO_PRIV3;
+            pk_aut = EF_PK_AUT;
+        }
+    }
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -1476,6 +1513,7 @@ typedef struct cmd
 } cmd_t;
 
 #define INS_VERIFY          0x20
+#define INS_MSE             0x22
 #define INS_CHANGE_PIN      0x24
 #define INS_PSO             0x2A
 #define INS_RESET_RETRY     0x2C
@@ -1501,6 +1539,7 @@ static const cmd_t cmds[] = {
     { INS_ACTIVATE_FILE, cmd_activate_file },
     { INS_CHALLENGE, cmd_challenge },
     { INS_INTERNAL_AUT, cmd_internal_aut },
+    { INS_MSE, cmd_mse },
     { 0x00, 0x0}
 };
 
