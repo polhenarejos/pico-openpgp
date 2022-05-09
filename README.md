@@ -34,6 +34,8 @@ This project was inspired by [Gnuk](https://wiki.debian.org/GNUK "Gnuk"), a same
 
 As a consequence, Pico OpenPGP is designed from zero. Well, not strictly from zero, as it borrows some of the buffering between USB and CCID interfaces from Gnuk. Cryptographic operations are implemented with MBEDTLS library.
 
+Whilst Gnuk is OpenPGP 2.0 with small set of enhancements, Pico OpenPGP aims at being OpenPGP 3.4 compliant, with new features (not present in Gnuk), such as Manage Security Environment (MSE) or UIF.
+
 ## Security considerations
 All secret keys (asymmetric and symmetric) are stored encrypted in the flash memory of the Raspberry Pico. DEK is used as a 256 bit AES key to protect private and secret keys. Keys are never stored in RAM except for signature and decryption operations and only during the process. All keys (including DEK) are loaded and cleared every time to avoid potential security flaws.
 
