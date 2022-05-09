@@ -21,6 +21,11 @@ Pico OpenPGP has implemented the following features:
 - USB/CCID support with OpenSC, openssl, etc.
 - Extended APDU support.
 - Lifecycle card (termination and activation).
+- Press-to-confirm button.
+- User Interaction Flag for enabling/disabling press-to-confirm button.
+- Key Derivation Function (KDF) for PIN.
+- Manage Security Environment (MSE).
+- DEK for internal safe storage.
 
 All these features are compliant with the specification. Therefore, if you detect some behaviour that is not expected or it does not follow the rules of specs, please open an issue.
 
