@@ -547,7 +547,7 @@ static const uint8_t algorithm_attr_x448[] = {
 static const uint8_t algorithm_attr_rsa1k[] = {
   6,
   ALGO_RSA,
-  0x04, 0x00,	      /* Length modulus (in bit): 2048 */
+  0x04, 0x00,	      /* Length modulus (in bit): 1024 */
   0x00, 0x20,	      /* Length exponent (in bit): 32  */
   0x00		      /* 0: Acceptable format is: P and Q */
 };
@@ -563,7 +563,7 @@ static const uint8_t algorithm_attr_rsa2k[] = {
 static const uint8_t algorithm_attr_rsa3k[] = {
   6,
   ALGO_RSA,
-  0x0C, 0x00,	      /* Length modulus (in bit): 2048 */
+  0x0C, 0x00,	      /* Length modulus (in bit): 3072 */
   0x00, 0x20,	      /* Length exponent (in bit): 32  */
   0x00		      /* 0: Acceptable format is: P and Q */
 };
@@ -1506,6 +1506,125 @@ static int cmd_mse() {
     return SW_OK();
 }
 
+static int cmd_import_data() {
+    file_t *ef = NULL;
+    uint16_t fid = 0x0;
+    if (P1(apdu) != 0x3F || P2(apdu) != 0xFF)
+        return SW_WRONG_P1P2();
+    if (apdu.cmd_apdu_data_len < 5)
+        return SW_WRONG_LENGTH();
+    if (apdu.cmd_apdu_data[0] != 0x4D || (apdu.cmd_apdu_data[2] != 0xB6 && apdu.cmd_apdu_data[2] != 0xB8 && apdu.cmd_apdu_data[2] != 0xA4))
+        return SW_WRONG_DATA();
+    if (apdu.cmd_apdu_data[2] == 0xB6)
+        fid = EF_PK_SIG;
+    else if (apdu.cmd_apdu_data[2] != 0xB8)
+        fid = EF_PK_DEC;
+    else if (apdu.cmd_apdu_data[2] != 0xA4)
+        fid = EF_PK_AUT;
+    else
+        return SW_WRONG_DATA();
+    if (!(ef = search_by_fid(fid, NULL, SPECIFY_EF)))
+        return SW_REFERENCE_NOT_FOUND();
+    if (!authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
+    
+    uint8_t *start = apdu.cmd_apdu_data + 4 + apdu.cmd_apdu_data[3];
+    if (*start++ != 0x7F || *start++ != 0x48)
+        return SW_WRONG_DATA();
+    uint8_t tag_len = *start++, *end = start+tag_len, len[9] = {0}, *p[9] = {NULL};
+    while (start < end) {
+        uint8_t tag = *start++;
+        if ((tag >= 0x91 && tag <= 0x97) || tag == 0x99) {
+            len[tag-0x91] = *start++;
+        }
+        else
+            return SW_WRONG_DATA();
+    }
+    if (*start++ != 0x5F || *start++ != 0x48)
+        return SW_WRONG_DATA();
+    tag_len = *start++;
+    end = start+tag_len;
+    for (int t = 0; start < end; t++) {
+        if (len[t] > 0) {
+            p[t] = start;
+            start += len[t];
+        }
+    }
+    
+    file_t *algo_ef = search_by_fid(fid-0x0010, NULL, SPECIFY_EF);
+    if (!algo_ef)
+        return SW_REFERENCE_NOT_FOUND();
+    const uint8_t *algo = algorithm_attr_rsa2k+1;
+    uint16_t algo_len = algorithm_attr_rsa2k[0];
+    if (algo_ef && algo_ef->data) {
+        algo = file_read(algo_ef->data+2);
+        algo_len = file_read_uint16(algo_ef->data);
+    }
+    int r = 0;
+    if (algo[0] == ALGO_RSA) {
+        mbedtls_rsa_context rsa;
+        if (p[0] == NULL || len[0] == 0 || p[1] == NULL || len[1] == 0 || p[2] == NULL || len[2] == 0)
+            return SW_WRONG_DATA();
+        mbedtls_rsa_init(&rsa);
+        r = mbedtls_mpi_read_binary(&rsa.E, p[0], len[0]);
+        if (r != 0) {
+            mbedtls_rsa_free(&rsa);
+            return SW_EXEC_ERROR();
+        }
+        r = mbedtls_mpi_read_binary(&rsa.P, p[1], len[1]);
+        if (r != 0) {
+            mbedtls_rsa_free(&rsa);
+            return SW_EXEC_ERROR();
+        }
+        r = mbedtls_mpi_read_binary(&rsa.Q, p[2], len[2]);
+        if (r != 0) {
+            mbedtls_rsa_free(&rsa);
+            return SW_EXEC_ERROR();
+        }
+        r = mbedtls_rsa_import(&rsa, NULL, &rsa.P, &rsa.Q, NULL, &rsa.E);
+        if (r != 0) {
+            mbedtls_rsa_free(&rsa);
+            return SW_EXEC_ERROR();
+        }
+        r = mbedtls_rsa_complete(&rsa);
+        if (r != 0) {
+            mbedtls_rsa_free(&rsa);
+            return SW_EXEC_ERROR();
+        }
+        r = mbedtls_rsa_check_privkey(&rsa);
+        if (r != 0) {
+            mbedtls_rsa_free(&rsa);
+            return SW_EXEC_ERROR();
+        }
+        r = store_keys(&rsa, ALGO_RSA, fid);
+        mbedtls_rsa_free(&rsa);
+        if (r != CCID_OK)
+            return SW_EXEC_ERROR();
+    }
+    else if (algo[0] == ALGO_ECDSA || algo[0] == ALGO_ECDH) {
+         mbedtls_ecdsa_context ecdsa;
+        if (p[1] == NULL || len[1] == 0)
+            return SW_WRONG_DATA();
+        mbedtls_ecp_group_id gid = get_ec_group_id_from_attr(algo+1, algo_len-1);  
+        if (gid == MBEDTLS_ECP_DP_NONE)
+            return SW_FUNC_NOT_SUPPORTED();
+        mbedtls_ecdsa_init(&ecdsa);
+        r = mbedtls_ecp_read_key(gid, &ecdsa, p[1], len[1]);
+        if (r != 0) {
+            mbedtls_ecdsa_free(&ecdsa);
+            return SW_EXEC_ERROR();
+        }
+        r = store_keys(&ecdsa, ALGO_ECDSA, fid);
+        mbedtls_ecdsa_free(&ecdsa);
+        if (r != CCID_OK)
+            return SW_EXEC_ERROR();
+    }
+    if (fid == EF_PK_SIG)
+        reset_sig_count();
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -1524,6 +1643,7 @@ typedef struct cmd
 #define INS_SELECT          0xA4
 #define INS_GET_DATA        0xCA
 #define INS_PUT_DATA        0xDA
+#define INS_IMPORT_DATA     0xDB
 #define INS_TERMINATE_DF    0xE6
 
 static const cmd_t cmds[] = {
@@ -1540,6 +1660,7 @@ static const cmd_t cmds[] = {
     { INS_CHALLENGE, cmd_challenge },
     { INS_INTERNAL_AUT, cmd_internal_aut },
     { INS_MSE, cmd_mse },
+    { INS_IMPORT_DATA, cmd_import_data },
     { 0x00, 0x0}
 };
 
