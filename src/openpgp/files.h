@@ -63,6 +63,7 @@
 #define EF_TS_DEC       0x00cf //S
 #define EF_TS_AUT       0x00d0 //S
 #define EF_RESET_CODE   0x00d3 //S
+#define EF_AES_KEY      0x00d5 //S
 #define EF_UIF_SIG      0x00d6 //S
 #define EF_UIF_DEC      0x00d7 //S
 #define EF_UIF_AUT      0x00d8 //S

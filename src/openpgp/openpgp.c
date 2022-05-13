@@ -1052,6 +1052,15 @@ int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
     return CCID_OK;
 }
 
+int load_aes_key(uint8_t *aes_key, file_t *fkey) {
+    int key_size = file_read_uint16(fkey->data);
+    memcpy(aes_key, file_read(fkey->data+2), key_size);
+    if (dek_decrypt(aes_key, key_size) != 0) {
+        return CCID_EXEC_ERROR;
+    }
+    return CCID_OK;
+}
+
 mbedtls_ecp_group_id get_ec_group_id_from_attr(const uint8_t *algo, size_t algo_len) {
     if (memcmp(algorithm_attr_p256k1+2, algo, algo_len) == 0)
         return MBEDTLS_ECP_DP_SECP256K1;
@@ -1177,6 +1186,17 @@ static int cmd_keypair_gen() {
             return SW_EXEC_ERROR();
         if (fid == EF_PK_SIG)
             reset_sig_count();
+        else if (fid == EF_PK_DEC) {
+            // OpenPGP does not allow generating AES keys. So, we generate a new one when gen for DEC is called.
+            // It is a 256 AES key by default.
+            uint8_t aes_key[32]; //maximum AES key size
+            uint8_t key_size = 32;
+            memcpy(aes_key, random_bytes_get(key_size), key_size);
+            r = store_keys(aes_key, ALGO_AES_256, EF_AES_KEY);
+            /* if storing the key fails, we silently continue */
+            //if (r != CCID_OK) 
+            //    return SW_EXEC_ERROR();
+        }
         low_flash_available();
         return SW_OK();
     }
@@ -1275,6 +1295,7 @@ int ecdsa_sign(mbedtls_ecdsa_context *ctx, const uint8_t *data, size_t data_len,
 
 static int cmd_pso() {
     uint16_t algo_fid = 0x0, pk_fid = 0x0;
+    bool is_aes = false;
     if (P1(apdu) == 0x9E && P2(apdu) == 0x9A) {
         if (!has_pw3 && !has_pw1)
             return SW_SECURITY_STATUS_NOT_SATISFIED();
@@ -1298,6 +1319,12 @@ static int cmd_pso() {
         algo_len = file_read_uint16(algo_ef->data);
         algo = file_read(algo_ef->data+2);
     }
+    if (apdu.cmd_apdu_data[0] == 0x2) { //AES PSO?
+        if (((apdu.cmd_apdu_data_len - 1)%16 == 0 && P1(apdu) == 0x80 && P2(apdu) == 0x86) || (apdu.cmd_apdu_data_len%16 == 0 && P1(apdu) == 0x86 && P2(apdu) == 0x80)) {
+            pk_fid = EF_AES_KEY;
+            is_aes = true;
+        }
+    }
     file_t *ef = search_by_fid(pk_fid, NULL, SPECIFY_EF);
     if (!ef)
         return SW_REFERENCE_NOT_FOUND();
@@ -1305,6 +1332,32 @@ static int cmd_pso() {
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     int r = CCID_OK;
     int key_size = file_read_uint16(ef->data);
+    if (is_aes) {
+        uint8_t aes_key[32];
+        r = load_aes_key(aes_key, ef);
+        if (r != CCID_OK) {
+            memset(aes_key, 0, sizeof(aes_key));
+            return SW_EXEC_ERROR();
+        }
+        if (P1(apdu) == 0x80 && P2(apdu) == 0x86) { //decipher
+            r = aes_decrypt(aes_key, NULL, key_size, HSM_AES_MODE_CBC, apdu.cmd_apdu_data+1, apdu.cmd_apdu_data_len-1);
+            memset(aes_key, 0, sizeof(aes_key));
+            if (r != CCID_OK)
+                return SW_EXEC_ERROR();
+            memcpy(res_APDU, apdu.cmd_apdu_data+1, apdu.cmd_apdu_data_len-1);
+            res_APDU_size = apdu.cmd_apdu_data_len-1;
+        }
+        else if (P1(apdu) == 0x86 && P2(apdu) == 0x80) { //encipher
+            r = aes_encrypt(aes_key, NULL, key_size, HSM_AES_MODE_CBC, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
+            memset(aes_key, 0, sizeof(aes_key));
+            if (r != CCID_OK)
+                return SW_EXEC_ERROR();
+            res_APDU[0] = 0x2;
+            memcpy(res_APDU+1, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
+            res_APDU_size = apdu.cmd_apdu_data_len+1;
+        }
+        return SW_OK();
+    }
     if (algo[0] == ALGO_RSA) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
