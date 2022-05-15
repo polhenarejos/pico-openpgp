@@ -320,12 +320,29 @@ int openpgp_unload() {
     return CCID_OK;
 }
 
+extern char __StackLimit;
+int heapLeft() {
+    char *p = malloc(256);   // try to avoid undue fragmentation
+    int left = &__StackLimit - p;
+    free(p);
+    return left;
+}
+
 app_t *openpgp_select_aid(app_t *a) {
     if (!memcmp(apdu.cmd_apdu_data, openpgp_aid+1, openpgp_aid[0])) {
         a->aid = openpgp_aid;
         a->process_apdu = openpgp_process_apdu;
         a->unload = openpgp_unload;
         init_openpgp();
+        process_fci(file_openpgp);
+        memcpy(res_APDU+res_APDU_size,"\x64\x06\x53\x04", 4);
+        res_APDU_size += 4;
+        int heap_left = heapLeft();
+        res_APDU[res_APDU_size++] = ((heap_left >> 24) & 0xff);
+        res_APDU[res_APDU_size++] = ((heap_left >> 16) & 0xff);
+        res_APDU[res_APDU_size++] = ((heap_left >> 8) & 0xff);
+        res_APDU[res_APDU_size++] = ((heap_left >> 0) & 0xff);
+        res_APDU[1] += 8;
         return a;
     }
     return NULL;
