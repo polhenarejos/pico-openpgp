@@ -1702,6 +1702,34 @@ static int cmd_version() {
     return SW_OK();
 }
 
+static int cmd_select_data() {
+    file_t *ef = NULL;
+    uint16_t fid = 0x0;
+    if (P2(apdu) != 0x4)
+        return SW_WRONG_P1P2();
+    if (apdu.cmd_apdu_data[0] != 0x60)
+        return SW_WRONG_DATA();
+    if (apdu.cmd_apdu_data_len != apdu.cmd_apdu_data[1]+2 || apdu.cmd_apdu_data_len < 5)
+        return SW_WRONG_LENGTH();
+    if (apdu.cmd_apdu_data[2] != 0x5C)
+        return SW_WRONG_DATA();
+    if (apdu.cmd_apdu_data[3] == 2)
+        fid = (apdu.cmd_apdu_data[4] << 8) | apdu.cmd_apdu_data[5];
+    else
+        fid = apdu.cmd_apdu_data[4];
+    if (!(ef = search_by_fid(fid, NULL, SPECIFY_EF)))
+        return SW_REFERENCE_NOT_FOUND();
+    if (!authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
+    fid &= ~0x6000; //Now get private DO
+    fid += P1(apdu);
+    if (!(ef = search_by_fid(fid, NULL, SPECIFY_EF)))
+        return SW_REFERENCE_NOT_FOUND();
+   select_file(ef);
+   return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -1718,6 +1746,7 @@ typedef struct cmd
 #define INS_CHALLENGE       0x84
 #define INS_INTERNAL_AUT    0x88
 #define INS_SELECT          0xA4
+#define INS_SELECT_DATA     0xA5
 #define INS_GET_DATA        0xCA
 #define INS_PUT_DATA        0xDA
 #define INS_IMPORT_DATA     0xDB
@@ -1740,6 +1769,7 @@ static const cmd_t cmds[] = {
     { INS_MSE, cmd_mse },
     { INS_IMPORT_DATA, cmd_import_data },
     { INS_VERSION, cmd_version },
+    { INS_SELECT_DATA, cmd_select_data },
     { 0x00, 0x0}
 };
 
