@@ -764,6 +764,9 @@ static int cmd_get_data() {
     if (!authenticate_action(ef, ACL_OP_READ_SEARCH)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
+    if (currentEF && (currentEF->fid & 0x1FF0) == (fid & 0x1FF0)) { //previously selected
+        ef = currentEF;
+    }
     if (ef->data) {
         uint16_t fids[] = {1,fid};
         uint16_t data_len = parse_do(fids, 1);
@@ -905,6 +908,9 @@ static int cmd_put_data() {
     if (fid == EF_PW_STATUS) {
         fid = EF_PW_PRIV;
         apdu.cmd_apdu_data_len = 4; //we silently ommit the reset parameters
+    }
+    if (currentEF && (currentEF->fid & 0x1FF0) == (fid & 0x1FF0)) { //previously selected
+        ef = currentEF;
     }
     if (apdu.cmd_apdu_data_len > 0 && (ef->type & FILE_DATA_FLASH)) {
         int r = flash_write_data_to_file(ef, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
