@@ -23,5 +23,11 @@
 #define OPGP_VERSION_MAJOR ((OPGP_VERSION >> 8) & 0xff)
 #define OPGP_VERSION_MINOR (OPGP_VERSION & 0xff)
 
+
+#define PIPGP_VERSION 0x0106
+
+#define PIPGP_VERSION_MAJOR ((PIPGP_VERSION >> 8) & 0xff)
+#define PIPGP_VERSION_MINOR (PIPGP_VERSION & 0xff)
+
 #endif
 

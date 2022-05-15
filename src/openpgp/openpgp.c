@@ -1695,6 +1695,13 @@ static int cmd_import_data() {
     return SW_OK();
 }
 
+static int cmd_version() {
+    res_APDU[res_APDU_size++] = PIPGP_VERSION_MAJOR;
+    res_APDU[res_APDU_size++] = PIPGP_VERSION_MINOR;
+    res_APDU[res_APDU_size++] = 0x0;
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -1715,6 +1722,7 @@ typedef struct cmd
 #define INS_PUT_DATA        0xDA
 #define INS_IMPORT_DATA     0xDB
 #define INS_TERMINATE_DF    0xE6
+#define INS_VERSION         0xF1
 
 static const cmd_t cmds[] = {
     { INS_GET_DATA, cmd_get_data },
@@ -1731,6 +1739,7 @@ static const cmd_t cmds[] = {
     { INS_INTERNAL_AUT, cmd_internal_aut },
     { INS_MSE, cmd_mse },
     { INS_IMPORT_DATA, cmd_import_data },
+    { INS_VERSION, cmd_version },
     { 0x00, 0x0}
 };
 
