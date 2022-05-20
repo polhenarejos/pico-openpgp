@@ -35,6 +35,9 @@
 #define EF_PB_DEC       0x10d5
 #define EF_PB_AUT       0x10d6
 #define EF_DEK          0x1099
+#define EF_CH_1         0x1f21
+#define EF_CH_2         0x1f22
+#define EF_CH_3         0x1f23
 
 #define EF_EXT_HEADER   0x004d //C
 #define EF_FULL_AID     0x004f //S
