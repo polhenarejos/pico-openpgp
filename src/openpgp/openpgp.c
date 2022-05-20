@@ -767,6 +767,8 @@ static int cmd_get_data() {
     if (currentEF && (currentEF->fid & 0x1FF0) == (fid & 0x1FF0)) { //previously selected
         ef = currentEF;
     }
+    else
+        select_file(ef);
     if (ef->data) {
         uint16_t fids[] = {1,fid};
         uint16_t data_len = parse_do(fids, 1);
@@ -1736,6 +1738,27 @@ static int cmd_select_data() {
    return SW_OK();
 }
 
+static int cmd_get_next_data() {
+    file_t *ef = NULL;
+    if (apdu.cmd_apdu_data_len > 0)
+        return SW_WRONG_LENGTH();
+    if (!currentEF)
+        return SW_RECORD_NOT_FOUND();
+    uint16_t fid = (P1(apdu) << 8) | P2(apdu);
+    if (!(ef = search_by_fid(fid, NULL, SPECIFY_EF)))
+        return SW_REFERENCE_NOT_FOUND();
+    if (!authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
+    if ((currentEF->fid & 0x1FF0) != (fid & 0x1FF0))
+        return SW_WRONG_P1P2();
+    fid = currentEF->fid + 1; //curentEF contains private DO. so, we select the next one
+    if (!(ef = search_by_fid(fid, NULL, SPECIFY_EF)))
+        return SW_REFERENCE_NOT_FOUND();
+    select_file(ef);
+    return cmd_get_data();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -1754,6 +1777,7 @@ typedef struct cmd
 #define INS_SELECT          0xA4
 #define INS_SELECT_DATA     0xA5
 #define INS_GET_DATA        0xCA
+#define INS_GET_NEXT_DATA   0xCC
 #define INS_PUT_DATA        0xDA
 #define INS_IMPORT_DATA     0xDB
 #define INS_TERMINATE_DF    0xE6
@@ -1776,6 +1800,7 @@ static const cmd_t cmds[] = {
     { INS_IMPORT_DATA, cmd_import_data },
     { INS_VERSION, cmd_version },
     { INS_SELECT_DATA, cmd_select_data },
+    { INS_GET_NEXT_DATA, cmd_get_next_data },
     { 0x00, 0x0}
 };
 
