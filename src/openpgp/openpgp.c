@@ -144,7 +144,7 @@ static int cmd_select() {
     }
     if ((p2 & 0xfc) == 0x00 || (p2 & 0xfc) == 0x04) {
         if ((p2 & 0xfc) == 0x04)
-            process_fci(pe);
+            process_fci(pe,0);
     }
     else
         return SW_INCORRECT_P1P2();
@@ -334,7 +334,7 @@ app_t *openpgp_select_aid(app_t *a) {
         a->process_apdu = openpgp_process_apdu;
         a->unload = openpgp_unload;
         init_openpgp();
-        process_fci(file_openpgp);
+        process_fci(file_openpgp,1);
         memcpy(res_APDU+res_APDU_size,"\x64\x06\x53\x04", 4);
         res_APDU_size += 4;
         int heap_left = heapLeft();
