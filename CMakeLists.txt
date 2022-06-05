@@ -36,12 +36,14 @@ if (NOT DEFINED USB_PID)
     set(USB_PID 0xFCFD)
 endif()
 add_definitions(-DUSB_PID=${USB_PID})
+
+configure_file(${CMAKE_CURRENT_LIST_DIR}/pico-ccid/config/mbedtls_config.h ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/include/mbedtls COPYONLY)
         
 target_sources(pico_openpgp PUBLIC
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/ccid2040.c
-        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/openpgp.c
-        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/files.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/usb/usb.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/usb/usb_descriptors.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/ccid2040.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/asn1.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs/file.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs/flash.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs/low_flash.c
@@ -49,40 +51,30 @@ target_sources(pico_openpgp PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/rng/neug.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/crypto_utils.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/eac.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/openpgp.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/files.c
         
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/sha256.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/aes.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/sha512.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/rsa.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/asn1parse.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/bignum.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/platform_util.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/md.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/oid.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/rsa_alt_helpers.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/constant_time.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ecdsa.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ecp.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ecp_curves.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/asn1write.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/hmac_drbg.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/md5.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ripemd160.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/sha1.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ecdh.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/cmac.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/cipher.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/cipher_wrap.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/chachapoly.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/camellia.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/chacha20.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/aria.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/poly1305.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/gcm.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ccm.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/des.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/nist_kw.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/hkdf.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/asn1parse.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/constant_time.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ecdsa.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ecdh.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ecp.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ecp_curves.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/md.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/md5.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/oid.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/platform_util.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ripemd160.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/rsa.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/rsa_alt_helpers.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/sha1.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/sha256.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/sha512.c
         )
 
 target_include_directories(pico_openpgp PUBLIC
@@ -94,6 +86,11 @@ target_include_directories(pico_openpgp PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/include
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library
         )
+        
+target_compile_options(pico_openpgp PUBLIC
+    -Wall
+    -Werror
+)
         
 pico_add_extra_outputs(pico_openpgp)
 
