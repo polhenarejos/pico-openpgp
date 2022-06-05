@@ -30,9 +30,9 @@ Pico OpenPGP has implemented the following features:
 All these features are compliant with the specification. Therefore, if you detect some behaviour that is not expected or it does not follow the rules of specs, please open an issue.
 
 ### About Gnuk
-This project was inspired by [Gnuk](https://wiki.debian.org/GNUK "Gnuk"), a same project but focused on STM32 processor family. Despite the initial idea was to port Gnuk to the Raspberry Pico family, the underlaying architecture is widely different (although they run on ARM). For instance, the Pico has two ARM cores, with an appropiate SDK able to leverage them. Also, Pico has an internal flash storage, which is farly larger compared to STM32 ROM storage. Finally, the Pico has a complete USB interface based on TinyUSB, which difficults to port Gnuk. These are only few examples of the difficulties of porting Gnuk to the Raspberry Pico.
+This project was inspired by [Gnuk](https://wiki.debian.org/GNUK "Gnuk"), a same project but focused on STM32 processor family. Despite the initial idea was to port Gnuk to the Raspberry Pico family, the underlaying architecture is widely different (although boh run on ARM). For instance, the Pico has two ARM cores, with an appropiate SDK able to leverage them. Also, Pico has an internal flash storage, which is farly larger compared to STM32 ROM storage. Finally, the Pico has a complete USB interface based on TinyUSB, which difficults to port Gnuk. These are only few examples of the difficulties of porting Gnuk to the Raspberry Pico.
 
-As a consequence, Pico OpenPGP is designed from zero. Well, not strictly from zero, as it borrows some of the buffering between USB and CCID interfaces from Gnuk. Cryptographic operations are implemented with MBEDTLS library.
+As a consequence, Pico OpenPGP is designed from zero. Well, not strictly from zero, as it borrows some of the cryptographic operations implemented with MbedTLS library.
 
 Whilst Gnuk is OpenPGP 2.0 with small set of enhancements, Pico OpenPGP aims at being OpenPGP 3.4 compliant, with new features (not present in Gnuk), such as Manage Security Environment (MSE) or UIF.
 
@@ -123,6 +123,5 @@ OpenSC relies on PCSC driver, which reads a list (`Info.plist`) that contains a 
 ## Credits
 Pico OpenPGP uses the following libraries or portion of code:
 - mbedTLS for cryptographic operations.
-- gnuk for low level CCID procedures support.
 - TinyUSB for low level USB procedures.
 
