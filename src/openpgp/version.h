@@ -30,4 +30,3 @@
 #define PIPGP_VERSION_MINOR (PIPGP_VERSION & 0xff)
 
 #endif
-
