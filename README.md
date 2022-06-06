@@ -26,8 +26,18 @@ Pico OpenPGP has implemented the following features:
 - Key Derivation Function (KDF) for PIN.
 - Manage Security Environment (MSE).
 - DEK for internal safe storage.
+- AES key generation.
+- AES ciphering and deciphering.
+- Cardholder certificates support.
 
 All these features are compliant with the specification. Therefore, if you detect some behaviour that is not expected or it does not follow the rules of specs, please open an issue.
+
+## AES support
+There is no known software that supports AES with OpenPGP. Nevertheless, it can be used with customized PKCS11 modules or interfacing with raw APDU packets.
+
+During asymmetric key generation for DEC key, Pico OpenPGP also generates a 32 bits symmetric key for AES operations.
+
+OpenPGP card 3.4 specifications describe the procedure to perform ciphering (encryption and decryption) with AES via PSO:ENCIPHER and PSO:DECIPHER. Both commands are supported by Pico OpenPGP.
 
 ### About Gnuk
 This project was inspired by [Gnuk](https://wiki.debian.org/GNUK "Gnuk"), a same project but focused on STM32 processor family. Despite the initial idea was to port Gnuk to the Raspberry Pico family, the underlaying architecture is widely different (although boh run on ARM). For instance, the Pico has two ARM cores, with an appropiate SDK able to leverage them. Also, Pico has an internal flash storage, which is farly larger compared to STM32 ROM storage. Finally, the Pico has a complete USB interface based on TinyUSB, which difficults to port Gnuk. These are only few examples of the difficulties of porting Gnuk to the Raspberry Pico.
@@ -122,6 +132,6 @@ OpenSC relies on PCSC driver, which reads a list (`Info.plist`) that contains a 
 
 ## Credits
 Pico OpenPGP uses the following libraries or portion of code:
-- mbedTLS for cryptographic operations.
+- MbedTLS for cryptographic operations.
 - TinyUSB for low level USB procedures.
 
