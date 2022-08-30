@@ -78,7 +78,7 @@ After make ends, the binary file pico_openpgp.uf2 will be generated. Put your pi
 ### Keypair generation
 Generating EC keys is almost instant. RSA keypair generation takes some time, specially for 3072 and 4096 bits.
 ### Keypair generation
-Generating EC keys is almost instant. RSA keypair generation takes some time, specially for `3072` and `4096` bits. 
+Generating EC keys is almost instant. RSA keypair generation takes some time, specially for `3072` and `4096` bits.
 
 | RSA key length (bits) | Average time (seconds) |
 | :---: | :---: |
@@ -119,7 +119,7 @@ While processing, the Pico OpenPGP is busy and cannot receive additional command
 
 ## Driver
 
-Pico OpenPGP uses the `openpgp` driver provided by [OpenSC](https://github.com/OpenSC/OpenSC/ "OpenSC"). This driver utilizes the standardized PKCS#11 interface to communicate with the user and it can be used with many engines that accept PKCS#11 interface, such as OpenSSL, P11 library or pkcs11-tool. 
+Pico OpenPGP uses the `openpgp` driver provided by [OpenSC](https://github.com/OpenSC/OpenSC/ "OpenSC"). This driver utilizes the standardized PKCS#11 interface to communicate with the user and it can be used with many engines that accept PKCS#11 interface, such as OpenSSL, P11 library or pkcs11-tool.
 
 It also accepts the use of GnuPG programs (`gpg` and `gpg2`) to manipulate the card. For instance, it can be used with the `gpg --edit-card --expert` interface to change the cryptographic keys, generate new keypairs or simply set the cardholder name.
 

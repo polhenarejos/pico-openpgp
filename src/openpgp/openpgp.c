@@ -1,17 +1,17 @@
-/* 
+/*
  * This file is part of the Pico OpenPGP distribution (https://github.com/polhenarejos/pico-openpgp).
  * Copyright (c) 2022 Pol Henarejos.
- * 
- * This program is free software: you can redistribute it and/or modify  
- * it under the terms of the GNU General Public License as published by  
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 3.
  *
- * This program is distributed in the hope that it will be useful, but 
- * WITHOUT ANY WARRANTY; without even the implied warranty of 
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License 
+ * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
@@ -27,6 +27,8 @@
 #include "mbedtls/ecdh.h"
 #include "mbedtls/asn1.h"
 #include "asn1.h"
+#include "usb.h"
+#include "ccid.h"
 
 bool has_pw1 = false;
 bool has_pw2 = false;
@@ -37,17 +39,17 @@ static uint8_t dek[IV_SIZE+32];
 static uint16_t algo_dec = EF_ALGO_PRIV2, algo_aut = EF_ALGO_PRIV3, pk_dec = EF_PK_DEC, pk_aut = EF_PK_AUT;
 
 uint8_t openpgp_aid[] = {
-    6, 
+    6,
     0xD2,0x76,0x00,0x01,0x24,0x01,
 };
 
 uint8_t openpgp_aid_full[] = {
-    16,00, 
+    16,00,
     0xD2,0x76,0x00,0x01,0x24,0x01,
     OPGP_VERSION_MAJOR,OPGP_VERSION_MINOR,0xff,0xfe,0xff,0xff,0xff,0xff,0x00,0x00
 };
 
-char atr_openpgp[] = { 
+char atr_openpgp[] = {
     21,
     0x3b,0xda,0x18,0xff,0x81,0xb1,0xfe,0x75,0x1f,0x03,0x00,0x31,0xf5,0x73,0xc0,0x01,0x60,0x00,0x90,0x00,0x1c
 };
@@ -57,13 +59,13 @@ int openpgp_process_apdu();
 
 extern uint32_t board_button_read(void);
 
-static bool wait_button(uint16_t fid) {
+static bool wait_button_pressed(uint16_t fid) {
     file_t *ef = search_by_fid(fid, NULL, SPECIFY_ANY);
     uint32_t val = EV_PRESS_BUTTON;
-    if (ef && ef->data && file_read_uint8(ef->data+2) > 0) {
-        queue_try_add(&card_to_ccid_q, &val);
+    if (ef && ef->data && file_get_data(ef)[0] > 0) {
+        queue_try_add(&card_to_usb_q, &val);
         do {
-            queue_remove_blocking(&ccid_to_card_q, &val);
+            queue_remove_blocking(&usb_to_card_q, &val);
         }
         while (val != EV_BUTTON_PRESSED && val != EV_BUTTON_TIMEOUT);
     }
@@ -130,7 +132,7 @@ static int cmd_select() {
             }
             if (card_terminated) {
                 return set_res_sw (0x62, 0x85);
-            }        
+            }
         }
         else if (p1 == 0x08) { //Select from the MF - Path without the MF identifier
             if (!(pe = search_by_path(apdu.data, apdu.nc, MF))) {
@@ -173,7 +175,7 @@ void scan_files() {
     if ((ef = search_by_fid(EF_RC, NULL, SPECIFY_ANY))) {
         if (!ef->data) {
             printf("RC is empty. Initializing with default password\r\n");
-            
+
             const uint8_t def[8] = { 0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38 };
             uint8_t dhash[33];
             dhash[0] = sizeof(def);
@@ -184,7 +186,7 @@ void scan_files() {
     if ((ef = search_by_fid(EF_PW3, NULL, SPECIFY_ANY))) {
         if (!ef->data) {
             printf("PW3 is empty. Initializing with default password\r\n");
-            
+
             const uint8_t def[8] = { 0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38 };
             uint8_t dhash[33];
             dhash[0] = sizeof(def);
@@ -211,7 +213,7 @@ void scan_files() {
             printf("DEK is empty\r\n");
             const uint8_t def1[6] = { 0x31,0x32,0x33,0x34,0x35,0x36 };
             const uint8_t def3[8] = { 0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38 };
-            
+
             uint8_t def[IV_SIZE+32+32];
             const uint8_t *dek = random_bytes_get(IV_SIZE+32);
             memcpy(def, dek, IV_SIZE+32);
@@ -219,7 +221,7 @@ void scan_files() {
             hash_multi(def1, sizeof(def1), session_pw1);
             aes_encrypt_cfb_256(session_pw1, def, def+IV_SIZE, 32);
             memset(session_pw1, 0, sizeof(session_pw1));
-            
+
             hash_multi(def3, sizeof(def3), session_pw3);
             aes_encrypt_cfb_256(session_pw3, def, def+IV_SIZE+32, 32);
             memset(session_pw1, 0, sizeof(session_pw1));
@@ -265,12 +267,12 @@ int load_dek() {
         return CCID_ERR_FILE_NOT_FOUND;
     int r = CCID_OK;
     if (has_pw1 || has_pw2) {
-        memcpy(dek, file_read(tf->data+sizeof(uint16_t)), IV_SIZE+32);
+        memcpy(dek, file_get_data(tf), IV_SIZE+32);
         r = aes_decrypt_cfb_256(session_pw1, dek, dek+IV_SIZE, 32);
     }
     else if (has_pw3) {
-        memcpy(dek, file_read(tf->data+sizeof(uint16_t)), IV_SIZE);
-        memcpy(dek+IV_SIZE, file_read(tf->data+sizeof(uint16_t)+IV_SIZE+32), 32);
+        memcpy(dek, file_get_data(tf), IV_SIZE);
+        memcpy(dek+IV_SIZE, file_get_data(tf)+IV_SIZE+32, 32);
         r = aes_decrypt_cfb_256(session_pw3, dek, dek+IV_SIZE, 32);
     }
     if (r != 0)
@@ -349,7 +351,7 @@ app_t *openpgp_select_aid(app_t *a) {
     return NULL;
 }
 
-void __attribute__ ((constructor)) openpgp_ctor() { 
+void __attribute__ ((constructor)) openpgp_ctor() {
     ccid_atr = (uint8_t *)atr_openpgp;
     register_app(openpgp_select_aid);
 }
@@ -365,7 +367,7 @@ int parse_do(uint16_t *fids, int mode) {
             }
             else {
                 if (ef->data)
-                    data_len = file_read_uint16(ef->data);
+                    data_len = file_get_size(ef);
                 else
                     data_len = 0;
                 if (mode == 1) {
@@ -380,7 +382,7 @@ int parse_do(uint16_t *fids, int mode) {
                         res_APDU_size += format_tlv_len(data_len, res_APDU+res_APDU_size);
                     }
                     if (ef->data)
-                        memcpy(res_APDU+res_APDU_size, file_read(ef->data+2), data_len);
+                        memcpy(res_APDU+res_APDU_size, file_get_data(ef), data_len);
                     res_APDU_size += data_len;
                 }
             }
@@ -394,8 +396,8 @@ int parse_trium(uint16_t fid, uint8_t num, size_t size) {
     for (uint8_t i = 0; i < num; i++) {
         file_t *ef;
         if ((ef = search_by_fid(fid+i, NULL, SPECIFY_EF)) && ef->data) {
-            uint16_t data_len = file_read_uint16(ef->data);
-            memcpy(res_APDU+res_APDU_size, file_read(ef->data+2), data_len);
+            uint16_t data_len = file_get_size(ef);
+            memcpy(res_APDU+res_APDU_size, file_get_data(ef), data_len);
             res_APDU_size += data_len;
         }
         else {
@@ -409,7 +411,7 @@ int parse_trium(uint16_t fid, uint8_t num, size_t size) {
 int parse_ch_data(const file_t *f, int mode) {
     uint16_t fids[] = {
         3,
-        EF_CH_NAME, EF_LANG_PREF, EF_SEX, 
+        EF_CH_NAME, EF_LANG_PREF, EF_SEX,
     };
     res_APDU[res_APDU_size++] = EF_CH_DATA & 0xff;
     res_APDU[res_APDU_size++] = 0x82;
@@ -426,12 +428,12 @@ int inc_sig_count() {
     file_t *pw_status;
     if (!(pw_status = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF)) || !pw_status->data)
         return SW_REFERENCE_NOT_FOUND();
-    if (file_read_uint8(pw_status->data+2) == 1)
+    if (file_get_data(pw_status)[0] == 1)
         has_pw1 = false;
     file_t *ef = search_by_fid(EF_SIG_COUNT, NULL, SPECIFY_ANY);
     if (!ef || !ef->data)
         return CCID_ERR_FILE_NOT_FOUND;
-    uint8_t *p = file_read(ef->data+2);
+    uint8_t *p = file_get_data(ef);
     uint32_t counter = (p[0] << 16) | (p[1] << 8) | p[2];
     counter++;
     uint8_t q[3] = { (counter>>16) & 0xff, (counter>>8) & 0xff, counter&0xff };
@@ -461,7 +463,7 @@ int parse_sec_tpl(const file_t *f, int mode) {
     if (ef && ef->data) {
         res_APDU[res_APDU_size++] = EF_SIG_COUNT & 0xff;
         res_APDU[res_APDU_size++] = 3;
-        memcpy(res_APDU+res_APDU_size, file_read(ef->data+2), 3);
+        memcpy(res_APDU+res_APDU_size, file_get_data(ef), 3);
         res_APDU_size += 3;
     }
     return 5+2;
@@ -486,7 +488,7 @@ int parse_cafp(const file_t *f, int mode) {
 int parse_ts(const file_t *f, int mode) {
     res_APDU[res_APDU_size++] = EF_TS_ALL & 0xff;
     res_APDU[res_APDU_size++] = 12;
-    return parse_trium(EF_TS_SIG, 3, 4);    
+    return parse_trium(EF_TS_SIG, 3, 4);
 }
 
 int parse_keyinfo(const file_t *f, int mode) {
@@ -501,14 +503,14 @@ int parse_keyinfo(const file_t *f, int mode) {
         res_APDU[res_APDU_size++] = 0x01;
     else
         res_APDU[res_APDU_size++] = 0x00;
-    
+
     ef = search_by_fid(EF_PK_DEC, NULL, SPECIFY_ANY);
     res_APDU[res_APDU_size++] = 0x01;
     if (ef && ef->data)
         res_APDU[res_APDU_size++] = 0x01;
     else
         res_APDU[res_APDU_size++] = 0x00;
-    
+
     ef = search_by_fid(EF_PK_AUT, NULL, SPECIFY_ANY);
     res_APDU[res_APDU_size++] = 0x02;
     if (ef && ef->data)
@@ -527,7 +529,7 @@ int parse_pw_status(const file_t *f, int mode) {
     }
     ef = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_ANY);
     if (ef && ef->data) {
-        memcpy(res_APDU+res_APDU_size, file_read(ef->data+2), 7);
+        memcpy(res_APDU+res_APDU_size, file_get_data(ef), 7);
         res_APDU_size += 7;
     }
     return res_APDU_size-init_len;
@@ -597,7 +599,7 @@ static const uint8_t algorithm_attr_rsa4k[] = {
 static const uint8_t algorithm_attr_p256k1[] = {
   6,
   ALGO_ECDSA,
-  0x2b, 0x81, 0x04, 0x00, 0x0a 
+  0x2b, 0x81, 0x04, 0x00, 0x0a
 };
 
 static const uint8_t algorithm_attr_p256r1[] = {
@@ -666,7 +668,7 @@ int parse_algoinfo(const file_t *f, int mode) {
         datalen += parse_algo(algorithm_attr_bp256r1, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_bp384r1, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_bp512r1, EF_ALGO_SIG);
-        
+
         datalen += parse_algo(algorithm_attr_rsa1k, EF_ALGO_DEC);
         datalen += parse_algo(algorithm_attr_rsa2k, EF_ALGO_DEC);
         datalen += parse_algo(algorithm_attr_rsa3k, EF_ALGO_DEC);
@@ -680,7 +682,7 @@ int parse_algoinfo(const file_t *f, int mode) {
         datalen += parse_algo(algorithm_attr_bp512r1, EF_ALGO_DEC);
         datalen += parse_algo(algorithm_attr_cv25519, EF_ALGO_DEC);
         datalen += parse_algo(algorithm_attr_x448, EF_ALGO_DEC);
-        
+
         datalen += parse_algo(algorithm_attr_rsa1k, EF_ALGO_AUT);
         datalen += parse_algo(algorithm_attr_rsa2k, EF_ALGO_AUT);
         datalen += parse_algo(algorithm_attr_rsa3k, EF_ALGO_AUT);
@@ -701,13 +703,13 @@ int parse_algoinfo(const file_t *f, int mode) {
         if (!(ef = search_by_fid(fid, NULL, SPECIFY_EF)) || !ef->data)
             datalen += parse_algo(algorithm_attr_rsa2k, f->fid);
         else {
-            uint16_t len = file_read_uint16(ef->data);
+            uint16_t len = file_get_size(ef);
             if (res_APDU_size > 0) {
                 res_APDU[res_APDU_size++] = f->fid & 0xff;
                 res_APDU[res_APDU_size++] = len & 0xff;
                 datalen += 2;
             }
-            memcpy(res_APDU+res_APDU_size, file_read(ef->data+2), len);
+            memcpy(res_APDU+res_APDU_size, file_get_data(ef), len);
             res_APDU_size += len;
             datalen += len;
         }
@@ -773,32 +775,32 @@ static int cmd_get_data() {
 
 int pin_reset_retries(const file_t *pin, bool force) {
     if (!pin)
-        return CCID_ERR_NULL_PARAM; 
+        return CCID_ERR_NULL_PARAM;
     file_t *pw_status = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF);
     if (!pw_status)
         return CCID_ERR_FILE_NOT_FOUND;
     uint8_t p[7];
-    memcpy(p, file_read(pw_status->data+2), 7);
+    memcpy(p, file_get_data(pw_status), 7);
     uint8_t retries = p[3+(pin->fid&0x3)];
     if (retries == 0 && force == false) //blocked
         return CCID_ERR_BLOCKED;
     p[3+(pin->fid&0x3)] = 3;
-    int r = flash_write_data_to_file(pw_status, p, file_read_uint16(pw_status->data));
+    int r = flash_write_data_to_file(pw_status, p, file_get_size(pw_status));
     low_flash_available();
     return r;
 }
 
 int pin_wrong_retry(const file_t *pin) {
     if (!pin)
-        return CCID_ERR_NULL_PARAM; 
+        return CCID_ERR_NULL_PARAM;
     file_t *pw_status = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF);
     if (!pw_status)
         return CCID_ERR_FILE_NOT_FOUND;
     uint8_t p[7];
-    memcpy(p, file_read(pw_status->data+2), 7);
+    memcpy(p, file_get_data(pw_status), 7);
     if (p[3+(pin->fid&0x3)] > 0) {
         p[3+(pin->fid&0x3)] -= 1;
-        int r = flash_write_data_to_file(pw_status, p, file_read_uint16(pw_status->data));
+        int r = flash_write_data_to_file(pw_status, p, file_get_size(pw_status));
         if (r != CCID_OK)
             return r;
         low_flash_available();
@@ -820,9 +822,9 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
 
     uint8_t dhash[32];
     double_hash_pin(data, len, dhash);
-    if (sizeof(dhash) != file_read_uint16(pin->data)-1) //1 byte for pin len
+    if (sizeof(dhash) != file_get_size(pin)-1) //1 byte for pin len
         return SW_CONDITIONS_NOT_SATISFIED();
-    if (memcmp(file_read(pin->data+3), dhash, sizeof(dhash)) != 0) {
+    if (memcmp(file_get_data(pin)+1, dhash, sizeof(dhash)) != 0) {
         int retries;
         if ((retries = pin_wrong_retry(pin)) < CCID_OK)
             return SW_PIN_BLOCKED();
@@ -852,7 +854,7 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
 static int cmd_verify() {
     uint8_t p1 = P1(apdu);
     uint8_t p2 = P2(apdu);
-    
+
     if (p1 == 0xFF) {
         if (apdu.nc != 0)
             return SW_WRONG_DATA();
@@ -874,12 +876,12 @@ static int cmd_verify() {
         return SW_REFERENCE_NOT_FOUND();
     if (!(pw_status = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF)))
         return SW_REFERENCE_NOT_FOUND();
-    if (file_read_uint8(pw->data+2) == 0) //not initialized
+    if (file_get_data(pw)[0] == 0) //not initialized
         return SW_REFERENCE_NOT_FOUND();
     if (apdu.nc > 0) {
         return check_pin(pw, apdu.data, apdu.nc);
     }
-    uint8_t retries = file_read_uint8(pw_status->data+2+3+(fid&0x3));
+    uint8_t retries = *(file_get_data(pw_status)+3+(fid&0x3));
     if (retries == 0)
         return SW_PIN_BLOCKED();
     if ((p2 == 0x81 && has_pw1) || (p2 == 0x82 && has_pw2) || (p2 == 0x83 && has_pw3))
@@ -922,7 +924,7 @@ static int cmd_change_pin() {
     file_t *pw;
     if (!(pw = search_by_fid(fid, NULL, SPECIFY_EF)))
         return SW_REFERENCE_NOT_FOUND();
-    uint8_t pin_len = file_read_uint8(pw->data+2);
+    uint8_t pin_len = file_get_data(pw)[0];
     uint16_t r = check_pin(pw, apdu.data, pin_len);
     if (r != 0x9000)
         return r;
@@ -946,7 +948,7 @@ static int cmd_reset_retry() {
             file_t *rc;
             if (!(rc = search_by_fid(EF_RC, NULL, SPECIFY_EF)))
                 return SW_REFERENCE_NOT_FOUND();
-            uint8_t pin_len = file_read_uint8(rc->data+2);
+            uint8_t pin_len = file_get_data(rc)[0];
             if (apdu.nc <= pin_len)
                 return SW_WRONG_LENGTH();
             uint16_t r = check_pin(rc, apdu.data, pin_len);
@@ -954,7 +956,7 @@ static int cmd_reset_retry() {
                 return r;
             newpin_len = apdu.nc-pin_len;
         }
-        else if (P1(apdu) == 0x2) {    
+        else if (P1(apdu) == 0x2) {
             if (!has_pw3)
                 return SW_CONDITIONS_NOT_SATISFIED();
             newpin_len = apdu.nc;
@@ -973,8 +975,8 @@ static int cmd_reset_retry() {
 
 int store_keys(void *key_ctx, int type, uint16_t key_id) {
     int r, key_size = 0;
-    uint8_t kdata[4096/8]; //worst 
-    
+    uint8_t kdata[4096/8]; //worst
+
     //if (!has_pw3)
     //    return CCID_NO_LOGIN;
     //file_t *pw3 = search_by_fid(EF_PW3, NULL, SPECIFY_EF);
@@ -1020,9 +1022,9 @@ int store_keys(void *key_ctx, int type, uint16_t key_id) {
 }
 
 int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
-    int key_size = file_read_uint16(fkey->data);
+    int key_size = file_get_size(fkey);
     uint8_t kdata[4096/8];
-    memcpy(kdata, file_read(fkey->data+2), key_size);
+    memcpy(kdata, file_get_data(fkey), key_size);
     if (dek_decrypt(kdata, key_size) != 0) {
         return CCID_EXEC_ERROR;
     }
@@ -1054,9 +1056,9 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
 }
 
 int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
-    int key_size = file_read_uint16(fkey->data);
+    int key_size = file_get_size(fkey);
     uint8_t kdata[67]; //Worst case, 521 bit + 1byte
-    memcpy(kdata, file_read(fkey->data+2), key_size);
+    memcpy(kdata, file_get_data(fkey), key_size);
     if (dek_decrypt(kdata, key_size) != 0) {
         return CCID_EXEC_ERROR;
     }
@@ -1070,8 +1072,8 @@ int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
 }
 
 int load_aes_key(uint8_t *aes_key, file_t *fkey) {
-    int key_size = file_read_uint16(fkey->data);
-    memcpy(aes_key, file_read(fkey->data+2), key_size);
+    int key_size = file_get_size(fkey);
+    memcpy(aes_key, file_get_data(fkey), key_size);
     if (dek_decrypt(aes_key, key_size) != 0) {
         return CCID_EXEC_ERROR;
     }
@@ -1133,7 +1135,7 @@ static int cmd_keypair_gen() {
         return SW_WRONG_LENGTH();
     if (!has_pw3 && P1(apdu) == 0x80)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
-    
+
     uint16_t fid = 0x0;
     int r = CCID_OK;
     if (apdu.data[0] == 0xB6)
@@ -1144,15 +1146,15 @@ static int cmd_keypair_gen() {
         fid = EF_PK_AUT;
     else
         return SW_WRONG_DATA();
-    
+
     file_t *algo_ef = search_by_fid(fid-0x0010, NULL, SPECIFY_EF);
     if (!algo_ef)
         return SW_REFERENCE_NOT_FOUND();
     const uint8_t *algo = algorithm_attr_rsa2k+1;
     uint16_t algo_len = algorithm_attr_rsa2k[0];
     if (algo_ef && algo_ef->data) {
-        algo = file_read(algo_ef->data+2);
-        algo_len = file_read_uint16(algo_ef->data);
+        algo = file_get_data(algo_ef);
+        algo_len = file_get_size(algo_ef);
     }
     if (P1(apdu) == 0x80) { //generate
         if (algo[0] == ALGO_RSA) {
@@ -1211,7 +1213,7 @@ static int cmd_keypair_gen() {
             memcpy(aes_key, random_bytes_get(key_size), key_size);
             r = store_keys(aes_key, ALGO_AES_256, EF_AES_KEY);
             /* if storing the key fails, we silently continue */
-            //if (r != CCID_OK) 
+            //if (r != CCID_OK)
             //    return SW_EXEC_ERROR();
         }
         low_flash_available();
@@ -1221,8 +1223,8 @@ static int cmd_keypair_gen() {
         file_t *ef = search_by_fid(fid+3, NULL, SPECIFY_EF);
         if (!ef || !ef->data)
             return SW_REFERENCE_NOT_FOUND();
-        res_APDU_size = file_read_uint16(ef->data);
-        memcpy(res_APDU, file_read(ef->data+2), res_APDU_size);
+        res_APDU_size = file_get_size(ef);
+        memcpy(res_APDU, file_get_data(ef), res_APDU_size);
         return SW_OK();
     }
     return SW_INCORRECT_P1P2();
@@ -1238,15 +1240,15 @@ int rsa_sign(mbedtls_rsa_context *ctx, const uint8_t *data, size_t data_len, uin
         r = mbedtls_asn1_get_alg_null(&d, end, &mdb);
         if (r == 0) {
             if (mbedtls_asn1_get_tag(&d, end, &hash_len, MBEDTLS_ASN1_OCTET_STRING) == 0) {
-                if (memcmp(mdb.p, "\x2B\x0E\x03\x02\x1A", 5) == 0) 
+                if (memcmp(mdb.p, "\x2B\x0E\x03\x02\x1A", 5) == 0)
                     md = MBEDTLS_MD_SHA1;
-                else if (memcmp(mdb.p, "\x60\x86\x48\x01\x65\x03\x04\x02\x04", 9) == 0) 
+                else if (memcmp(mdb.p, "\x60\x86\x48\x01\x65\x03\x04\x02\x04", 9) == 0)
                     md = MBEDTLS_MD_SHA224;
-                else if (memcmp(mdb.p, "\x60\x86\x48\x01\x65\x03\x04\x02\x01", 9) == 0) 
+                else if (memcmp(mdb.p, "\x60\x86\x48\x01\x65\x03\x04\x02\x01", 9) == 0)
                     md = MBEDTLS_MD_SHA256;
-                else if (memcmp(mdb.p, "\x60\x86\x48\x01\x65\x03\x04\x02\x02", 9) == 0) 
+                else if (memcmp(mdb.p, "\x60\x86\x48\x01\x65\x03\x04\x02\x02", 9) == 0)
                     md = MBEDTLS_MD_SHA384;
-                else if (memcmp(mdb.p, "\x60\x86\x48\x01\x65\x03\x04\x02\x03", 9) == 0) 
+                else if (memcmp(mdb.p, "\x60\x86\x48\x01\x65\x03\x04\x02\x03", 9) == 0)
                     md = MBEDTLS_MD_SHA512;
                 hsh = d;
             }
@@ -1288,9 +1290,9 @@ int ecdsa_sign(mbedtls_ecdsa_context *ctx, const uint8_t *data, size_t data_len,
     mbedtls_mpi_init(&si);
     int r = mbedtls_ecdsa_sign(&ctx->grp, &ri, &si, &ctx->d, data, data_len, random_gen, NULL);
     if (r == 0) {
-        mbedtls_mpi_write_binary(&ri, out, mbedtls_mpi_size(&ri)); 
+        mbedtls_mpi_write_binary(&ri, out, mbedtls_mpi_size(&ri));
         *out_len = mbedtls_mpi_size(&ri);
-        mbedtls_mpi_write_binary(&si, out+*out_len, mbedtls_mpi_size(&si)); 
+        mbedtls_mpi_write_binary(&si, out+*out_len, mbedtls_mpi_size(&si));
         *out_len += mbedtls_mpi_size(&si);
     }
     mbedtls_mpi_free(&ri);
@@ -1321,7 +1323,7 @@ static int cmd_pso() {
         return SW_REFERENCE_NOT_FOUND();
     const uint8_t *algo = algorithm_attr_rsa2k+1;
     if (algo_ef && algo_ef->data) {
-        algo = file_read(algo_ef->data+2);
+        algo = file_get_data(algo_ef);
     }
     if (apdu.data[0] == 0x2) { //AES PSO?
         if (((apdu.nc - 1)%16 == 0 && P1(apdu) == 0x80 && P2(apdu) == 0x86) || (apdu.nc%16 == 0 && P1(apdu) == 0x86 && P2(apdu) == 0x80)) {
@@ -1332,10 +1334,10 @@ static int cmd_pso() {
     file_t *ef = search_by_fid(pk_fid, NULL, SPECIFY_EF);
     if (!ef)
         return SW_REFERENCE_NOT_FOUND();
-    if (wait_button(pk_fid == EF_PK_SIG ? EF_UIF_SIG : EF_UIF_DEC) == true)
+    if (wait_button_pressed(pk_fid == EF_PK_SIG ? EF_UIF_SIG : EF_UIF_DEC) == true)
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     int r = CCID_OK;
-    int key_size = file_read_uint16(ef->data);
+    int key_size = file_get_size(ef);
     if (is_aes) {
         uint8_t aes_key[32];
         r = load_aes_key(aes_key, ef);
@@ -1420,7 +1422,7 @@ static int cmd_pso() {
                 return SW_WRONG_DATA();
             if (len != 2*key_size-1)
                 return SW_WRONG_LENGTH();
-            memcpy(kdata, file_read(ef->data+2), key_size);
+            memcpy(kdata, file_get_data(ef), key_size);
             if (dek_decrypt(kdata, key_size) != 0) {
                 return SW_EXEC_ERROR();
             }
@@ -1460,7 +1462,7 @@ static int cmd_terminate_df() {
     file_t *retries;
     if (!(retries = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF)))
         return SW_REFERENCE_NOT_FOUND();
-    if (!has_pw3 && file_read_uint8(retries->data+2+6) > 0)
+    if (!has_pw3 && *(file_get_data(retries)+6) > 0)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     if (apdu.nc != 0)
         return SW_WRONG_LENGTH();
@@ -1492,12 +1494,12 @@ static int cmd_internal_aut() {
         return SW_REFERENCE_NOT_FOUND();
     const uint8_t *algo = algorithm_attr_rsa2k+1;
     if (algo_ef && algo_ef->data) {
-        algo = file_read(algo_ef->data+2);
+        algo = file_get_data(algo_ef);
     }
     file_t *ef = search_by_fid(pk_aut, NULL, SPECIFY_EF);
     if (!ef)
         return SW_REFERENCE_NOT_FOUND();
-    if (wait_button(EF_UIF_AUT) == true)
+    if (wait_button_pressed(EF_UIF_AUT) == true)
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     int r = CCID_OK;
     if (algo[0] == ALGO_RSA) {
@@ -1583,7 +1585,7 @@ static int cmd_import_data() {
     if (!authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    
+
     uint8_t *start = apdu.data + 4 + apdu.data[3];
     if (*start++ != 0x7F || *start++ != 0x48)
         return SW_WRONG_DATA();
@@ -1606,15 +1608,15 @@ static int cmd_import_data() {
             start += len[t];
         }
     }
-    
+
     file_t *algo_ef = search_by_fid(fid-0x0010, NULL, SPECIFY_EF);
     if (!algo_ef)
         return SW_REFERENCE_NOT_FOUND();
     const uint8_t *algo = algorithm_attr_rsa2k+1;
     uint16_t algo_len = algorithm_attr_rsa2k[0];
     if (algo_ef && algo_ef->data) {
-        algo = file_read(algo_ef->data+2);
-        algo_len = file_read_uint16(algo_ef->data);
+        algo = file_get_data(algo_ef);
+        algo_len = file_get_size(algo_ef);
     }
     int r = 0;
     if (algo[0] == ALGO_RSA) {
@@ -1661,7 +1663,7 @@ static int cmd_import_data() {
          mbedtls_ecdsa_context ecdsa;
         if (p[1] == NULL || len[1] == 0)
             return SW_WRONG_DATA();
-        mbedtls_ecp_group_id gid = get_ec_group_id_from_attr(algo+1, algo_len-1);  
+        mbedtls_ecp_group_id gid = get_ec_group_id_from_attr(algo+1, algo_len-1);
         if (gid == MBEDTLS_ECP_DP_NONE)
             return SW_FUNC_NOT_SUPPORTED();
         mbedtls_ecdsa_init(&ecdsa);
