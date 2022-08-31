@@ -1,19 +1,19 @@
 #!/bin/bash
 
-# 
+#
 # This file is part of the Pico OpenPGP distribution (https://github.com/polhenarejos/pico-openpgp).
 # Copyright (c) 2022 Pol Henarejos.
-# 
-# This program is free software: you can redistribute it and/or modify  
-# it under the terms of the GNU General Public License as published by  
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, version 3.
 #
-# This program is distributed in the hope that it will be useful, but 
-# WITHOUT ANY WARRANTY; without even the implied warranty of 
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
 # General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License 
+# You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
@@ -87,7 +87,7 @@ fi
 LITTLE_VID="\x${VID:2:2}\x${VID:0:2}"
 LITTLE_PID="\x${PID:2:2}\x${PID:0:2}"
 
-perl -pi -e "s/\xff\xfe\xfd\xfc\x$VERSION_MINOR\x$VERSION_MAJOR\x01\x02\x03\x01/$LITTLE_VID$LITTLE_PID\x$VERSION_MINOR\x$VERSION_MAJOR\x01\x02\x03\x01/" $UF2_FILE_OF
+perl -pi -e "s/\xfe\xff\xfc\xfd\x$VERSION_MINOR\x$VERSION_MAJOR\x01\x02\x03\x01/$LITTLE_VID$LITTLE_PID\x$VERSION_MINOR\x$VERSION_MAJOR\x01\x02\x03\x01/" $UF2_FILE_OF
 
 echo "Done!"
 echo ""
