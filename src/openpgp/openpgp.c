@@ -1563,6 +1563,18 @@ static int cmd_mse() {
     return SW_OK();
 }
 
+size_t tag_len(uint8_t **data) {
+    size_t len = *(*data)++;
+    if (len == 0x82) {
+        len = *(*data)++ << 8;
+        len |= *(*data)++;
+    }
+    else if (len == 0x81) {
+        len = *(*data)++;
+    }
+    return len;
+}
+
 static int cmd_import_data() {
     file_t *ef = NULL;
     uint16_t fid = 0x0;
@@ -1570,39 +1582,44 @@ static int cmd_import_data() {
         return SW_WRONG_P1P2();
     if (apdu.nc < 5)
         return SW_WRONG_LENGTH();
-    if (apdu.data[0] != 0x4D || (apdu.data[2] != 0xB6 && apdu.data[2] != 0xB8 && apdu.data[2] != 0xA4))
+    uint8_t *start = apdu.data;
+    if (*start++ != 0x4D)
         return SW_WRONG_DATA();
-    if (apdu.data[2] == 0xB6)
+    size_t tgl =tag_len(&start);
+    if (*start != 0xB6 && *start != 0xB8 && *start != 0xA4)
+        return SW_WRONG_DATA();
+    if (*start == 0xB6)
         fid = EF_PK_SIG;
-    else if (apdu.data[2] != 0xB8)
+    else if (*start == 0xB8)
         fid = EF_PK_DEC;
-    else if (apdu.data[2] != 0xA4)
+    else if (*start == 0xA4)
         fid = EF_PK_AUT;
     else
         return SW_WRONG_DATA();
+    start++;
     if (!(ef = search_by_fid(fid, NULL, SPECIFY_EF)))
         return SW_REFERENCE_NOT_FOUND();
     if (!authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-
-    uint8_t *start = apdu.data + 4 + apdu.data[3];
+    start += (*start + 1);
     if (*start++ != 0x7F || *start++ != 0x48)
         return SW_WRONG_DATA();
-    uint8_t tag_len = *start++, *end = start+tag_len, len[9] = {0}, *p[9] = {NULL};
+    tgl = tag_len(&start);
+    uint8_t *end = start + tgl, len[9] = {0}, *p[9] = {0};
     while (start < end) {
         uint8_t tag = *start++;
         if ((tag >= 0x91 && tag <= 0x97) || tag == 0x99) {
-            len[tag-0x91] = *start++;
+            len[tag-0x91] = tag_len(&start);
         }
         else
             return SW_WRONG_DATA();
     }
     if (*start++ != 0x5F || *start++ != 0x48)
         return SW_WRONG_DATA();
-    tag_len = *start++;
-    end = start+tag_len;
-    for (int t = 0; start < end; t++) {
+    tgl = tag_len(&start);
+    end = start+tgl;
+    for (int t = 0; start < end && t < 9; t++) {
         if (len[t] > 0) {
             p[t] = start;
             start += len[t];
