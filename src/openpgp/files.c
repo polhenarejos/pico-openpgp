@@ -1,17 +1,17 @@
-/* 
+/*
  * This file is part of the Pico OpenPGP distribution (https://github.com/polhenarejos/pico-openpgp).
  * Copyright (c) 2022 Pol Henarejos.
- * 
- * This program is free software: you can redistribute it and/or modify  
- * it under the terms of the GNU General Public License as published by  
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 3.
  *
- * This program is distributed in the hope that it will be useful, but 
- * WITHOUT ANY WARRANTY; without even the implied warranty of 
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License 
+ * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
@@ -96,7 +96,7 @@ file_t file_entries[] = {
     /* 10 */ { .fid = EF_CH_CERT, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF | FILE_DATA_FUNC, .data = (uint8_t *)parse_ch_cert, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
     /* 11 */ { .fid = EF_EXLEN_INFO, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = exlen_info, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
     /* 12 */ { .fid = EF_GFM, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = feature_mngmnt, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
-    /* 13 */ { .fid = EF_SIG_COUNT, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
+    /* 13 */ { .fid = EF_SIG_COUNT, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
     /* 14 */ { .fid = EF_EXT_CAP, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = extended_capabilities, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
     /* 15 */ { .fid = EF_ALGO_SIG, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF | FILE_DATA_FUNC, .data = (uint8_t *)parse_algoinfo, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_R_WP },
     /* 16 */ { .fid = EF_ALGO_DEC, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF | FILE_DATA_FUNC, .data = (uint8_t *)parse_algoinfo, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_R_WP },
@@ -122,7 +122,6 @@ file_t file_entries[] = {
     /* 36 */ { .fid = EF_ALGO_INFO, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF | FILE_DATA_FUNC, .data = (uint8_t *)parse_algoinfo, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
     /* 37 */ { .fid = EF_APP_DATA, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF | FILE_DATA_FUNC, .data = (uint8_t *)parse_app_data, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
     /* 38 */ { .fid = EF_DISCRETE_DO, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF | FILE_DATA_FUNC, .data = (uint8_t *)parse_discrete_do, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
-    
     /* 39 */ { .fid = EF_PW1, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_WP },
     /* 40 */ { .fid = EF_RC, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_WP },
     /* 41 */ { .fid = EF_PW3, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_WP },
@@ -141,7 +140,7 @@ file_t file_entries[] = {
     /* 54 */ { .fid = EF_CH_1, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_NONE },
     /* 55 */ { .fid = EF_CH_2, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_NONE },
     /* 56 */ { .fid = EF_CH_3, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_NONE },
-    
+
     /* 57 */ { .fid = 0x0000, .parent = 0, .name = openpgp_aid, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
     /* 58 */ { .fid = 0x0000, .parent = 0xff, .name = NULL, .type = FILE_TYPE_UNKNOWN, .data = NULL, .ef_structure = 0, .acl = ACL_NONE } //end
 };
