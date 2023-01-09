@@ -1457,7 +1457,7 @@ static int cmd_pso() {
 }
 
 static int cmd_terminate_df() {
-    if (P1(apdu) != 0x0 && P2(apdu) != 0x0)
+    if (P1(apdu) != 0x0 || P2(apdu) != 0x0)
         return SW_INCORRECT_P1P2();
     file_t *retries;
     if (!(retries = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF)))
@@ -1585,7 +1585,7 @@ static int cmd_import_data() {
     uint8_t *start = apdu.data;
     if (*start++ != 0x4D)
         return SW_WRONG_DATA();
-    size_t tgl =tag_len(&start);
+    size_t tgl = tag_len(&start);
     if (*start != 0xB6 && *start != 0xB8 && *start != 0xA4)
         return SW_WRONG_DATA();
     if (*start == 0xB6)
