@@ -933,7 +933,15 @@ static int cmd_put_data() {
         ef = currentEF;
     }
     if (apdu.nc > 0 && (ef->type & FILE_DATA_FLASH)) {
-        int r = flash_write_data_to_file(ef, apdu.data, apdu.nc);
+        int r = 0;
+        if (fid == EF_RC) {
+            uint8_t dhash[33];
+            dhash[0] = apdu.nc;
+            double_hash_pin(apdu.data, apdu.nc, dhash+1);
+            r = flash_write_data_to_file(ef, dhash, sizeof(dhash));
+        }
+        else
+            r = flash_write_data_to_file(ef, apdu.data, apdu.nc);
         if (r != CCID_OK)
             return SW_MEMORY_FAILURE();
         low_flash_available();
