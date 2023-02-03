@@ -28,7 +28,7 @@
 #include "mbedtls/asn1.h"
 #include "asn1.h"
 #include "usb.h"
-#include "ccid.h"
+#include "ccid/ccid.h"
 
 bool has_pw1 = false;
 bool has_pw2 = false;
@@ -256,6 +256,13 @@ void scan_files() {
             flash_write_data_to_file(ef, def, sizeof(def));
         }
     }
+    if ((ef = search_by_fid(EF_SEX, NULL, SPECIFY_ANY))) {
+        if (!ef->data) {
+            printf("Sex is empty. Initializing to default\r\n");
+            const uint8_t def[] = { 0x30 };
+            flash_write_data_to_file(ef, def, sizeof(def));
+        }
+    }
     low_flash_available();
 }
 
@@ -331,8 +338,8 @@ int heapLeft() {
     return left;
 }
 
-app_t *openpgp_select_aid(app_t *a) {
-    if (!memcmp(apdu.data, openpgp_aid+1, openpgp_aid[0])) {
+app_t *openpgp_select_aid(app_t *a, const uint8_t *aid, uint8_t aid_len) {
+    if (!memcmp(aid, openpgp_aid+1, MIN(aid_len,openpgp_aid[0]))) {
         a->aid = openpgp_aid;
         a->process_apdu = openpgp_process_apdu;
         a->unload = openpgp_unload;
@@ -371,7 +378,7 @@ int parse_do(uint16_t *fids, int mode) {
                 else
                     data_len = 0;
                 if (mode == 1) {
-                    if (fids[0] > 1 && res_APDU_size > 0) {
+                    if (fids[0] > 1 /*&& res_APDU_size > 0*/) {
                         if (fids[i+1] < 0x0100) {
                             res_APDU[res_APDU_size++] = fids[i+1] & 0xff;
                         }
@@ -413,15 +420,16 @@ int parse_ch_data(const file_t *f, int mode) {
         3,
         EF_CH_NAME, EF_LANG_PREF, EF_SEX,
     };
-    res_APDU[res_APDU_size++] = EF_CH_DATA & 0xff;
-    res_APDU[res_APDU_size++] = 0x82;
-    uint8_t *lp = res_APDU+res_APDU_size;
-    res_APDU_size += 2;
+    //res_APDU[res_APDU_size++] = EF_CH_DATA & 0xff;
+    //res_APDU[res_APDU_size++] = 0x82;
+    //uint8_t *lp = res_APDU+res_APDU_size;
+    //res_APDU_size += 2;
     parse_do(fids, mode);
-    uint16_t lpdif = res_APDU+res_APDU_size-lp-2;
-    *lp++ = lpdif >> 8;
-    *lp++ = lpdif & 0xff;
-    return lpdif+4;
+    //uint16_t lpdif = res_APDU+res_APDU_size-lp-2;
+    //*lp++ = lpdif >> 8;
+    //*lp++ = lpdif & 0xff;
+    //return lpdif+4;
+    return res_APDU_size;
 }
 
 int inc_sig_count() {
@@ -1754,12 +1762,6 @@ static int cmd_get_next_data() {
     select_file(ef);
     return cmd_get_data();
 }
-
-typedef struct cmd
-{
-  uint8_t ins;
-  int (*cmd_handler)();
-} cmd_t;
 
 #define INS_VERIFY          0x20
 #define INS_MSE             0x22
