@@ -55,7 +55,7 @@ def test_name_lang_sex(card):
     sex_alt = b"0"
     expected = b'\x5b' + pack('B', len(name)) + name \
                +  b'\x5f\x2d' + pack('B', len(lang)) + lang \
-               + b'\x5f\x35' + pack('B', len(sex)) + sex
+               + b'\x5f\x35' + pack('B', len(sex)) + sex_alt
     expected_de = b'\x5b' + pack('B', len(name)) + name \
                +  b'\x5f\x2d' + pack('B', len(lang_de)) + lang_de \
                + b'\x5f\x35' + pack('B', len(sex)) + sex
