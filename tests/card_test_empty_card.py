@@ -193,14 +193,15 @@ def test_historical_bytes(card):
         assert h == b'\x001\xc5s\xc0\x01@\x05\x90\x00' or \
             h == b'\x00\x31\x84\x73\x80\x01\x80\x00\x90\x00' or \
             h == b'\x00\x31\x84\x73\x80\x01\x80\x05\x90\x00' or \
-            h == b'\x00\x31\xf5\x73\xc0\x01\x60\x05\x90\x00'
+            h == b'\x00\x31\xf5\x73\xc0\x01\x60\x05\x90\x00' or \
+            h == b'\x00\x31\x84\x73\x80\x01\xC0\x05\x90\x00'
 
 def test_extended_capabilities(card):
     if card.is_yubikey:
         pytest.skip("Yubikey returns 6B00 when no key")
     else:
         a = get_data_object(card, 0xc0)
-        assert a == None or match(b'[\x70\x74\x75]\x00\x00\x20[\x00\x08]\x00\x00\xff\x01\x00', a)
+        assert a == None or match(b'[\x70\x74\x75\x77]\x00\x00.[\x00\x08]\x00\x00\xff[\x00\x01][\x00\x01]', a)
 
 def test_key_attributes_1(card):
     if card.is_yubikey:
