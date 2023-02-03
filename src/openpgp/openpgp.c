@@ -476,19 +476,19 @@ int parse_ch_cert(const file_t *f, int mode) {
 int parse_fp(const file_t *f, int mode) {
     res_APDU[res_APDU_size++] = EF_FP & 0xff;
     res_APDU[res_APDU_size++] = 60;
-    return parse_trium(EF_FP_SIG, 3, 20);
+    return parse_trium(EF_FP_SIG, 3, 20) + 2;
 }
 
 int parse_cafp(const file_t *f, int mode) {
     res_APDU[res_APDU_size++] = EF_CA_FP & 0xff;
     res_APDU[res_APDU_size++] = 60;
-    return parse_trium(EF_FP_CA1, 3, 20);
+    return parse_trium(EF_FP_CA1, 3, 20) + 2;
 }
 
 int parse_ts(const file_t *f, int mode) {
     res_APDU[res_APDU_size++] = EF_TS_ALL & 0xff;
     res_APDU[res_APDU_size++] = 12;
-    return parse_trium(EF_TS_SIG, 3, 4);
+    return parse_trium(EF_TS_SIG, 3, 4) + 2;
 }
 
 int parse_keyinfo(const file_t *f, int mode) {
