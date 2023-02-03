@@ -256,13 +256,6 @@ void scan_files() {
             flash_write_data_to_file(ef, def, sizeof(def));
         }
     }
-    if ((ef = search_by_fid(EF_SEX, NULL, SPECIFY_ANY))) {
-        if (!ef->data) {
-            printf("Sex is empty. Initializing to default\r\n");
-            const uint8_t def[] = { 0x30 };
-            flash_write_data_to_file(ef, def, sizeof(def));
-        }
-    }
     low_flash_available();
 }
 
@@ -378,7 +371,7 @@ int parse_do(uint16_t *fids, int mode) {
                 else
                     data_len = 0;
                 if (mode == 1) {
-                    if (fids[0] > 1 /*&& res_APDU_size > 0*/) {
+                    if (fids[0] > 1 && res_APDU_size > 0) {
                         if (fids[i+1] < 0x0100) {
                             res_APDU[res_APDU_size++] = fids[i+1] & 0xff;
                         }
@@ -420,16 +413,15 @@ int parse_ch_data(const file_t *f, int mode) {
         3,
         EF_CH_NAME, EF_LANG_PREF, EF_SEX,
     };
-    //res_APDU[res_APDU_size++] = EF_CH_DATA & 0xff;
-    //res_APDU[res_APDU_size++] = 0x82;
-    //uint8_t *lp = res_APDU+res_APDU_size;
-    //res_APDU_size += 2;
+    res_APDU[res_APDU_size++] = EF_CH_DATA & 0xff;
+    res_APDU[res_APDU_size++] = 0x82;
+    uint8_t *lp = res_APDU+res_APDU_size;
+    res_APDU_size += 2;
     parse_do(fids, mode);
-    //uint16_t lpdif = res_APDU+res_APDU_size-lp-2;
-    //*lp++ = lpdif >> 8;
-    //*lp++ = lpdif & 0xff;
-    //return lpdif+4;
-    return res_APDU_size;
+    uint16_t lpdif = res_APDU+res_APDU_size-lp-2;
+    *lp++ = lpdif >> 8;
+    *lp++ = lpdif & 0xff;
+    return lpdif+4;
 }
 
 int inc_sig_count() {
@@ -465,8 +457,8 @@ int reset_sig_count() {
 }
 
 int parse_sec_tpl(const file_t *f, int mode) {
-    //res_APDU[res_APDU_size++] = EF_SEC_TPL & 0xff;
-    //res_APDU[res_APDU_size++] = 5;
+    res_APDU[res_APDU_size++] = EF_SEC_TPL & 0xff;
+    res_APDU[res_APDU_size++] = 5;
     file_t *ef = search_by_fid(EF_SIG_COUNT, NULL, SPECIFY_ANY);
     if (ef && ef->data) {
         res_APDU[res_APDU_size++] = EF_SIG_COUNT & 0xff;
@@ -474,7 +466,7 @@ int parse_sec_tpl(const file_t *f, int mode) {
         memcpy(res_APDU+res_APDU_size, file_get_data(ef), 3);
         res_APDU_size += 3;
     }
-    return 5/*+2*/;
+    return 5+2;
 }
 
 int parse_ch_cert(const file_t *f, int mode) {
@@ -730,16 +722,15 @@ int parse_app_data(const file_t *f, int mode) {
         6,
         EF_FULL_AID, EF_HIST_BYTES, EF_EXLEN_INFO, EF_GFM, EF_DISCRETE_DO, EF_KEY_INFO
     };
-    //res_APDU[res_APDU_size++] = EF_APP_DATA & 0xff;
-    //res_APDU[res_APDU_size++] = 0x82;
-    //uint8_t *lp = res_APDU+res_APDU_size;
-    //res_APDU_size += 2;
+    res_APDU[res_APDU_size++] = EF_APP_DATA & 0xff;
+    res_APDU[res_APDU_size++] = 0x82;
+    uint8_t *lp = res_APDU+res_APDU_size;
+    res_APDU_size += 2;
     parse_do(fids, mode);
-    //uint16_t lpdif = res_APDU+res_APDU_size-lp-2;
-    //*lp++ = lpdif >> 8;
-    //*lp++ = lpdif & 0xff;
-    //return lpdif+4;
-    return res_APDU_size;
+    uint16_t lpdif = res_APDU+res_APDU_size-lp-2;
+    *lp++ = lpdif >> 8;
+    *lp++ = lpdif & 0xff;
+    return lpdif+4;
 }
 
 int parse_discrete_do(const file_t *f, int mode) {
@@ -776,6 +767,21 @@ static int cmd_get_data() {
     if (ef->data) {
         uint16_t fids[] = {1,fid};
         uint16_t data_len = parse_do(fids, 1);
+        uint8_t *p = NULL;
+        uint16_t tg = 0;
+        size_t tg_len = 0;
+        if (walk_tlv(res_APDU, data_len, &p, &tg, &tg_len, NULL)) {
+            uint8_t dec = 2;
+            if ((tg & 0x1f) == 0x1f)
+                dec++;
+            if ((res_APDU[dec-1] & 0xF0) == 0x80)
+                dec += (res_APDU[dec - 1] & 0x0F);
+            if (tg_len + dec == data_len) {
+                memmove(res_APDU, res_APDU + dec, data_len - dec);
+                data_len -= dec;
+                res_APDU_size -= dec;
+            }
+        }
         if (apdu.ne > data_len)
             apdu.ne = data_len;
     }
