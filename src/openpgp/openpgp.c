@@ -730,15 +730,16 @@ int parse_app_data(const file_t *f, int mode) {
         6,
         EF_FULL_AID, EF_HIST_BYTES, EF_EXLEN_INFO, EF_GFM, EF_DISCRETE_DO, EF_KEY_INFO
     };
-    res_APDU[res_APDU_size++] = EF_APP_DATA & 0xff;
-    res_APDU[res_APDU_size++] = 0x82;
-    uint8_t *lp = res_APDU+res_APDU_size;
-    res_APDU_size += 2;
+    //res_APDU[res_APDU_size++] = EF_APP_DATA & 0xff;
+    //res_APDU[res_APDU_size++] = 0x82;
+    //uint8_t *lp = res_APDU+res_APDU_size;
+    //res_APDU_size += 2;
     parse_do(fids, mode);
-    uint16_t lpdif = res_APDU+res_APDU_size-lp-2;
-    *lp++ = lpdif >> 8;
-    *lp++ = lpdif & 0xff;
-    return lpdif+4;
+    //uint16_t lpdif = res_APDU+res_APDU_size-lp-2;
+    //*lp++ = lpdif >> 8;
+    //*lp++ = lpdif & 0xff;
+    //return lpdif+4;
+    return res_APDU_size;
 }
 
 int parse_discrete_do(const file_t *f, int mode) {
