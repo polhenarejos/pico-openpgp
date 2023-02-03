@@ -37,7 +37,7 @@ target_include_directories(pico_openpgp PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp
         )
 
-set(HSM_DRIVER "ccid")
+set(USB_ITF_CCID 1)
 include(pico-hsm-sdk/pico_hsm_sdk_import.cmake)
 
 target_compile_options(pico_openpgp PUBLIC
