@@ -29,6 +29,10 @@ from constants_for_test import *
 import pytest
 
 class Test_Card_Personalize_Card_2(object):
+    def test_verify_pw3_0(self, card):
+        v = card.verify(3, PW3_TEST0)
+        assert v
+
     def test_import_key_1(self, card):
         key = get_key(card)
         t = key[0].build_privkey_template(card.is_yubikey)
