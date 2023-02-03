@@ -1172,8 +1172,8 @@ static int cmd_keypair_gen() {
         return SW_WRONG_DATA();
 
     file_t *algo_ef = search_by_fid(fid-0x0010, NULL, SPECIFY_EF);
-    //if (!algo_ef)
-    //    return SW_REFERENCE_NOT_FOUND();
+    if (!algo_ef)
+        return SW_REFERENCE_NOT_FOUND();
     const uint8_t *algo = algorithm_attr_rsa2k+1;
     uint16_t algo_len = algorithm_attr_rsa2k[0];
     if (algo_ef && algo_ef->data) {
@@ -1696,6 +1696,7 @@ static int cmd_import_data() {
             return SW_EXEC_ERROR();
         }
         r = store_keys(&rsa, ALGO_RSA, fid);
+        make_rsa_response(&rsa);
         mbedtls_rsa_free(&rsa);
         if (r != CCID_OK)
             return SW_EXEC_ERROR();
@@ -1714,12 +1715,20 @@ static int cmd_import_data() {
             return SW_EXEC_ERROR();
         }
         r = store_keys(&ecdsa, ALGO_ECDSA, fid);
+        make_ecdsa_response(&ecdsa);
         mbedtls_ecdsa_free(&ecdsa);
         if (r != CCID_OK)
             return SW_EXEC_ERROR();
     }
     if (fid == EF_PK_SIG)
         reset_sig_count();
+    file_t *pbef = search_by_fid(fid+3, NULL, SPECIFY_EF);
+    if (!pbef)
+        return SW_REFERENCE_NOT_FOUND();
+    r = flash_write_data_to_file(pbef, res_APDU, res_APDU_size);
+    if (r != CCID_OK)
+        return SW_EXEC_ERROR();
+    res_APDU_size = 0; //make_*_response sets a response. we need to overwrite
     return SW_OK();
 }
 
