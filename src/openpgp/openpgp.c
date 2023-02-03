@@ -256,6 +256,14 @@ void scan_files() {
             flash_write_data_to_file(ef, def, sizeof(def));
         }
     }
+
+    if ((ef = search_by_fid(EF_SEX, NULL, SPECIFY_ANY))) {
+        if (!ef->data) {
+            printf("Sex is empty. Initializing to default\r\n");
+            const uint8_t def[] = { 0x30 };
+            flash_write_data_to_file(ef, def, sizeof(def));
+        }
+    }
     low_flash_available();
 }
 
@@ -346,6 +354,7 @@ app_t *openpgp_select_aid(app_t *a, const uint8_t *aid, uint8_t aid_len) {
         res_APDU[res_APDU_size++] = ((heap_left >> 8) & 0xff);
         res_APDU[res_APDU_size++] = ((heap_left >> 0) & 0xff);
         res_APDU[1] += 8;
+        apdu.ne = res_APDU_size;
         return a;
     }
     return NULL;
@@ -1163,8 +1172,8 @@ static int cmd_keypair_gen() {
         return SW_WRONG_DATA();
 
     file_t *algo_ef = search_by_fid(fid-0x0010, NULL, SPECIFY_EF);
-    if (!algo_ef)
-        return SW_REFERENCE_NOT_FOUND();
+    //if (!algo_ef)
+    //    return SW_REFERENCE_NOT_FOUND();
     const uint8_t *algo = algorithm_attr_rsa2k+1;
     uint16_t algo_len = algorithm_attr_rsa2k[0];
     if (algo_ef && algo_ef->data) {
