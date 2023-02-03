@@ -465,8 +465,8 @@ int reset_sig_count() {
 }
 
 int parse_sec_tpl(const file_t *f, int mode) {
-    res_APDU[res_APDU_size++] = EF_SEC_TPL & 0xff;
-    res_APDU[res_APDU_size++] = 5;
+    //res_APDU[res_APDU_size++] = EF_SEC_TPL & 0xff;
+    //res_APDU[res_APDU_size++] = 5;
     file_t *ef = search_by_fid(EF_SIG_COUNT, NULL, SPECIFY_ANY);
     if (ef && ef->data) {
         res_APDU[res_APDU_size++] = EF_SIG_COUNT & 0xff;
@@ -474,7 +474,7 @@ int parse_sec_tpl(const file_t *f, int mode) {
         memcpy(res_APDU+res_APDU_size, file_get_data(ef), 3);
         res_APDU_size += 3;
     }
-    return 5+2;
+    return 5/*+2*/;
 }
 
 int parse_ch_cert(const file_t *f, int mode) {
