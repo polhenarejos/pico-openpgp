@@ -714,9 +714,9 @@ int parse_algoinfo(const file_t *f, int mode) {
         datalen += parse_algo(algorithm_attr_p256r1, EF_ALGO_AUT);
         datalen += parse_algo(algorithm_attr_p384r1, EF_ALGO_AUT);
         datalen += parse_algo(algorithm_attr_p521r1, EF_ALGO_AUT);
-        datalen += parse_algo(algorithm_attr_bp256r1, EF_ALGO_SIG);
-        datalen += parse_algo(algorithm_attr_bp384r1, EF_ALGO_SIG);
-        datalen += parse_algo(algorithm_attr_bp512r1, EF_ALGO_SIG);
+        datalen += parse_algo(algorithm_attr_bp256r1, EF_ALGO_AUT);
+        datalen += parse_algo(algorithm_attr_bp384r1, EF_ALGO_AUT);
+        datalen += parse_algo(algorithm_attr_bp512r1, EF_ALGO_AUT);
         uint16_t lpdif = res_APDU+res_APDU_size-lp-2;
         *lp++ = lpdif >> 8;
         *lp++ = lpdif & 0xff;
