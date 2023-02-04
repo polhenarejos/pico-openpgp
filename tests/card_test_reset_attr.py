@@ -37,7 +37,7 @@ class Test_Reset_ATTRS(object):
             pytest.skip("Yubikey returns no attr when no key")
         else:
             a1 = get_data_object(card, 0xc1)
-            if card.is_gnuk:
+            if not card.is_gnuk:
                 assert a1 == a
             else:
                 pytest.skip("Zeitcontrol returns None when no key")
@@ -50,7 +50,7 @@ class Test_Reset_ATTRS(object):
             pytest.skip("Yubikey returns no attr when no key")
         else:
             a1 = get_data_object(card, 0xc2)
-            if card.is_gnuk:
+            if not card.is_gnuk:
                 assert a1 == a
             else:
                 pytest.skip("Zeitcontrol returns None when no key")
@@ -63,7 +63,7 @@ class Test_Reset_ATTRS(object):
             pytest.skip("Yubikey returns no attr when no key")
         else:
             a1 = get_data_object(card, 0xc3)
-            if card.is_gnuk:
+            if not card.is_gnuk:
                 assert a1 == a
             else:
                 pytest.skip("Zeitcontrol returns None when no key")
