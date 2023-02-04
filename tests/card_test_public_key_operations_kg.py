@@ -28,6 +28,10 @@ from card_const import *
 from constants_for_test import *
 
 class Test_Card_PK_OPs_KG(object):
+    def test_verify_pw3_0(self, card):
+        v = card.verify(3, PW3_TEST0)
+        assert v
+
     def test_signature_sigkey(self, card):
         test_vector = get_test_vector(card)
         PK_Crypto = get_PK_Crypto(card)

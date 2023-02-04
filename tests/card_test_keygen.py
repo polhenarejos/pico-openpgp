@@ -27,6 +27,10 @@ from constants_for_test import *
 import pytest
 
 class Test_Card_Keygen(object):
+    def test_verify_pw3_0(self, card):
+        v = card.verify(3, PW3_TEST0)
+        assert v
+
     def test_keygen_1(self, card):
         PK_Crypto = get_PK_Crypto(card)
         pk_info = card.cmd_genkey(1)

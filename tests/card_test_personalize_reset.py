@@ -28,6 +28,10 @@ from constants_for_test import *
 import pytest
 
 class Test_Personalize_Reset(object):
+    def test_verify_pw3_0_test(self, card):
+        v = card.verify(3, PW3_TEST0)
+        assert v
+
     def test_login_put(self, card):
         r = card.cmd_put_data(0x00, 0x5e, b"")
         assert r
