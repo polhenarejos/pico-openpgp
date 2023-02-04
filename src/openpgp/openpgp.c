@@ -674,11 +674,12 @@ int parse_algo(const uint8_t *algo, uint16_t tag) {
 }
 
 int parse_algoinfo(const file_t *f, int mode) {
-    uint8_t datalen = 0;
+    int datalen = 0;
     if (f->fid == EF_ALGO_INFO) {
         res_APDU[res_APDU_size++] = EF_ALGO_INFO & 0xff;
-        uint8_t *lp = res_APDU+res_APDU_size;
-        res_APDU_size++;
+        res_APDU[res_APDU_size++] = 0x82;
+        uint8_t *lp = res_APDU + res_APDU_size;
+        res_APDU_size += 2;
         datalen += parse_algo(algorithm_attr_rsa1k, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_rsa2k, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_rsa3k, EF_ALGO_SIG);
@@ -716,8 +717,10 @@ int parse_algoinfo(const file_t *f, int mode) {
         datalen += parse_algo(algorithm_attr_bp256r1, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_bp384r1, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_bp512r1, EF_ALGO_SIG);
-        *lp = res_APDU+res_APDU_size-lp-1;
-        datalen = *lp;
+        uint16_t lpdif = res_APDU+res_APDU_size-lp-2;
+        *lp++ = lpdif >> 8;
+        *lp++ = lpdif & 0xff;
+        datalen = lpdif+4;
     }
     else if (f->fid == EF_ALGO_SIG || f->fid == EF_ALGO_DEC || f->fid == EF_ALGO_AUT) {
         uint16_t fid = 0x1000 | f->fid;
