@@ -1387,10 +1387,10 @@ int ecdsa_sign(mbedtls_ecdsa_context *ctx, const uint8_t *data, size_t data_len,
     mbedtls_mpi_init(&si);
     int r = mbedtls_ecdsa_sign(&ctx->grp, &ri, &si, &ctx->d, data, data_len, random_gen, NULL);
     if (r == 0) {
-        mbedtls_mpi_write_binary(&ri, out, mbedtls_mpi_size(&ri));
-        *out_len = mbedtls_mpi_size(&ri);
-        mbedtls_mpi_write_binary(&si, out+*out_len, mbedtls_mpi_size(&si));
-        *out_len += mbedtls_mpi_size(&si);
+        size_t plen = (ctx->grp.nbits + 7) / 8;
+        mbedtls_mpi_write_binary(&ri, out, plen);
+        mbedtls_mpi_write_binary(&si, out + plen, plen);
+        *out_len = 2*plen;
     }
     mbedtls_mpi_free(&ri);
     mbedtls_mpi_free(&si);
