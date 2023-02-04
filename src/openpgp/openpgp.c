@@ -1783,6 +1783,11 @@ static int cmd_import_data() {
             mbedtls_ecdsa_free(&ecdsa);
             return SW_EXEC_ERROR();
         }
+        r = mbedtls_ecp_mul(&ecdsa.grp, &ecdsa.Q, &ecdsa.d, &ecdsa.grp.G, random_gen, NULL);
+        if (r != 0) {
+            mbedtls_ecdsa_free(&ecdsa);
+            return SW_EXEC_ERROR();
+        }
         r = store_keys(&ecdsa, ALGO_ECDSA, fid);
         make_ecdsa_response(&ecdsa);
         mbedtls_ecdsa_free(&ecdsa);
