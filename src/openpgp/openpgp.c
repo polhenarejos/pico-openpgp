@@ -1210,16 +1210,15 @@ void make_rsa_response(mbedtls_rsa_context *rsa) {
 }
 
 void make_ecdsa_response(mbedtls_ecdsa_context *ecdsa) {
-    size_t plen = mbedtls_mpi_size(&ecdsa->grp.P);
-    memcpy(res_APDU, "\x7f\x49\x81\x00", 4);
-    res_APDU_size = 4;
+    size_t plen = 0;
+    memcpy(res_APDU, "\x7f\x49\x00", 3);
+    res_APDU_size = 3;
     res_APDU[res_APDU_size++] = 0x86;
-    res_APDU[res_APDU_size++] = 0x81;
-    res_APDU[res_APDU_size++] = 2*plen+1;
-    res_APDU[res_APDU_size++] = 0x04;
-    mbedtls_mpi_write_binary(&ecdsa->Q.X, res_APDU+res_APDU_size, plen); res_APDU_size += plen;
-    mbedtls_mpi_write_binary(&ecdsa->Q.Y, res_APDU+res_APDU_size, plen); res_APDU_size += plen;
-    res_APDU[3] = res_APDU_size-4;
+    res_APDU[res_APDU_size++] = 0;
+    mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &plen, res_APDU + res_APDU_size, 4096);
+    res_APDU_size += plen;
+    res_APDU[4] = plen;
+    res_APDU[2] = plen + 2;
 }
 
 static int cmd_keypair_gen() {
