@@ -1521,8 +1521,8 @@ static int cmd_pso() {
                 return SW_WRONG_DATA();
             if (mbedtls_asn1_get_tag(&data, end, &len, 0x49) != 0 || mbedtls_asn1_get_tag(&data, end, &len, 0x86) != 0)
                 return SW_WRONG_DATA();
-            if (len != 2*key_size-1)
-                return SW_WRONG_LENGTH();
+            //if (len != 2*key_size-1)
+            //    return SW_WRONG_LENGTH();
             memcpy(kdata, file_get_data(ef), key_size);
             if (dek_decrypt(kdata, key_size) != 0) {
                 return SW_EXEC_ERROR();
