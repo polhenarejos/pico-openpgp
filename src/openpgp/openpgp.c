@@ -1374,7 +1374,6 @@ int rsa_sign(mbedtls_rsa_context *ctx, const uint8_t *data, size_t data_len, uin
         free(signature);
     }
     *out_len = key_size;
-    inc_sig_count();
     return r;
 }
 
@@ -1391,7 +1390,6 @@ int ecdsa_sign(mbedtls_ecdsa_context *ctx, const uint8_t *data, size_t data_len,
     }
     mbedtls_mpi_free(&ri);
     mbedtls_mpi_free(&si);
-    inc_sig_count();
     return r;
 }
 
@@ -1474,6 +1472,7 @@ static int cmd_pso() {
                 return SW_EXEC_ERROR();
             res_APDU_size = olen;
             //apdu.ne = key_size;
+            inc_sig_count();
         }
         else if (P1(apdu) == 0x80 && P2(apdu) == 0x86) {
             if (apdu.nc < key_size) //needs padding
@@ -1502,6 +1501,7 @@ static int cmd_pso() {
             if (r != 0)
                 return SW_EXEC_ERROR();
             res_APDU_size = olen;
+            inc_sig_count();
         }
         else if (P1(apdu) == 0x80 && P2(apdu) == 0x86) {
             mbedtls_ecdh_context ctx;
