@@ -1,4 +1,5 @@
 from cffi import FFI
+import platform
 
 DEF_gcry_sexp="""
 typedef unsigned long long size_t;
@@ -35,7 +36,11 @@ ffi.cdef(DEF_gcry_sexp)
 ffi.cdef(DEF_gcry_pk_sign, override=True)
 ffi.cdef(DEF_gcry_pk_verify, override=True)
 ffi.cdef(DEF_gcry_pk_encrypt, override=True)
-libgcrypt = ffi.dlopen("libgcrypt.20.dylib")
+
+if (platform.system() == 'Darwin'):
+    libgcrypt = ffi.dlopen("libgcrypt.20.dylib")
+else:
+    libgcrypt = ffi.dlopen("libgcrypt.so.20")
 
 FORMAT_DATA=b"(data(value %b))"
 FORMAT_SIG=b"(sig-val(ecdsa(r %b)(s %b)))"

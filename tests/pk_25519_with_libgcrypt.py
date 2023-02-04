@@ -1,4 +1,5 @@
 from cffi import FFI
+import platform
 
 ffi = FFI()
 
@@ -35,7 +36,12 @@ ffi.cdef(DEF_gcry_sexp)
 ffi.cdef(DEF_gcry_pk_sign, override=True)
 ffi.cdef(DEF_gcry_pk_verify, override=True)
 ffi.cdef(DEF_gcry_pk_encrypt, override=True)
-libgcrypt = ffi.dlopen("libgcrypt.20.dylib")
+
+if (platform.system() == 'Darwin'):
+    libgcrypt = ffi.dlopen("libgcrypt.20.dylib")
+else:
+    libgcrypt = ffi.dlopen("libgcrypt.so.20")
+
 
 def fixup_scalar_cv25519(k):
     # Fixup is the responsibility for caller for Curve25519
