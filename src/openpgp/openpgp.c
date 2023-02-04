@@ -33,7 +33,9 @@
 bool has_pw1 = false;
 bool has_pw2 = false;
 bool has_pw3 = false;
+bool has_rc = false;
 uint8_t session_pw1[32];
+uint8_t session_rc[32];
 uint8_t session_pw3[32];
 static uint8_t dek[IV_SIZE+32];
 static uint16_t algo_dec = EF_ALGO_PRIV2, algo_aut = EF_ALGO_PRIV3, pk_dec = EF_PK_DEC, pk_aut = EF_PK_AUT;
@@ -60,8 +62,9 @@ int openpgp_process_apdu();
 extern uint32_t board_button_read(void);
 
 static bool wait_button_pressed(uint16_t fid) {
-    file_t *ef = search_by_fid(fid, NULL, SPECIFY_ANY);
     uint32_t val = EV_PRESS_BUTTON;
+#ifndef ENABLE_EMULATION
+    file_t *ef = search_by_fid(fid, NULL, SPECIFY_ANY);
     if (ef && ef->data && file_get_data(ef)[0] > 0) {
         queue_try_add(&card_to_usb_q, &val);
         do {
@@ -69,6 +72,7 @@ static bool wait_button_pressed(uint16_t fid) {
         }
         while (val != EV_BUTTON_PRESSED && val != EV_BUTTON_TIMEOUT);
     }
+#endif
     return val == EV_BUTTON_TIMEOUT;
 }
 
@@ -160,7 +164,11 @@ void scan_files() {
     file_t *ef;
     if ((ef = search_by_fid(EF_FULL_AID, NULL, SPECIFY_ANY))) {
         ef->data = openpgp_aid_full;
+#ifndef ENABLE_EMULATION
         pico_get_unique_board_id_string((char *)ef->data+12, 4);
+#else
+        memset((char *)ef->data + 12, 0, 4);
+#endif
     }
     if ((ef = search_by_fid(EF_PW1, NULL, SPECIFY_ANY))) {
         if (!ef->data) {
@@ -214,7 +222,7 @@ void scan_files() {
             const uint8_t def1[6] = { 0x31,0x32,0x33,0x34,0x35,0x36 };
             const uint8_t def3[8] = { 0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38 };
 
-            uint8_t def[IV_SIZE+32+32];
+            uint8_t def[IV_SIZE+32+32+32];
             const uint8_t *dek = random_bytes_get(IV_SIZE+32);
             memcpy(def, dek, IV_SIZE+32);
             memcpy(def+IV_SIZE+32, dek+IV_SIZE, 32);
@@ -224,7 +232,8 @@ void scan_files() {
 
             hash_multi(def3, sizeof(def3), session_pw3);
             aes_encrypt_cfb_256(session_pw3, def, def+IV_SIZE+32, 32);
-            memset(session_pw1, 0, sizeof(session_pw1));
+            aes_encrypt_cfb_256(session_pw3, def, def+IV_SIZE+32+32, 32);
+            memset(session_pw3, 0, sizeof(session_pw3));
             flash_write_data_to_file(ef, def, sizeof(def));
         }
     }
@@ -280,7 +289,7 @@ int load_dek() {
     }
     else if (has_pw3) {
         memcpy(dek, file_get_data(tf), IV_SIZE);
-        memcpy(dek+IV_SIZE, file_get_data(tf)+IV_SIZE+32, 32);
+        memcpy(dek+IV_SIZE, file_get_data(tf)+IV_SIZE+32+32, 32);
         r = aes_decrypt_cfb_256(session_pw3, dek, dek+IV_SIZE, 32);
     }
     if (r != 0)
@@ -333,9 +342,13 @@ int openpgp_unload() {
 
 extern char __StackLimit;
 int heapLeft() {
+#ifndef ENABLE_EMULATION
     char *p = malloc(256);   // try to avoid undue fragmentation
     int left = &__StackLimit - p;
     free(p);
+#else
+    int left = 1024*1024;
+#endif
     return left;
 }
 
@@ -791,8 +804,8 @@ static int cmd_get_data() {
                 res_APDU_size -= dec;
             }
         }
-        if (apdu.ne > data_len)
-            apdu.ne = data_len;
+        //if (apdu.ne > data_len)
+        //    apdu.ne = data_len;
     }
     return SW_OK();
 }
@@ -935,10 +948,23 @@ static int cmd_put_data() {
     if (apdu.nc > 0 && (ef->type & FILE_DATA_FLASH)) {
         int r = 0;
         if (fid == EF_RC) {
+            has_rc = false;
+            if ((r = load_dek()) != CCID_OK)
+                return SW_EXEC_ERROR();
             uint8_t dhash[33];
             dhash[0] = apdu.nc;
             double_hash_pin(apdu.data, apdu.nc, dhash+1);
             r = flash_write_data_to_file(ef, dhash, sizeof(dhash));
+
+            file_t *tf = search_by_fid(EF_DEK, NULL, SPECIFY_EF);
+            if (!tf)
+                return SW_REFERENCE_NOT_FOUND();
+            uint8_t def[IV_SIZE+32+32+32];
+            memcpy(def, file_get_data(tf), file_get_size(tf));
+            hash_multi(apdu.data, apdu.nc, session_rc);
+            memcpy(def + IV_SIZE + 32, dek + IV_SIZE, 32);
+            aes_encrypt_cfb_256(session_rc, def, def + IV_SIZE + 32, 32);
+            r = flash_write_data_to_file(tf, def, sizeof(def));
         }
         else
             r = flash_write_data_to_file(ef, apdu.data, apdu.nc);
@@ -957,13 +983,33 @@ static int cmd_change_pin() {
     if (!(pw = search_by_fid(fid, NULL, SPECIFY_EF)))
         return SW_REFERENCE_NOT_FOUND();
     uint8_t pin_len = file_get_data(pw)[0];
-    uint16_t r = check_pin(pw, apdu.data, pin_len);
+    uint16_t r = 0;
+    if ((r = load_dek()) != CCID_OK)
+        return SW_EXEC_ERROR();
+    r = check_pin(pw, apdu.data, pin_len);
     if (r != 0x9000)
         return r;
     uint8_t dhash[33];
     dhash[0] = apdu.nc-pin_len;
     double_hash_pin(apdu.data+pin_len, apdu.nc-pin_len, dhash+1);
     flash_write_data_to_file(pw, dhash, sizeof(dhash));
+
+    file_t *tf = search_by_fid(EF_DEK, NULL, SPECIFY_EF);
+    if (!tf)
+        return SW_REFERENCE_NOT_FOUND();
+    uint8_t def[IV_SIZE+32+32+32];
+    memcpy(def, file_get_data(tf), file_get_size(tf));
+    if (P2(apdu) == 0x81) {
+        hash_multi(apdu.data+pin_len, apdu.nc-pin_len, session_pw1);
+        memcpy(def + IV_SIZE, dek + IV_SIZE, 32);
+        aes_encrypt_cfb_256(session_pw1, def, def + IV_SIZE, 32);
+    }
+    else if (P2(apdu) == 0x83) {
+        hash_multi(apdu.data+pin_len, apdu.nc-pin_len, session_pw3);
+        memcpy(def + IV_SIZE + 32 + 32, dek + IV_SIZE, 32);
+        aes_encrypt_cfb_256(session_pw3, def, def+IV_SIZE+32+32, 32);
+    }
+    flash_write_data_to_file(tf, def, sizeof(def));
     low_flash_available();
     return SW_OK();
 }
@@ -974,6 +1020,7 @@ static int cmd_reset_retry() {
     if (P1(apdu) == 0x0 || P1(apdu) == 0x2) {
         int newpin_len = 0;
         file_t *pw = NULL;
+        has_pw1 = false;
         if (!(pw = search_by_fid(EF_PW1, NULL, SPECIFY_EF)))
             return SW_REFERENCE_NOT_FOUND();
         if (P1(apdu) == 0x0) {
@@ -987,12 +1034,27 @@ static int cmd_reset_retry() {
             if (r != 0x9000)
                 return r;
             newpin_len = apdu.nc-pin_len;
+            has_rc = true;
+            hash_multi(apdu.data, pin_len, session_rc);
         }
         else if (P1(apdu) == 0x2) {
             if (!has_pw3)
                 return SW_CONDITIONS_NOT_SATISFIED();
             newpin_len = apdu.nc;
         }
+        int r = 0;
+        if ((r = load_dek()) != CCID_OK)
+            return SW_EXEC_ERROR();
+        file_t *tf = search_by_fid(EF_DEK, NULL, SPECIFY_EF);
+        if (!tf)
+            return SW_REFERENCE_NOT_FOUND();
+        uint8_t def[IV_SIZE+32+32+32];
+        memcpy(def, file_get_data(tf), file_get_size(tf));
+        hash_multi(apdu.data+(apdu.nc-newpin_len), newpin_len, session_pw1);
+        memcpy(def + IV_SIZE, dek + IV_SIZE, 32);
+        aes_encrypt_cfb_256(session_pw1, def, def + IV_SIZE, 32);
+        r = flash_write_data_to_file(tf, def, sizeof(def));
+
         uint8_t dhash[33];
         dhash[0] = newpin_len;
         double_hash_pin(apdu.data+(apdu.nc-newpin_len), newpin_len, dhash+1);
