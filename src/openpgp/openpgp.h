@@ -30,4 +30,3 @@ extern bool has_pw1;
 extern bool has_pw3;
 
 #endif
-
