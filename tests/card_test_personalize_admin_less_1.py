@@ -92,7 +92,7 @@ class Test_Card_Personalize_Adminless_FIRST(object):
 
     def test_pw1_status(self, card):
         s = get_data_object(card, 0xc4)
-        assert match(b'\x00...\x03[\x00\x03]\x03', s, DOTALL)
+        assert match(b'\x01...\x03[\x00\x03]\x03', s, DOTALL)
 
     def test_app_data(self, card):
         app_data = get_data_object(card, 0x6e)
