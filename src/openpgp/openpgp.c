@@ -230,6 +230,7 @@ void scan_files() {
             const uint8_t *dek = random_bytes_get(IV_SIZE + 32);
             memcpy(def, dek, IV_SIZE + 32);
             memcpy(def + IV_SIZE + 32, dek + IV_SIZE, 32);
+            memcpy(def + IV_SIZE + 32 + 32, dek + IV_SIZE, 32);
             hash_multi(def1, sizeof(def1), session_pw1);
             aes_encrypt_cfb_256(session_pw1, def, def + IV_SIZE, 32);
             memset(session_pw1, 0, sizeof(session_pw1));
