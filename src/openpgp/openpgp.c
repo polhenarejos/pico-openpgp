@@ -1171,7 +1171,7 @@ int store_keys(void *key_ctx, int type, uint16_t key_id) {
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *) key_ctx;
         key_size = mbedtls_mpi_size(&ecdsa->d);
         kdata[0] = ecdsa->grp.id & 0xff;
-        mbedtls_mpi_write_binary(&ecdsa->d, kdata + 1, key_size);
+        mbedtls_ecp_write_key(ecdsa, kdata + 1, key_size);
         key_size++;
     }
     else if (type & ALGO_AES) {
@@ -1694,7 +1694,7 @@ static int cmd_pso() {
                 mbedtls_ecdh_free(&ctx);
                 return SW_DATA_INVALID();
             }
-            r = mbedtls_mpi_read_binary(&ctx.ctx.mbed_ecdh.d, kdata + 1, key_size - 1);
+            r = mbedtls_ecp_read_key(gid, (mbedtls_ecdsa_context *)&ctx.ctx.mbed_ecdh, kdata + 1, key_size - 1);
             if (r != 0) {
                 mbedtls_ecdh_free(&ctx);
                 return SW_DATA_INVALID();
