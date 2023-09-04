@@ -29,6 +29,7 @@
 #include "asn1.h"
 #include "usb.h"
 #include "ccid/ccid.h"
+#include "mbedtls/eddsa.h"
 
 bool has_pw1 = false;
 bool has_pw2 = false;
@@ -585,6 +586,7 @@ int parse_pw_status(const file_t *f, int mode) {
 #define ALGO_RSA        0x01
 #define ALGO_ECDH       0x12
 #define ALGO_ECDSA      0x13
+#define ALGO_EDDSA      0x16
 #define ALGO_AES        0x70
 #define ALGO_AES_128    0x71
 #define ALGO_AES_192    0x72
@@ -691,6 +693,12 @@ static const uint8_t algorithm_attr_cv25519[] = {
     0x2b, 0x06, 0x01, 0x04, 0x01, 0x97, 0x55, 0x01, 0x05, 0x01
 };
 
+static const uint8_t algorithm_attr_ed25519[] = {
+    10,
+    ALGO_EDDSA,
+    0x2b, 0x06, 0x01, 0x04, 0x01, 0xda, 0x47, 0x0f, 0x01
+    };
+
 int parse_algo(const uint8_t *algo, uint16_t tag) {
     res_APDU[res_APDU_size++] = tag & 0xff;
     memcpy(res_APDU + res_APDU_size, algo, algo[0] + 1);
@@ -716,6 +724,7 @@ int parse_algoinfo(const file_t *f, int mode) {
         datalen += parse_algo(algorithm_attr_bp256r1, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_bp384r1, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_bp512r1, EF_ALGO_SIG);
+        datalen += parse_algo(algorithm_attr_ed25519, EF_ALGO_SIG);
 
         datalen += parse_algo(algorithm_attr_rsa1k, EF_ALGO_DEC);
         datalen += parse_algo(algorithm_attr_rsa2k, EF_ALGO_DEC);
@@ -742,6 +751,7 @@ int parse_algoinfo(const file_t *f, int mode) {
         datalen += parse_algo(algorithm_attr_bp256r1, EF_ALGO_AUT);
         datalen += parse_algo(algorithm_attr_bp384r1, EF_ALGO_AUT);
         datalen += parse_algo(algorithm_attr_bp512r1, EF_ALGO_AUT);
+        datalen += parse_algo(algorithm_attr_ed25519, EF_ALGO_AUT);
         uint16_t lpdif = res_APDU + res_APDU_size - lp - 2;
         *lp++ = lpdif >> 8;
         *lp++ = lpdif & 0xff;
@@ -1167,8 +1177,8 @@ int store_keys(void *key_ctx, int type, uint16_t key_id) {
         mbedtls_mpi_write_binary(&rsa->P, kdata, key_size / 2);
         mbedtls_mpi_write_binary(&rsa->Q, kdata + key_size / 2, key_size / 2);
     }
-    else if (type == ALGO_ECDSA || type == ALGO_ECDH) {
-        mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *) key_ctx;
+    else if (type == ALGO_ECDSA || type == ALGO_ECDH || type == ALGO_EDDSA) {
+        mbedtls_ecp_keypair *ecdsa = (mbedtls_ecp_keypair *) key_ctx;
         key_size = mbedtls_mpi_size(&ecdsa->d);
         kdata[0] = ecdsa->grp.id & 0xff;
         mbedtls_ecp_write_key(ecdsa, kdata + 1, key_size);
@@ -1235,7 +1245,7 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
     return CCID_OK;
 }
 
-int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
+int load_private_key_ecdsa(mbedtls_ecp_keypair *ctx, file_t *fkey) {
     int key_size = file_get_size(fkey);
     uint8_t kdata[67]; //Worst case, 521 bit + 1byte
     memcpy(kdata, file_get_data(fkey), key_size);
@@ -1245,7 +1255,7 @@ int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
     mbedtls_ecp_group_id gid = kdata[0];
     int r = mbedtls_ecp_read_key(gid, ctx, kdata + 1, key_size - 1);
     if (r != 0) {
-        mbedtls_ecdsa_free(ctx);
+        mbedtls_ecp_keypair_free(ctx);
         return CCID_EXEC_ERROR;
     }
     return CCID_OK;
@@ -1288,6 +1298,9 @@ mbedtls_ecp_group_id get_ec_group_id_from_attr(const uint8_t *algo, size_t algo_
     else if (memcmp(algorithm_attr_x448 + 2, algo, algo_len) == 0) {
         return MBEDTLS_ECP_DP_CURVE448;
     }
+    else if (memcmp(algorithm_attr_ed25519 + 2, algo, algo_len) == 0) {
+        return MBEDTLS_ECP_DP_ED25519;
+    }
     return MBEDTLS_ECP_DP_NONE;
 }
 
@@ -1306,7 +1319,7 @@ void make_rsa_response(mbedtls_rsa_context *rsa) {
     put_uint16_t(res_APDU_size - 5, res_APDU + 3);
 }
 
-void make_ecdsa_response(mbedtls_ecdsa_context *ecdsa) {
+void make_ecdsa_response(mbedtls_ecp_keypair *ecdsa) {
     uint8_t pt[MBEDTLS_ECP_MAX_PT_LEN];
     size_t plen = 0;
     mbedtls_ecp_point_write_binary(&ecdsa->grp,
@@ -1387,23 +1400,23 @@ static int cmd_keypair_gen() {
                 return SW_EXEC_ERROR();
             }
         }
-        else if (algo[0] == ALGO_ECDH || algo[0] == ALGO_ECDSA) {
+        else if (algo[0] == ALGO_ECDH || algo[0] == ALGO_ECDSA || algo[0] == ALGO_EDDSA) {
             printf("KEYPAIR ECDSA\r\n");
             mbedtls_ecp_group_id gid = get_ec_group_id_from_attr(algo + 1, algo_len - 1);
             if (gid == MBEDTLS_ECP_DP_NONE) {
                 return SW_FUNC_NOT_SUPPORTED();
             }
-            mbedtls_ecdsa_context ecdsa;
-            mbedtls_ecdsa_init(&ecdsa);
+            mbedtls_ecp_keypair ecdsa;
+            mbedtls_ecp_keypair_init(&ecdsa);
             uint8_t index = 0;
             r = mbedtls_ecdsa_genkey(&ecdsa, gid, random_gen, &index);
             if (r != 0) {
-                mbedtls_ecdsa_free(&ecdsa);
+                mbedtls_ecp_keypair_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
             r = store_keys(&ecdsa, algo[0], fid);
             make_ecdsa_response(&ecdsa);
-            mbedtls_ecdsa_free(&ecdsa);
+            mbedtls_ecp_keypair_free(&ecdsa);
             if (r != CCID_OK) {
                 return SW_EXEC_ERROR();
             }
@@ -1517,7 +1530,7 @@ int rsa_sign(mbedtls_rsa_context *ctx,
     return r;
 }
 
-int ecdsa_sign(mbedtls_ecdsa_context *ctx,
+int ecdsa_sign(mbedtls_ecp_keypair *ctx,
                const uint8_t *data,
                size_t data_len,
                uint8_t *out,
@@ -1525,7 +1538,14 @@ int ecdsa_sign(mbedtls_ecdsa_context *ctx,
     mbedtls_mpi ri, si;
     mbedtls_mpi_init(&ri);
     mbedtls_mpi_init(&si);
-    int r = mbedtls_ecdsa_sign(&ctx->grp, &ri, &si, &ctx->d, data, data_len, random_gen, NULL);
+
+    int r = 0;
+    if (ctx->grp.id == MBEDTLS_ECP_DP_ED25519) {
+        r = mbedtls_eddsa_sign(&ctx->grp, &ri, &si, &ctx->d, data, data_len, MBEDTLS_EDDSA_PURE, NULL, 0, random_gen, NULL);
+    }
+    else {
+        r = mbedtls_ecdsa_sign(&ctx->grp, &ri, &si, &ctx->d, data, data_len, random_gen, NULL);
+    }
     if (r == 0) {
         size_t plen = (ctx->grp.nbits + 7) / 8;
         mbedtls_mpi_write_binary(&ri, out, plen);
@@ -1647,18 +1667,18 @@ static int cmd_pso() {
             res_APDU_size = olen;
         }
     }
-    else if (algo[0] == ALGO_ECDH || algo[0] == ALGO_ECDSA) {
+    else if (algo[0] == ALGO_ECDH || algo[0] == ALGO_ECDSA || algo[0] == ALGO_EDDSA) {
         if (P1(apdu) == 0x9E && P2(apdu) == 0x9A) {
-            mbedtls_ecdsa_context ctx;
-            mbedtls_ecdsa_init(&ctx);
+            mbedtls_ecp_keypair ctx;
+            mbedtls_ecp_keypair_init(&ctx);
             r = load_private_key_ecdsa(&ctx, ef);
             if (r != CCID_OK) {
-                mbedtls_ecdsa_free(&ctx);
+                mbedtls_ecp_keypair_free(&ctx);
                 return SW_EXEC_ERROR();
             }
             size_t olen = 0;
             r = ecdsa_sign(&ctx, apdu.data, apdu.nc, res_APDU, &olen);
-            mbedtls_ecdsa_free(&ctx);
+            mbedtls_ecp_keypair_free(&ctx);
             if (r != 0) {
                 return SW_EXEC_ERROR();
             }
@@ -1794,17 +1814,17 @@ static int cmd_internal_aut() {
         }
         res_APDU_size = olen;
     }
-    else if (algo[0] == ALGO_ECDH || algo[0] == ALGO_ECDSA) {
-        mbedtls_ecdsa_context ctx;
-        mbedtls_ecdsa_init(&ctx);
+    else if (algo[0] == ALGO_ECDH || algo[0] == ALGO_ECDSA || algo[0] == ALGO_EDDSA) {
+        mbedtls_ecp_keypair ctx;
+        mbedtls_ecp_keypair_init(&ctx);
         r = load_private_key_ecdsa(&ctx, ef);
         if (r != CCID_OK) {
-            mbedtls_ecdsa_free(&ctx);
+            mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
         }
         size_t olen = 0;
         r = ecdsa_sign(&ctx, apdu.data, apdu.nc, res_APDU, &olen);
-        mbedtls_ecdsa_free(&ctx);
+        mbedtls_ecp_keypair_free(&ctx);
         if (r != 0) {
             return SW_EXEC_ERROR();
         }
@@ -1974,8 +1994,8 @@ static int cmd_import_data() {
             return SW_EXEC_ERROR();
         }
     }
-    else if (algo[0] == ALGO_ECDSA || algo[0] == ALGO_ECDH) {
-        mbedtls_ecdsa_context ecdsa;
+    else if (algo[0] == ALGO_ECDSA || algo[0] == ALGO_ECDH || algo[0] == ALGO_EDDSA) {
+        mbedtls_ecp_keypair ecdsa;
         if (p[1] == NULL || len[1] == 0) {
             return SW_WRONG_DATA();
         }
@@ -1983,20 +2003,25 @@ static int cmd_import_data() {
         if (gid == MBEDTLS_ECP_DP_NONE) {
             return SW_FUNC_NOT_SUPPORTED();
         }
-        mbedtls_ecdsa_init(&ecdsa);
+        mbedtls_ecp_keypair_init(&ecdsa);
         r = mbedtls_ecp_read_key(gid, &ecdsa, p[1], len[1]);
         if (r != 0) {
-            mbedtls_ecdsa_free(&ecdsa);
+            mbedtls_ecp_keypair_free(&ecdsa);
             return SW_EXEC_ERROR();
         }
-        r = mbedtls_ecp_mul(&ecdsa.grp, &ecdsa.Q, &ecdsa.d, &ecdsa.grp.G, random_gen, NULL);
+        if (ecdsa.grp.id == MBEDTLS_ECP_DP_ED25519) {
+            r = mbedtls_ecp_point_edwards(&ecdsa.grp, &ecdsa.Q, &ecdsa.d, random_gen, NULL);
+        }
+        else {
+            r = mbedtls_ecp_mul(&ecdsa.grp, &ecdsa.Q, &ecdsa.d, &ecdsa.grp.G, random_gen, NULL);
+        }
         if (r != 0) {
-            mbedtls_ecdsa_free(&ecdsa);
+            mbedtls_ecp_keypair_free(&ecdsa);
             return SW_EXEC_ERROR();
         }
         r = store_keys(&ecdsa, ALGO_ECDSA, fid);
         make_ecdsa_response(&ecdsa);
-        mbedtls_ecdsa_free(&ecdsa);
+        mbedtls_ecp_keypair_free(&ecdsa);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
