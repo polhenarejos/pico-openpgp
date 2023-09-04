@@ -1984,7 +1984,13 @@ static int cmd_import_data() {
             return SW_FUNC_NOT_SUPPORTED();
         }
         mbedtls_ecdsa_init(&ecdsa);
-        r = mbedtls_ecp_read_key(gid, &ecdsa, p[1], len[1]);
+        if (gid == MBEDTLS_ECP_DP_CURVE25519) {
+            mbedtls_ecp_group_load(&ecdsa.grp, gid);
+            r = mbedtls_mpi_read_binary(&ecdsa.d, p[1], len[1]);
+        }
+        else {
+            r = mbedtls_ecp_read_key(gid, &ecdsa, p[1], len[1]);
+        }
         if (r != 0) {
             mbedtls_ecdsa_free(&ecdsa);
             return SW_EXEC_ERROR();
