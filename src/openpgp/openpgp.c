@@ -1535,25 +1535,25 @@ int ecdsa_sign(mbedtls_ecp_keypair *ctx,
                size_t data_len,
                uint8_t *out,
                size_t *out_len) {
-    mbedtls_mpi ri, si;
-    mbedtls_mpi_init(&ri);
-    mbedtls_mpi_init(&si);
 
     int r = 0;
     if (ctx->grp.id == MBEDTLS_ECP_DP_ED25519) {
-        r = mbedtls_eddsa_sign(&ctx->grp, &ri, &si, &ctx->d, data, data_len, MBEDTLS_EDDSA_PURE, NULL, 0, random_gen, NULL);
+        r = mbedtls_eddsa_write_signature(ctx, data, data_len, out, 64, out_len, MBEDTLS_EDDSA_PURE, NULL, 0, random_gen, NULL);
     }
     else {
+        mbedtls_mpi ri, si;
+        mbedtls_mpi_init(&ri);
+        mbedtls_mpi_init(&si);
         r = mbedtls_ecdsa_sign(&ctx->grp, &ri, &si, &ctx->d, data, data_len, random_gen, NULL);
+        if (r == 0) {
+            size_t plen = (ctx->grp.nbits + 7) / 8;
+            mbedtls_mpi_write_binary(&ri, out, plen);
+            mbedtls_mpi_write_binary(&si, out + plen, plen);
+            *out_len = 2 * plen;
+        }
+        mbedtls_mpi_free(&ri);
+        mbedtls_mpi_free(&si);
     }
-    if (r == 0) {
-        size_t plen = (ctx->grp.nbits + 7) / 8;
-        mbedtls_mpi_write_binary(&ri, out, plen);
-        mbedtls_mpi_write_binary(&si, out + plen, plen);
-        *out_len = 2 * plen;
-    }
-    mbedtls_mpi_free(&ri);
-    mbedtls_mpi_free(&si);
     return r;
 }
 
@@ -2004,7 +2004,13 @@ static int cmd_import_data() {
             return SW_FUNC_NOT_SUPPORTED();
         }
         mbedtls_ecp_keypair_init(&ecdsa);
-        r = mbedtls_ecp_read_key(gid, &ecdsa, p[1], len[1]);
+        if (gid == MBEDTLS_ECP_DP_CURVE25519) {
+            mbedtls_ecp_group_load(&ecdsa.grp, gid);
+            r = mbedtls_mpi_read_binary(&ecdsa.d, p[1], len[1]);
+        }
+        else {
+            r = mbedtls_ecp_read_key(gid, &ecdsa, p[1], len[1]);
+        }
         if (r != 0) {
             mbedtls_ecp_keypair_free(&ecdsa);
             return SW_EXEC_ERROR();
