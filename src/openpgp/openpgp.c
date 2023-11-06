@@ -362,30 +362,26 @@ int heapLeft() {
     return left;
 }
 
-app_t *openpgp_select_aid(app_t *a, const uint8_t *aid, uint8_t aid_len) {
-    if (!memcmp(aid, openpgp_aid + 1, MIN(aid_len, openpgp_aid[0]))) {
-        a->aid = openpgp_aid;
-        a->process_apdu = openpgp_process_apdu;
-        a->unload = openpgp_unload;
-        init_openpgp();
-        process_fci(file_openpgp, 1);
-        memcpy(res_APDU + res_APDU_size, "\x64\x06\x53\x04", 4);
-        res_APDU_size += 4;
-        int heap_left = heapLeft();
-        res_APDU[res_APDU_size++] = ((heap_left >> 24) & 0xff);
-        res_APDU[res_APDU_size++] = ((heap_left >> 16) & 0xff);
-        res_APDU[res_APDU_size++] = ((heap_left >> 8) & 0xff);
-        res_APDU[res_APDU_size++] = ((heap_left >> 0) & 0xff);
-        res_APDU[1] += 8;
-        apdu.ne = res_APDU_size;
-        return a;
-    }
-    return NULL;
+int openpgp_select_aid(app_t *a) {
+    a->process_apdu = openpgp_process_apdu;
+    a->unload = openpgp_unload;
+    init_openpgp();
+    process_fci(file_openpgp, 1);
+    memcpy(res_APDU + res_APDU_size, "\x64\x06\x53\x04", 4);
+    res_APDU_size += 4;
+    int heap_left = heapLeft();
+    res_APDU[res_APDU_size++] = ((heap_left >> 24) & 0xff);
+    res_APDU[res_APDU_size++] = ((heap_left >> 16) & 0xff);
+    res_APDU[res_APDU_size++] = ((heap_left >> 8) & 0xff);
+    res_APDU[res_APDU_size++] = ((heap_left >> 0) & 0xff);
+    res_APDU[1] += 8;
+    apdu.ne = res_APDU_size;
+    return CCID_OK;
 }
 
 void __attribute__((constructor)) openpgp_ctor() {
     ccid_atr = (uint8_t *) atr_openpgp;
-    register_app(openpgp_select_aid);
+    register_app(openpgp_select_aid, openpgp_aid);
 }
 
 int parse_do(uint16_t *fids, int mode) {
@@ -1589,7 +1585,7 @@ static int cmd_pso() {
             return SW_EXEC_ERROR();
         }
         if (P1(apdu) == 0x80 && P2(apdu) == 0x86) { //decipher
-            r = aes_decrypt(aes_key, NULL, key_size, HSM_AES_MODE_CBC, apdu.data + 1, apdu.nc - 1);
+            r = aes_decrypt(aes_key, NULL, key_size, PICO_KEYS_AES_MODE_CBC, apdu.data + 1, apdu.nc - 1);
             memset(aes_key, 0, sizeof(aes_key));
             if (r != CCID_OK) {
                 return SW_EXEC_ERROR();
@@ -1598,7 +1594,7 @@ static int cmd_pso() {
             res_APDU_size = apdu.nc - 1;
         }
         else if (P1(apdu) == 0x86 && P2(apdu) == 0x80) { //encipher
-            r = aes_encrypt(aes_key, NULL, key_size, HSM_AES_MODE_CBC, apdu.data, apdu.nc);
+            r = aes_encrypt(aes_key, NULL, key_size, PICO_KEYS_AES_MODE_CBC, apdu.data, apdu.nc);
             memset(aes_key, 0, sizeof(aes_key));
             if (r != CCID_OK) {
                 return SW_EXEC_ERROR();

@@ -44,7 +44,7 @@ set(INCLUDES ${INCLUDES}
         )
 
 set(USB_ITF_CCID 1)
-include(pico-hsm-sdk/pico_hsm_sdk_import.cmake)
+include(pico-keys-sdk/pico_keys_sdk_import.cmake)
 
 target_sources(pico_openpgp PUBLIC ${SOURCES})
 target_include_directories(pico_openpgp PUBLIC ${INCLUDES})
@@ -75,5 +75,5 @@ pico_add_extra_outputs(pico_openpgp)
 
 #target_compile_definitions(pico_openpgp PRIVATE MBEDTLS_ECDSA_DETERMINISTIC=1)
 
-target_link_libraries(pico_openpgp PRIVATE pico_hsm_sdk pico_stdlib tinyusb_device tinyusb_board pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id hardware_rtc)
+target_link_libraries(pico_openpgp PRIVATE pico_keys_sdk pico_stdlib tinyusb_device tinyusb_board pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id hardware_rtc)
 endif()

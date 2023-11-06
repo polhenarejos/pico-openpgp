@@ -23,7 +23,7 @@
 #include <pico/stdlib.h>
 #endif
 
-#include "hsm.h"
+#include "pico_keys.h"
 #include "apdu.h"
 
 extern bool has_pw1;
