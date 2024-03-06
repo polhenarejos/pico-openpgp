@@ -37,6 +37,7 @@ add_executable(pico_openpgp)
 set(SOURCES ${SOURCES}
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/openpgp.c
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/files.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/piv.c
         )
 
 set(INCLUDES ${INCLUDES}
