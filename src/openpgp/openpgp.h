@@ -29,4 +29,14 @@
 extern bool has_pw1;
 extern bool has_pw3;
 
+extern int store_keys(void *key_ctx, int type, uint16_t key_id);
+
+#define ALGO_RSA        0x01
+#define ALGO_ECDH       0x12
+#define ALGO_ECDSA      0x13
+#define ALGO_AES        0x70
+#define ALGO_AES_128    0x71
+#define ALGO_AES_192    0x72
+#define ALGO_AES_256    0x74
+
 #endif
