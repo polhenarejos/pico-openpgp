@@ -22,8 +22,6 @@
 #include "random.h"
 #include "eac.h"
 #include "crypto_utils.h"
-#include "mbedtls/rsa.h"
-#include "mbedtls/ecdsa.h"
 #include "mbedtls/ecdh.h"
 #include "mbedtls/asn1.h"
 #include "asn1.h"
@@ -821,8 +819,10 @@ static int cmd_get_data() {
         uint16_t data_len = parse_do(fids, 1);
         uint8_t *p = NULL;
         uint16_t tg = 0;
-        size_t tg_len = 0;
-        if (walk_tlv(res_APDU, data_len, &p, &tg, &tg_len, NULL)) {
+        uint16_t tg_len = 0;
+        asn1_ctx_t ctxi;
+        asn1_ctx_init(res_APDU, data_len, &ctxi);
+        if (walk_tlv(&ctxi, &p, &tg, &tg_len, NULL)) {
             uint8_t dec = 2;
             if ((tg & 0x1f) == 0x1f) {
                 dec++;

@@ -25,11 +25,15 @@
 
 #include "pico_keys.h"
 #include "apdu.h"
+#include "mbedtls/rsa.h"
+#include "mbedtls/ecdsa.h"
 
 extern bool has_pw1;
 extern bool has_pw3;
 
 extern int store_keys(void *key_ctx, int type, uint16_t key_id);
+extern void make_rsa_response(mbedtls_rsa_context *rsa);
+extern void make_ecdsa_response(mbedtls_ecdsa_context *ecdsa);
 
 #define ALGO_RSA        0x01
 #define ALGO_ECDH       0x12
