@@ -27,8 +27,6 @@
 #include "pico/unique_id.h"
 #endif
 #include "asn1.h"
-#include "mbedtls/ecdsa.h"
-#include "mbedtls/rsa.h"
 #include "mbedtls/aes.h"
 #include "openpgp.h"
 
@@ -389,18 +387,17 @@ static int cmd_authenticate() {
     if (apdu.data[0] != 0x7C) {
         return SW_WRONG_DATA();
     }
-    size_t t7c = 0;
-    uint8_t *c7c = NULL;
-    if (!asn1_find_tag(apdu.data, (uint16_t)apdu.nc, 0x7C, &t7c, &c7c) || t7c == 0 || c7c == NULL) {
+    asn1_ctx_t ctxi, a7c = { 0 };
+    asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+    if (!asn1_find_tag(&ctxi, 0x7C, &a7c) || asn1_len(&ctxi) == 0) {
         return SW_WRONG_DATA();
     }
-    size_t t80 = 0, t81 = 0, t82 = 0;
-    uint8_t *c80 = NULL, *c81 = NULL, *c82 = NULL;
-    asn1_find_tag(c7c, t7c, 0x80, &t80, &c80);
-    asn1_find_tag(c7c, t7c, 0x81, &t81, &c81);
-    asn1_find_tag(c7c, t7c, 0x82, &t82, &c82);
-    if (c80) {
-        if (t80 == 0) {
+    asn1_ctx_t a80 = { 0 }, a81 = { 0 }, a82 = { 0 };
+    asn1_find_tag(&a7c, 0x80, &a80);
+    asn1_find_tag(&a7c, 0x81, &a81);
+    asn1_find_tag(&a7c, 0x82, &a82);
+    if (a80.data) {
+        if (a80.len == 0) {
             memcpy(challenge, random_bytes_get(sizeof(challenge)), sizeof(challenge));
             if (algo == PIV_ALGO_AES128 || algo == PIV_ALGO_AES192 || algo == PIV_ALGO_AES256) {
                 if (key_ref != EF_PIV_KEY_CARDMGM) {
@@ -438,10 +435,10 @@ static int cmd_authenticate() {
             if (!has_challenge) {
                 return SW_COMMAND_NOT_ALLOWED();
             }
-            if (sizeof(challenge) != t80 || memcmp(c80, challenge, t80) != 0) {
+            if (sizeof(challenge) != a80.len || memcmp(a80.data, challenge, a80.len) != 0) {
                 return SW_DATA_INVALID();
             }
-            if (!c81 || t81 == 0) {
+            if (!asn1_len(&a81)) {
                 return SW_INCORRECT_PARAMS();
             }
             if (key_ref != EF_PIV_KEY_CARDMGM) {
@@ -466,13 +463,79 @@ static int cmd_authenticate() {
                 res_APDU[res_APDU_size++] = 10;
                 res_APDU[res_APDU_size++] = 0x82;
                 res_APDU[res_APDU_size++] = 16;
-                r = mbedtls_aes_crypt_ecb(&ctx, MBEDTLS_AES_ENCRYPT, c81, res_APDU + res_APDU_size);
+                r = mbedtls_aes_crypt_ecb(&ctx, MBEDTLS_AES_ENCRYPT, a81.data, res_APDU + res_APDU_size);
                 res_APDU_size += 16;
                 mbedtls_aes_free(&ctx);
                 if (r != 0) {
                     return SW_EXEC_ERROR();
                 }
         }
+    }
+    return SW_OK();
+}
+
+static int cmd_asym_keygen() {
+    uint8_t key_ref = P2(apdu);
+    if (apdu.nc == 0) {
+        return SW_WRONG_LENGTH();
+    }
+    if (apdu.data[0] != 0xAC) {
+        return SW_WRONG_DATA();
+    }
+    if (P1(apdu) != 0x0) {
+        return SW_INCORRECT_P1P2();
+    }
+    asn1_ctx_t ctxi, aac = {0};
+    asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+    if (!asn1_find_tag(&ctxi, 0xAC, &aac) || asn1_len(&aac) == 0) {
+        return SW_WRONG_DATA();
+    }
+    asn1_ctx_t a80 = {0}, a81 = {0};
+    asn1_find_tag(&aac, 0x80, &a80);
+    asn1_find_tag(&aac, 0x81, &a81);
+    if (asn1_len(&a80) == 0) {
+        return SW_WRONG_DATA();
+    }
+    if (a80.data[0] == PIV_ALGO_RSA1024 || a80.data[0] == PIV_ALGO_RSA2048) {
+        printf("KEYPAIR RSA\r\n");
+        mbedtls_rsa_context rsa;
+        mbedtls_rsa_init(&rsa);
+        uint8_t index = 0;
+        int exponent = 65537, nlen = (a80.data[0] == PIV_ALGO_RSA1024 ? 1024 : 2048);
+        if (asn1_len(&a81)) {
+            exponent = (int)asn1_get_uint(&a81);
+        }
+        int r = mbedtls_rsa_gen_key(&rsa, random_gen, &index, nlen, exponent);
+        if (r != 0) {
+            mbedtls_rsa_free(&rsa);
+            return SW_EXEC_ERROR();
+        }
+        r = store_keys(&rsa, ALGO_RSA, key_ref);
+        make_rsa_response(&rsa);
+        mbedtls_rsa_free(&rsa);
+        if (r != CCID_OK) {
+            return SW_EXEC_ERROR();
+        }
+    }
+    else if (a80.data[0] == PIV_ALGO_ECCP256 || a80.data[0] == PIV_ALGO_ECCP384) {
+        printf("KEYPAIR ECDSA\r\n");
+        mbedtls_ecp_group_id gid = a80.data[0] == PIV_ALGO_ECCP256 ? MBEDTLS_ECP_DP_SECP256R1 : MBEDTLS_ECP_DP_SECP384R1;
+        mbedtls_ecdsa_context ecdsa;
+        mbedtls_ecdsa_init(&ecdsa);
+        uint8_t index = 0;
+        int r = mbedtls_ecdsa_genkey(&ecdsa, gid, random_gen, &index);
+        if (r != 0) {
+            mbedtls_ecdsa_free(&ecdsa);
+            return SW_EXEC_ERROR();
+        }
+        r = store_keys(&ecdsa, ALGO_ECDSA, key_ref);
+        make_ecdsa_response(&ecdsa);
+        mbedtls_ecdsa_free(&ecdsa);
+        if (r != CCID_OK) {
+            return SW_EXEC_ERROR();
+        }
+    }
+    else if (a80.data[0] == PIV_ALGO_X25519) {
     }
     return SW_OK();
 }
@@ -485,6 +548,7 @@ static int cmd_authenticate() {
 #define INS_GET_DATA        0xCB
 #define INS_GET_METADATA    0xF7
 #define INS_AUTHENTICATE    0x87
+#define INS_ASYM_KEYGEN     0x47
 
 static const cmd_t cmds[] = {
     { INS_VERSION, cmd_version },
@@ -494,6 +558,7 @@ static const cmd_t cmds[] = {
     { INS_GET_DATA, cmd_get_data },
     { INS_GET_METADATA, cmd_get_metadata },
     { INS_AUTHENTICATE, cmd_authenticate },
+    { INS_ASYM_KEYGEN, cmd_asym_keygen },
     { 0x00, 0x0 }
 };
 
