@@ -344,6 +344,9 @@ static int cmd_get_data() {
                 memcpy(res_APDU + res_APDU_size, file_get_data(ef), data_len);
             }
         }
+        if (data_len == 0) {
+            return SW_FILE_NOT_FOUND();
+        }
         if (data_len > 255) {
             memmove(res_APDU + res_APDU_size + 2, res_APDU + res_APDU_size, data_len);
         }
@@ -352,6 +355,9 @@ static int cmd_get_data() {
         }
         res_APDU[0] = 0x53;
         res_APDU_size = 1 + format_tlv_len(data_len, res_APDU + 1) + data_len;
+    }
+    else {
+        return SW_FILE_NOT_FOUND();
     }
     return SW_OK();
 }
@@ -596,6 +602,12 @@ static int cmd_asym_keygen() {
     if (!has_mgm) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
+    if (key_ref == 0x9E) {
+        key_ref = EF_PIV_KEY_RETIRED18;
+    }
+    else if (key_ref == 0xF9) {
+        key_ref = EF_PIV_KEY_ATTESTATION;
+    }
     asn1_ctx_t ctxi, aac = {0};
     asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
     if (!asn1_find_tag(&ctxi, 0xAC, &aac) || asn1_len(&aac) == 0) {
@@ -651,6 +663,35 @@ static int cmd_asym_keygen() {
     return SW_OK();
 }
 
+int cmd_put_data() {
+    if (P1(apdu) != 0x3F || P2(apdu) != 0xFF) {
+        return SW_INCORRECT_P1P2();
+    }
+    asn1_ctx_t ctxi, a5c = {0}, a53 = {0};
+    asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+    if (apdu.data[0] != 0x7E && apdu.data[0] != 0x7F && (!asn1_find_tag(&ctxi, 0x5C, &a5c) || !asn1_find_tag(&ctxi, 0x53, &a53))) {
+        return SW_WRONG_DATA();
+    }
+    if (a5c.data && a53.data) {
+        if (a5c.len != 3 || a5c.data[0] != 0x5F || a5c.data[1] != 0xC1) {
+            return SW_WRONG_DATA();
+        }
+        uint16_t fid = (a5c.data[1] << 8 | a5c.data[2]);
+        file_t *ef = search_by_fid(fid, NULL, SPECIFY_EF);
+        if (!ef) {
+            return SW_MEMORY_FAILURE();
+        }
+        if (a53.len > 0) {
+            flash_write_data_to_file(ef, a53.data, a53.len);
+        }
+        else {
+            flash_clear_file(ef);
+        }
+        low_flash_available();
+    }
+    return SW_OK();
+}
+
 #define INS_VERIFY          0x20
 #define INS_VERSION         0xFD
 #define INS_SELECT          0xA4
@@ -660,6 +701,7 @@ static int cmd_asym_keygen() {
 #define INS_GET_METADATA    0xF7
 #define INS_AUTHENTICATE    0x87
 #define INS_ASYM_KEYGEN     0x47
+#define INS_PUT_DATA        0xDB
 
 static const cmd_t cmds[] = {
     { INS_VERSION, cmd_version },
@@ -670,6 +712,7 @@ static const cmd_t cmds[] = {
     { INS_GET_METADATA, cmd_get_metadata },
     { INS_AUTHENTICATE, cmd_authenticate },
     { INS_ASYM_KEYGEN, cmd_asym_keygen },
+    { INS_PUT_DATA, cmd_put_data },
     { 0x00, 0x0 }
 };
 
