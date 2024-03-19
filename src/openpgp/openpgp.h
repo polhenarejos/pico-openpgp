@@ -31,9 +31,21 @@
 extern bool has_pw1;
 extern bool has_pw3;
 
-extern int store_keys(void *key_ctx, int type, uint16_t key_id);
+extern int store_keys(void *key_ctx, int type, uint16_t key_id, bool use_kek);
 extern void make_rsa_response(mbedtls_rsa_context *rsa);
 extern void make_ecdsa_response(mbedtls_ecdsa_context *ecdsa);
+extern int ecdsa_sign(mbedtls_ecdsa_context *ctx,
+                      const uint8_t *data,
+                      size_t data_len,
+                      uint8_t *out,
+                      size_t *out_len);
+extern int rsa_sign(mbedtls_rsa_context *ctx,
+                    const uint8_t *data,
+                    size_t data_len,
+                    uint8_t *out,
+                    size_t *out_len);
+extern int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey, bool use_dek);
+extern int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey, bool use_dek);
 
 #define ALGO_RSA        0x01
 #define ALGO_ECDH       0x12
