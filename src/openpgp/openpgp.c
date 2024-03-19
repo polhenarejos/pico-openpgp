@@ -1145,7 +1145,7 @@ static int cmd_reset_retry() {
     return SW_INCORRECT_P1P2();
 }
 
-int store_keys(void *key_ctx, int type, uint16_t key_id) {
+int store_keys(void *key_ctx, int type, uint16_t key_id, bool use_kek) {
     int r, key_size = 0;
     uint8_t kdata[4096 / 8]; //worst
 
@@ -1183,9 +1183,11 @@ int store_keys(void *key_ctx, int type, uint16_t key_id) {
         }
         memcpy(kdata, key_ctx, key_size);
     }
-    r = dek_encrypt(kdata, key_size);
-    if (r != CCID_OK) {
-        return r;
+    if (use_kek) {
+        r = dek_encrypt(kdata, key_size);
+        if (r != CCID_OK) {
+            return r;
+        }
     }
     //r = aes_encrypt_cfb_256(file_read(pw3->data+2), session_pw3, kdata, key_size);
     //if (r != CCID_OK)
@@ -1198,11 +1200,11 @@ int store_keys(void *key_ctx, int type, uint16_t key_id) {
     return CCID_OK;
 }
 
-int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
+int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey, bool use_dek) {
     int key_size = file_get_size(fkey);
     uint8_t kdata[4096 / 8];
     memcpy(kdata, file_get_data(fkey), key_size);
-    if (dek_decrypt(kdata, key_size) != 0) {
+    if (use_dek && dek_decrypt(kdata, key_size) != 0) {
         return CCID_EXEC_ERROR;
     }
     if (mbedtls_mpi_read_binary(&ctx->P, kdata, key_size / 2) != 0) {
@@ -1232,11 +1234,11 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
     return CCID_OK;
 }
 
-int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
+int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey, bool use_dek) {
     int key_size = file_get_size(fkey);
     uint8_t kdata[67]; //Worst case, 521 bit + 1byte
     memcpy(kdata, file_get_data(fkey), key_size);
-    if (dek_decrypt(kdata, key_size) != 0) {
+    if (use_dek && dek_decrypt(kdata, key_size) != 0) {
         return CCID_EXEC_ERROR;
     }
     mbedtls_ecp_group_id gid = kdata[0];
@@ -1377,7 +1379,7 @@ static int cmd_keypair_gen() {
                 mbedtls_rsa_free(&rsa);
                 return SW_EXEC_ERROR();
             }
-            r = store_keys(&rsa, ALGO_RSA, fid);
+            r = store_keys(&rsa, ALGO_RSA, fid, true);
             make_rsa_response(&rsa);
             mbedtls_rsa_free(&rsa);
             if (r != CCID_OK) {
@@ -1398,7 +1400,7 @@ static int cmd_keypair_gen() {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
-            r = store_keys(&ecdsa, algo[0], fid);
+            r = store_keys(&ecdsa, algo[0], fid, true);
             make_ecdsa_response(&ecdsa);
             mbedtls_ecdsa_free(&ecdsa);
             if (r != CCID_OK) {
@@ -1425,7 +1427,7 @@ static int cmd_keypair_gen() {
             uint8_t aes_key[32]; //maximum AES key size
             uint8_t key_size = 32;
             memcpy(aes_key, random_bytes_get(key_size), key_size);
-            r = store_keys(aes_key, ALGO_AES_256, EF_AES_KEY);
+            r = store_keys(aes_key, ALGO_AES_256, EF_AES_KEY, true);
             /* if storing the key fails, we silently continue */
             //if (r != CCID_OK)
             //    return SW_EXEC_ERROR();
@@ -1609,7 +1611,7 @@ static int cmd_pso() {
     if (algo[0] == ALGO_RSA) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
-        r = load_private_key_rsa(&ctx, ef);
+        r = load_private_key_rsa(&ctx, ef, true);
         if (r != CCID_OK) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
@@ -1648,7 +1650,7 @@ static int cmd_pso() {
         if (P1(apdu) == 0x9E && P2(apdu) == 0x9A) {
             mbedtls_ecdsa_context ctx;
             mbedtls_ecdsa_init(&ctx);
-            r = load_private_key_ecdsa(&ctx, ef);
+            r = load_private_key_ecdsa(&ctx, ef, true);
             if (r != CCID_OK) {
                 mbedtls_ecdsa_free(&ctx);
                 return SW_EXEC_ERROR();
@@ -1778,7 +1780,7 @@ static int cmd_internal_aut() {
     if (algo[0] == ALGO_RSA) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
-        r = load_private_key_rsa(&ctx, ef);
+        r = load_private_key_rsa(&ctx, ef, true);
         if (r != CCID_OK) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
@@ -1794,7 +1796,7 @@ static int cmd_internal_aut() {
     else if (algo[0] == ALGO_ECDH || algo[0] == ALGO_ECDSA) {
         mbedtls_ecdsa_context ctx;
         mbedtls_ecdsa_init(&ctx);
-        r = load_private_key_ecdsa(&ctx, ef);
+        r = load_private_key_ecdsa(&ctx, ef, true);
         if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
@@ -1964,7 +1966,7 @@ static int cmd_import_data() {
             mbedtls_rsa_free(&rsa);
             return SW_EXEC_ERROR();
         }
-        r = store_keys(&rsa, ALGO_RSA, fid);
+        r = store_keys(&rsa, ALGO_RSA, fid, true);
         make_rsa_response(&rsa);
         mbedtls_rsa_free(&rsa);
         if (r != CCID_OK) {
@@ -1997,7 +1999,7 @@ static int cmd_import_data() {
             mbedtls_ecdsa_free(&ecdsa);
             return SW_EXEC_ERROR();
         }
-        r = store_keys(&ecdsa, ALGO_ECDSA, fid);
+        r = store_keys(&ecdsa, ALGO_ECDSA, fid, true);
         make_ecdsa_response(&ecdsa);
         mbedtls_ecdsa_free(&ecdsa);
         if (r != CCID_OK) {
