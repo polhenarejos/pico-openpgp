@@ -525,7 +525,7 @@ static int cmd_authenticate() {
                 size_t olen = 0;
                 memcpy(res_APDU, "\x7C\x00\x82\x00", 4);
                 res_APDU_size = 4;
-                r = ecdsa_sign(&ctx, a81.data, a81.len, res_APDU + res_APDU_size, &olen);
+                r = mbedtls_ecdsa_write_signature(&ctx, algo == PIV_ALGO_ECCP256 ? MBEDTLS_MD_SHA256 : MBEDTLS_MD_SHA384, a81.data, a81.len, res_APDU + res_APDU_size, MBEDTLS_ECDSA_MAX_LEN, &olen, random_gen, NULL);
                 mbedtls_ecdsa_free(&ctx);
                 res_APDU[res_APDU_size - 1] = olen;
                 res_APDU[res_APDU_size - 3] = olen + 2;
