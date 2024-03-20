@@ -436,7 +436,7 @@ static int cmd_authenticate() {
                     return SW_EXEC_ERROR();
                 }
                 res_APDU[res_APDU_size++] = 0x7C;
-                res_APDU[res_APDU_size++] = 10;
+                res_APDU[res_APDU_size++] = 18;
                 res_APDU[res_APDU_size++] = 0x80;
                 res_APDU[res_APDU_size++] = 16;
                 r = mbedtls_aes_crypt_ecb(&ctx, MBEDTLS_AES_ENCRYPT, challenge, res_APDU + res_APDU_size);
@@ -468,7 +468,7 @@ static int cmd_authenticate() {
         if (!a81.len) {
             memcpy(challenge, random_bytes_get(sizeof(challenge)), sizeof(challenge));
             res_APDU[res_APDU_size++] = 0x7C;
-            res_APDU[res_APDU_size++] = 10;
+            res_APDU[res_APDU_size++] = sizeof(challenge) + 2;
             res_APDU[res_APDU_size++] = 0x81;
             res_APDU[res_APDU_size++] = sizeof(challenge);
             memcpy(res_APDU + res_APDU_size, challenge, sizeof(challenge));
@@ -489,14 +489,26 @@ static int cmd_authenticate() {
                     return SW_EXEC_ERROR();
                 }
                 size_t olen = 0;
-                res_APDU[res_APDU_size++] = 0x7C;
-                res_APDU[res_APDU_size++] = 10;
-                res_APDU[res_APDU_size++] = 0x82;
-                res_APDU[res_APDU_size++] = 0x82;
-                r = rsa_sign(&ctx, a81.data, a81.len, res_APDU + res_APDU_size + 2, &olen);
+                if (algo == PIV_ALGO_RSA1024) {
+                    memcpy(res_APDU, "\x7C\x81\x00\x82\x81\x00", 6);
+                    res_APDU_size = 6;
+                }
+                else if (algo == PIV_ALGO_RSA2048) {
+                    memcpy(res_APDU, "\x7C\x82\x00\x00\x82\x82\x00\x00", 8);
+                    res_APDU_size = 8;
+                }
+                r = rsa_sign(&ctx, a81.data, a81.len, res_APDU + res_APDU_size, &olen);
                 mbedtls_rsa_free(&ctx);
-                res_APDU[res_APDU_size++] = olen >> 8;
-                res_APDU[res_APDU_size++] = olen & 0xFF;
+                if (algo == PIV_ALGO_RSA1024) {
+                    res_APDU[res_APDU_size - 1] = olen;
+                    res_APDU[res_APDU_size - 4] = olen + 3;
+                }
+                else if (algo == PIV_ALGO_RSA2048) {
+                    res_APDU[res_APDU_size - 2] = olen >> 8;
+                    res_APDU[res_APDU_size - 1] = olen & 0xFF;
+                    res_APDU[res_APDU_size - 6] = (olen + 4) >> 8;
+                    res_APDU[res_APDU_size - 5] = (olen + 4) & 0xFF;
+                }
                 res_APDU_size += olen;
                 if (r != 0) {
                     return SW_EXEC_ERROR();
@@ -511,14 +523,12 @@ static int cmd_authenticate() {
                     return SW_EXEC_ERROR();
                 }
                 size_t olen = 0;
-                res_APDU[res_APDU_size++] = 0x7C;
-                res_APDU[res_APDU_size++] = 10;
-                res_APDU[res_APDU_size++] = 0x82;
-                res_APDU[res_APDU_size++] = 0x82;
-                r = ecdsa_sign(&ctx, a81.data, a81.len, res_APDU + res_APDU_size + 2, &olen);
+                memcpy(res_APDU, "\x7C\x00\x82\x00", 4);
+                res_APDU_size = 4;
+                r = ecdsa_sign(&ctx, a81.data, a81.len, res_APDU + res_APDU_size, &olen);
                 mbedtls_ecdsa_free(&ctx);
-                res_APDU[res_APDU_size++] = olen >> 8;
-                res_APDU[res_APDU_size++] = olen & 0xFF;
+                res_APDU[res_APDU_size - 1] = olen;
+                res_APDU[res_APDU_size - 3] = olen + 2;
                 res_APDU_size += olen;
                 if (r != 0) {
                     return SW_EXEC_ERROR();
@@ -536,13 +546,11 @@ static int cmd_authenticate() {
                     mbedtls_aes_free(&ctx);
                     return SW_EXEC_ERROR();
                 }
-                res_APDU[res_APDU_size++] = 0x7C;
-                res_APDU[res_APDU_size++] = 10;
-                res_APDU[res_APDU_size++] = 0x82;
-                res_APDU[res_APDU_size++] = a81.len;
+                memcpy(res_APDU, "\x7C\x12\x82\x10", 4);
+                res_APDU_size = 4;
                 r = mbedtls_aes_crypt_ecb(&ctx, MBEDTLS_AES_ENCRYPT, a81.data, res_APDU + res_APDU_size);
                 mbedtls_aes_free(&ctx);
-                res_APDU_size += a81.len;
+                res_APDU_size += 16;
                 if (r != 0) {
                     return SW_EXEC_ERROR();
                 }
