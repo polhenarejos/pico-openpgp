@@ -1021,7 +1021,7 @@ static int cmd_put_data() {
             if (!tf) {
                 return SW_REFERENCE_NOT_FOUND();
             }
-            uint8_t def[IV_SIZE + 32 + 32 + 32];
+            uint8_t def[IV_SIZE + 32 + 32 + 32 + 32];
             memcpy(def, file_get_data(tf), file_get_size(tf));
             hash_multi(apdu.data, apdu.nc, session_rc);
             memcpy(def + IV_SIZE + 32, dek + IV_SIZE, 32);
@@ -1066,7 +1066,7 @@ static int cmd_change_pin() {
     if (!tf) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    uint8_t def[IV_SIZE + 32 + 32 + 32];
+    uint8_t def[IV_SIZE + 32 + 32 + 32 + 32];
     memcpy(def, file_get_data(tf), file_get_size(tf));
     if (P2(apdu) == 0x81) {
         hash_multi(apdu.data + pin_len, apdu.nc - pin_len, session_pw1);
@@ -1125,7 +1125,7 @@ static int cmd_reset_retry() {
         if (!tf) {
             return SW_REFERENCE_NOT_FOUND();
         }
-        uint8_t def[IV_SIZE + 32 + 32 + 32];
+        uint8_t def[IV_SIZE + 32 + 32 + 32 + 32];
         memcpy(def, file_get_data(tf), file_get_size(tf));
         hash_multi(apdu.data + (apdu.nc - newpin_len), newpin_len, session_pw1);
         memcpy(def + IV_SIZE, dek + IV_SIZE, 32);
