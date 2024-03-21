@@ -117,7 +117,7 @@
 #define EF_PIV_KEY_RETIRED15        0x0090
 #define EF_PIV_KEY_RETIRED16        0x0091
 #define EF_PIV_KEY_RETIRED17        0x0092
-#define EF_PIV_KEY_RETIRED18        0x0096 // It's 0x9e but assigned to EF_SIG_COUNT
+#define EF_PIV_KEY_RETIRED18        0x0096 // It's 0x93 but assigned to EF_SIG_COUNT
 #define EF_PIV_KEY_RETIRED19        0x0094
 #define EF_PIV_KEY_RETIRED20        0x0095
 #define EF_PIV_KEY_ATTESTATION      0x00fb // It's 0xf9 but assigned to EF_KDF
