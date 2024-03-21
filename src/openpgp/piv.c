@@ -624,7 +624,7 @@ static int cmd_asym_keygen() {
     if (!has_mgm) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    if (key_ref == 0x9E) {
+    if (key_ref == 0x93) {
         key_ref = EF_PIV_KEY_RETIRED18;
     }
     else if (key_ref == 0xF9) {
@@ -749,6 +749,32 @@ static int cmd_set_mgmkey() {
     return SW_OK();
 }
 
+#define IS_RETIRED(x) ((x) >= EF_PIV_KEY_RETIRED1 && (x) <= EF_PIV_KEY_RETIRED20)
+#define IS_ACTIVE(x) ((x) >= EF_PIV_KEY_AUTHENTICATION && (x) <= EF_PIV_KEY_CARDAUTH)
+static int cmd_move_key() {
+    if (apdu.nc != 0) {
+        return SW_WRONG_LENGTH();
+    }
+    uint8_t to = P1(apdu), from = P2(apdu);
+    if ((!IS_RETIRED(from) && !IS_ACTIVE(from)) || (!IS_RETIRED(to) && !IS_ACTIVE(to))) {
+        return SW_INCORRECT_P1P2();
+    }
+    if (from == 0x93) {
+        from = EF_PIV_KEY_RETIRED18;
+    }
+    if (to == 0x93) {
+        to = EF_PIV_KEY_RETIRED18;
+    }
+    file_t *efs, *efd;
+    if (!(efs = search_by_fid(from, NULL, SPECIFY_EF)) || !(efd = search_by_fid(to, NULL, SPECIFY_EF))) {
+        return SW_FILE_NOT_FOUND();
+    }
+    flash_write_data_to_file(efd, file_get_data(efs), file_get_size(efs));
+    flash_clear_file(efs);
+    low_flash_available();
+    return SW_OK();
+}
+
 #define INS_VERIFY          0x20
 #define INS_VERSION         0xFD
 #define INS_SELECT          0xA4
@@ -760,6 +786,7 @@ static int cmd_set_mgmkey() {
 #define INS_ASYM_KEYGEN     0x47
 #define INS_PUT_DATA        0xDB
 #define INS_SET_MGMKEY      0xFF
+#define INS_MOVE_KEY        0xF6
 
 static const cmd_t cmds[] = {
     { INS_VERSION, cmd_version },
@@ -772,6 +799,7 @@ static const cmd_t cmds[] = {
     { INS_ASYM_KEYGEN, cmd_asym_keygen },
     { INS_PUT_DATA, cmd_put_data },
     { INS_SET_MGMKEY, cmd_set_mgmkey },
+    { INS_MOVE_KEY, cmd_move_key },
     { 0x00, 0x0 }
 };
 
