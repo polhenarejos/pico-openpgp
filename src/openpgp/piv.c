@@ -39,6 +39,20 @@
 #define PIV_ALGO_ECCP384 0x14
 #define PIV_ALGO_X25519 0xE1
 
+#define PINPOLICY_DEFAULT 0
+#define PINPOLICY_NEVER 1
+#define PINPOLICY_ONCE 2
+#define PINPOLICY_ALWAYS 3
+
+#define TOUCHPOLICY_DEFAULT 0
+#define TOUCHPOLICY_NEVER 1
+#define TOUCHPOLICY_ALWAYS 2
+#define TOUCHPOLICY_CACHED 3
+#define TOUCHPOLICY_AUTO 0xFF
+
+#define ORIGIN_GENERATED 0x01
+#define ORIGIN_IMPORTED 0x02
+
 uint8_t piv_aid[] = {
     5,
     0xA0, 0x00, 0x00, 0x03, 0x8,
@@ -162,7 +176,7 @@ static void scan_files() {
             uint8_t *key = (uint8_t *)"\x01\x02\x03\x04\x05\x06\x07\x08\x01\x02\x03\x04\x05\x06\x07\x08\x01\x02\x03\x04\x05\x06\x07\x08";
             file_t *ef = search_by_fid(EF_PIV_KEY_CARDMGM, NULL, SPECIFY_ANY);
             flash_write_data_to_file(ef, key, 24);
-            uint8_t meta[] = { PIV_ALGO_AES192, 0, 0, 1 };
+            uint8_t meta[] = { PIV_ALGO_AES192, PINPOLICY_ALWAYS, TOUCHPOLICY_ALWAYS, ORIGIN_GENERATED };
             meta_add(EF_PIV_KEY_CARDMGM, meta, sizeof(meta));
             has_pwpiv = false;
             memset(session_pwpiv, 0, sizeof(session_pwpiv));
@@ -700,6 +714,41 @@ int cmd_put_data() {
     return SW_OK();
 }
 
+static int cmd_set_mgmkey() {
+    if (P1(apdu) != 0xFF) {
+        return SW_INCORRECT_P1P2();
+    }
+    if (apdu.nc < 5) {
+        return SW_WRONG_LENGTH();
+    }
+    uint8_t touch = P2(apdu);
+    if (touch != 0xFF && touch != 0xFE) {
+        if (touch == 0xFF) {
+            touch = TOUCHPOLICY_NEVER;
+        }
+        else if (touch == 0xFE) {
+            touch = TOUCHPOLICY_ALWAYS;
+        }
+    }
+    uint8_t algo = apdu.data[0], key_ref = apdu.data[1], pinlen = apdu.data[2];
+    if ((key_ref != EF_PIV_KEY_CARDMGM) || (!(algo == PIV_ALGO_AES128 && pinlen == 16) && !(algo == PIV_ALGO_AES192 && pinlen == 24) && !(algo == PIV_ALGO_AES256 && pinlen == 32))) {
+        return SW_WRONG_DATA();
+    }
+    file_t *ef = search_by_fid(key_ref, NULL, SPECIFY_ANY);
+    flash_write_data_to_file(ef, apdu.data + 3, pinlen);
+    uint8_t *meta = NULL, new_meta[4];
+    int meta_len = 0;
+    if ((meta_len = meta_find(key_ref, &meta)) <= 0) {
+        return SW_REFERENCE_NOT_FOUND();
+    }
+    memcpy(new_meta, meta, 4);
+    new_meta[0] = algo;
+    new_meta[2] = touch;
+    meta_add(key_ref, new_meta, sizeof(new_meta));
+    low_flash_available();
+    return SW_OK();
+}
+
 #define INS_VERIFY          0x20
 #define INS_VERSION         0xFD
 #define INS_SELECT          0xA4
@@ -710,6 +759,7 @@ int cmd_put_data() {
 #define INS_AUTHENTICATE    0x87
 #define INS_ASYM_KEYGEN     0x47
 #define INS_PUT_DATA        0xDB
+#define INS_SET_MGMKEY      0xFF
 
 static const cmd_t cmds[] = {
     { INS_VERSION, cmd_version },
@@ -721,6 +771,7 @@ static const cmd_t cmds[] = {
     { INS_AUTHENTICATE, cmd_authenticate },
     { INS_ASYM_KEYGEN, cmd_asym_keygen },
     { INS_PUT_DATA, cmd_put_data },
+    { INS_SET_MGMKEY, cmd_set_mgmkey },
     { 0x00, 0x0 }
 };
 
