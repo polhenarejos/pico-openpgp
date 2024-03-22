@@ -154,6 +154,20 @@ static void scan_files() {
             flash_write_data_to_file(ef, def, sizeof(def));
         }
     }
+    if ((ef = search_by_fid(EF_PW_RETRIES, NULL, SPECIFY_ANY))) {
+        if (file_get_size(ef) == 0) {
+            printf("PW retries is empty. Initializing to default\r\n");
+            const uint8_t def[] = { 0x1, 3, 3, 3, 3, 3 };
+            flash_write_data_to_file(ef, def, sizeof(def));
+        }
+        else if (file_get_size(ef) == 4) {
+            printf("PW retries is older. Initializing to default\r\n");
+            uint8_t def[6] = { 0 };
+            memcpy(def, file_get_data(ef), 4);
+            def[4] = def[5] = 3; // PIV retries
+            flash_write_data_to_file(ef, def, sizeof(def));
+        }
+    }
     bool reset_dek = false;
     if ((ef = search_by_fid(EF_DEK, NULL, SPECIFY_ANY))) {
         if (file_get_size(ef) == 0 || file_get_size(ef) == IV_SIZE+32*3) {
@@ -781,6 +795,9 @@ static int cmd_change_pin() {
         return SW_INCORRECT_P1P2();
     }
     file_t *ef = search_by_fid(pin_ref == 0x80 ? EF_PIV_PIN : EF_PIV_PUK, NULL, SPECIFY_ANY);
+    if (!ef) {
+        return SW_MEMORY_FAILURE();
+    }
     uint8_t *pin_data = file_get_data(ef), pin_len = apdu.nc - pin_data[0];
     uint8_t dhash[33];
     double_hash_pin(apdu.data, pin_data[0], dhash + 1);
@@ -791,6 +808,7 @@ static int cmd_change_pin() {
     double_hash_pin(apdu.data + pin_data[0], pin_len, dhash + 1);
     flash_write_data_to_file(ef, dhash, sizeof(dhash));
     pin_reset_retries(ef, true);
+    low_flash_available();
     return SW_OK();
 }
 
@@ -799,6 +817,9 @@ static int cmd_reset_retry() {
         return SW_INCORRECT_P1P2();
     }
     file_t *ef = search_by_fid(EF_PIV_PUK, NULL, SPECIFY_ANY);
+    if (!ef) {
+        return SW_MEMORY_FAILURE();
+    }
     uint8_t *puk_data = file_get_data(ef), pin_len = apdu.nc - puk_data[0];
     uint8_t dhash[33];
     double_hash_pin(apdu.data, puk_data[0], dhash + 1);
@@ -810,6 +831,38 @@ static int cmd_reset_retry() {
     ef = search_by_fid(EF_PIV_PIN, NULL, SPECIFY_ANY);
     flash_write_data_to_file(ef, dhash, sizeof(dhash));
     pin_reset_retries(ef, true);
+    low_flash_available();
+    return SW_OK();
+}
+
+static int cmd_set_retries() {
+    file_t *ef = search_by_fid(EF_PW_RETRIES, NULL, SPECIFY_ANY);
+    if (!ef) {
+        return SW_MEMORY_FAILURE();
+    }
+    uint8_t *tmp = (uint8_t *)calloc(1, file_get_size(ef));
+    memcpy(tmp, file_get_data(ef), file_get_size(ef));
+    tmp[4] = P1(apdu);
+    tmp[5] = P2(apdu);
+    flash_write_data_to_file(ef, tmp, file_get_size(ef));
+    free(tmp);
+
+    ef = search_by_fid(EF_PIV_PIN, NULL, SPECIFY_ANY);
+    const uint8_t def_pin[8] = { 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0xFF, 0xFF };
+    uint8_t dhash[33];
+    dhash[0] = sizeof(def_pin);
+    double_hash_pin(def_pin, sizeof(def_pin), dhash + 1);
+    flash_write_data_to_file(ef, dhash, sizeof(dhash));
+    pin_reset_retries(ef, true);
+
+    ef = search_by_fid(EF_PIV_PUK, NULL, SPECIFY_ANY);
+    const uint8_t def_puk[8] = {0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38};
+    dhash[0] = sizeof(def_puk);
+    double_hash_pin(def_puk, sizeof(def_puk), dhash + 1);
+    flash_write_data_to_file(ef, dhash, sizeof(dhash));
+    pin_reset_retries(ef, true);
+
+    low_flash_available();
     return SW_OK();
 }
 
@@ -827,6 +880,7 @@ static int cmd_reset_retry() {
 #define INS_MOVE_KEY        0xF6
 #define INS_CHANGE_PIN      0x24
 #define INS_RESET_RETRY     0x2C
+#define INS_SET_RETRIES     0xFA
 
 static const cmd_t cmds[] = {
     { INS_VERSION, cmd_version },
@@ -842,6 +896,7 @@ static const cmd_t cmds[] = {
     { INS_MOVE_KEY, cmd_move_key },
     { INS_CHANGE_PIN, cmd_change_pin },
     { INS_RESET_RETRY, cmd_reset_retry },
+    { INS_SET_RETRIES, cmd_set_retries },
     { 0x00, 0x0 }
 };
 
