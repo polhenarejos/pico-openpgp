@@ -784,11 +784,30 @@ static int cmd_change_pin() {
     uint8_t *pin_data = file_get_data(ef), pin_len = apdu.nc - pin_data[0];
     uint8_t dhash[33];
     double_hash_pin(apdu.data, pin_data[0], dhash + 1);
-    if (memcmp(dhash, file_get_data(ef) + 1, pin_len) != 0) {
+    if (memcmp(dhash, file_get_data(ef) + 1, sizeof(dhash) - 1) != 0) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     dhash[0] = pin_len;
     double_hash_pin(apdu.data + pin_data[0], pin_len, dhash + 1);
+    flash_write_data_to_file(ef, dhash, sizeof(dhash));
+    pin_reset_retries(ef, true);
+    return SW_OK();
+}
+
+static int cmd_reset_retry() {
+    if (P1(apdu) != 0x0 || P2(apdu) != 0x80) {
+        return SW_INCORRECT_P1P2();
+    }
+    file_t *ef = search_by_fid(EF_PIV_PUK, NULL, SPECIFY_ANY);
+    uint8_t *puk_data = file_get_data(ef), pin_len = apdu.nc - puk_data[0];
+    uint8_t dhash[33];
+    double_hash_pin(apdu.data, puk_data[0], dhash + 1);
+    if (memcmp(dhash, file_get_data(ef) + 1, sizeof(dhash) - 1) != 0) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
+    dhash[0] = pin_len;
+    double_hash_pin(apdu.data + puk_data[0], pin_len, dhash + 1);
+    ef = search_by_fid(EF_PIV_PIN, NULL, SPECIFY_ANY);
     flash_write_data_to_file(ef, dhash, sizeof(dhash));
     pin_reset_retries(ef, true);
     return SW_OK();
@@ -807,6 +826,7 @@ static int cmd_change_pin() {
 #define INS_SET_MGMKEY      0xFF
 #define INS_MOVE_KEY        0xF6
 #define INS_CHANGE_PIN      0x24
+#define INS_RESET_RETRY     0x2C
 
 static const cmd_t cmds[] = {
     { INS_VERSION, cmd_version },
@@ -821,6 +841,7 @@ static const cmd_t cmds[] = {
     { INS_SET_MGMKEY, cmd_set_mgmkey },
     { INS_MOVE_KEY, cmd_move_key },
     { INS_CHANGE_PIN, cmd_change_pin },
+    { INS_RESET_RETRY, cmd_reset_retry },
     { 0x00, 0x0 }
 };
 
