@@ -46,6 +46,7 @@ extern int rsa_sign(mbedtls_rsa_context *ctx,
                     size_t *out_len);
 extern int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey, bool use_dek);
 extern int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey, bool use_dek);
+extern int pin_reset_retries(const file_t *pin, bool force);
 
 #define ALGO_RSA        0x01
 #define ALGO_ECDH       0x12
