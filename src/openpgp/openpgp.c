@@ -270,11 +270,17 @@ void scan_files() {
             flash_write_data_to_file(ef, def, sizeof(def));
         }
     }
-
     if ((ef = search_by_fid(EF_SEX, NULL, SPECIFY_ANY))) {
         if (!ef->data) {
             printf("Sex is empty. Initializing to default\r\n");
             const uint8_t def[] = { 0x30 };
+            flash_write_data_to_file(ef, def, sizeof(def));
+        }
+    }
+    if ((ef = search_by_fid(EF_PW_RETRIES, NULL, SPECIFY_ANY))) {
+        if (!ef->data) {
+            printf("PW retries is empty. Initializing to default\r\n");
+            const uint8_t def[] = { 0x1, 3, 3, 3 };
             flash_write_data_to_file(ef, def, sizeof(def));
         }
     }
@@ -847,8 +853,12 @@ int pin_reset_retries(const file_t *pin, bool force) {
         return CCID_ERR_NULL_PARAM;
     }
     file_t *pw_status = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF);
-    if (!pw_status) {
+    file_t *pw_retries = search_by_fid(EF_PW_RETRIES, NULL, SPECIFY_EF);
+    if (!pw_status || !pw_retries) {
         return CCID_ERR_FILE_NOT_FOUND;
+    }
+    if (3 + (pin->fid & 0xf) >= file_get_size(pw_status) || (pin->fid & 0xf) >= file_get_size(pw_retries)) {
+        return CCID_ERR_MEMORY_FATAL;
     }
     uint8_t p[64];
     memcpy(p, file_get_data(pw_status), file_get_size(pw_status));
@@ -856,7 +866,8 @@ int pin_reset_retries(const file_t *pin, bool force) {
     if (retries == 0 && force == false) { //blocked
         return CCID_ERR_BLOCKED;
     }
-    p[3 + (pin->fid & 0xf)] = 3;
+    uint8_t max_retries = file_get_data(pw_retries)[(pin->fid & 0xf)];
+    p[3 + (pin->fid & 0xf)] = max_retries;
     int r = flash_write_data_to_file(pw_status, p, file_get_size(pw_status));
     low_flash_available();
     return r;

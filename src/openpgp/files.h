@@ -28,6 +28,7 @@
 #define EF_ALGO_PRIV2   0x10c2
 #define EF_ALGO_PRIV3   0x10c3
 #define EF_PW_PRIV      0x10c4
+#define EF_PW_RETRIES   0x10c5
 #define EF_PK_SIG       0x10d1
 #define EF_PK_DEC       0x10d2
 #define EF_PK_AUT       0x10d3
