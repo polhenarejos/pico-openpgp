@@ -473,10 +473,13 @@ file_t file_entries[] = {
     /* 130 */ { .fid = EF_META, .parent = 0, .name = NULL,
                .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_NONE },
+    /* 131 */ { .fid = EF_PW_RETRIES, .parent = 0, .name = NULL,
+               .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
+               .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_R_WP },
 
-    /* 131 */ { .fid = 0x0000, .parent = 0, .name = openpgp_aid, .type = FILE_TYPE_WORKING_EF,
+    /* 132 */ { .fid = 0x0000, .parent = 0, .name = openpgp_aid, .type = FILE_TYPE_WORKING_EF,
                .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
-    /* 132 */ { .fid = 0x0000, .parent = 0xff, .name = NULL, .type = FILE_TYPE_NOT_KNOWN, .data = NULL,
+    /* 133 */ { .fid = 0x0000, .parent = 0xff, .name = NULL, .type = FILE_TYPE_NOT_KNOWN, .data = NULL,
                .ef_structure = 0, .acl = ACL_NONE }                                                                                       //end
 };
 
