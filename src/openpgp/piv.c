@@ -893,11 +893,11 @@ static int cmd_reset_retry() {
         return SW_MEMORY_FAILURE();
     }
     uint8_t *puk_data = file_get_data(ef), pin_len = apdu.nc - puk_data[0];
-    uint8_t dhash[33];
-    double_hash_pin(apdu.data, puk_data[0], dhash + 1);
-    if (memcmp(dhash, file_get_data(ef) + 1, sizeof(dhash) - 1) != 0) {
-        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    uint16_t ret = check_pin(ef, apdu.data, puk_data[0]);
+    if (ret != 0x9000) {
+        return ret;
     }
+    uint8_t dhash[33];
     dhash[0] = pin_len;
     double_hash_pin(apdu.data + puk_data[0], pin_len, dhash + 1);
     ef = search_by_fid(EF_PIV_PIN, NULL, SPECIFY_ANY);
