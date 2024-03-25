@@ -564,16 +564,15 @@ static int cmd_authenticate() {
             if (!has_challenge) {
                 return SW_COMMAND_NOT_ALLOWED();
             }
-            if (sizeof(challenge) != a80.len || memcmp(a80.data, challenge, a80.len) != 0) {
-                return SW_DATA_INVALID();
-            }
             if (!asn1_len(&a81)) {
                 return SW_INCORRECT_PARAMS();
             }
             if (key_ref != EF_PIV_KEY_CARDMGM) {
                 return SW_INCORRECT_P1P2();
             }
-            has_mgm = true;
+            if (sizeof(challenge) == a80.len && memcmp(a80.data, challenge, a80.len) == 0) {
+                has_mgm = true;
+            }
         }
     }
     if (a81.data) {
