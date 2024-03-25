@@ -223,7 +223,8 @@ static void scan_files() {
 
 void init_piv() {
     scan_files();
-    //cmd_select();
+    has_pwpiv = false;
+    // cmd_select();
 }
 
 int piv_unload() {
