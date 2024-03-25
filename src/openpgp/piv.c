@@ -954,6 +954,25 @@ static int cmd_set_retries() {
     return SW_OK();
 }
 
+static int cmd_reset() {
+    if (P1(apdu) != 0x0 || P2(apdu) != 0x0) {
+        return SW_INCORRECT_P1P2();
+    }
+    file_t *pw_status;
+    if (!(pw_status = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF)))
+    {
+        return SW_REFERENCE_NOT_FOUND();
+    }
+    uint8_t retPIN = *(file_get_data(pw_status) + 3 + (EF_PIV_PIN & 0xf)), retPUK = *(file_get_data(pw_status) + 3 + (EF_PIV_PUK & 0xf));
+    if (retPIN != 0 || retPUK != 0) {
+        return SW_COMMAND_NOT_ALLOWED();
+    }
+    initialize_flash(true);
+    low_flash_available();
+    init_piv();
+    return SW_OK();
+}
+
 #define INS_VERIFY          0x20
 #define INS_VERSION         0xFD
 #define INS_SELECT          0xA4
@@ -969,6 +988,7 @@ static int cmd_set_retries() {
 #define INS_CHANGE_PIN      0x24
 #define INS_RESET_RETRY     0x2C
 #define INS_SET_RETRIES     0xFA
+#define INS_RESET           0xFB
 
 static const cmd_t cmds[] = {
     { INS_VERSION, cmd_version },
@@ -985,6 +1005,7 @@ static const cmd_t cmds[] = {
     { INS_CHANGE_PIN, cmd_change_pin },
     { INS_RESET_RETRY, cmd_reset_retry },
     { INS_SET_RETRIES, cmd_set_retries },
+    { INS_RESET, cmd_reset },
     { 0x00, 0x0 }
 };
 
