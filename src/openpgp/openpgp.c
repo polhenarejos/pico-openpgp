@@ -1466,7 +1466,7 @@ int rsa_sign(mbedtls_rsa_context *ctx,
     uint8_t *d = (uint8_t *) data, *end = d + data_len, *hsh = NULL;
     size_t seq_len = 0, hash_len = 0;
     int key_size = ctx->len, r = 0;
-    mbedtls_md_type_t md = MBEDTLS_MD_SHA256;
+    mbedtls_md_type_t md = MBEDTLS_MD_NONE;
     if (mbedtls_asn1_get_tag(&d, end, &seq_len,
                              MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) == 0) {
         mbedtls_asn1_buf mdb;
