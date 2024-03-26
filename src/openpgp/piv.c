@@ -439,9 +439,9 @@ static int cmd_get_metadata() {
         res_APDU[res_APDU_size++] = 0x3;
         res_APDU[res_APDU_size++] = 1;
         res_APDU[res_APDU_size++] = meta[3];
-        if (meta[0] == PIV_ALGO_RSA1024 || meta[0] == PIV_ALGO_RSA2048 || meta[0] == PIV_ALGO_ECCP256 || meta[0] == PIV_ALGO_ECCP384) {
+        if (meta[0] == PIV_ALGO_RSA1024 || meta[0] == PIV_ALGO_RSA2048 || meta[0] == PIV_ALGO_RSA3072 || meta[0] == PIV_ALGO_RSA4096 || meta[0] == PIV_ALGO_ECCP256 || meta[0] == PIV_ALGO_ECCP384) {
             res_APDU[res_APDU_size++] = 0x4;
-            if (meta[0] == PIV_ALGO_RSA1024 || meta[0] == PIV_ALGO_RSA2048) {
+            if (meta[0] == PIV_ALGO_RSA1024 || meta[0] == PIV_ALGO_RSA2048 || meta[0] == PIV_ALGO_RSA3072 || meta[0] == PIV_ALGO_RSA4096) {
                 mbedtls_rsa_context ctx;
                 mbedtls_rsa_init(&ctx);
                 int r = load_private_key_rsa(&ctx, ef_key, false);
@@ -595,7 +595,7 @@ static int cmd_authenticate() {
         }
         else {
             if (!has_challenge) {
-                return SW_COMMAND_NOT_ALLOWED();
+                return SW_INCORRECT_PARAMS();
             }
             if (!asn1_len(&a81)) {
                 return SW_INCORRECT_PARAMS();
@@ -624,7 +624,7 @@ static int cmd_authenticate() {
             if (!file_has_data(ef_key)) {
                 return SW_MEMORY_FAILURE();
             }
-            if (algo == PIV_ALGO_RSA1024 || algo == PIV_ALGO_RSA2048) {
+            if (algo == PIV_ALGO_RSA1024 || algo == PIV_ALGO_RSA2048 || algo == PIV_ALGO_RSA3072 || algo == PIV_ALGO_RSA4096) {
                 mbedtls_rsa_context ctx;
                 mbedtls_rsa_init(&ctx);
                 int r = load_private_key_rsa(&ctx, ef_key, false);
@@ -632,22 +632,22 @@ static int cmd_authenticate() {
                     mbedtls_rsa_free(&ctx);
                     return SW_EXEC_ERROR();
                 }
-                size_t olen = 0;
+                size_t olen = file_get_size(ef_key);
                 if (algo == PIV_ALGO_RSA1024) {
                     memcpy(res_APDU, "\x7C\x81\x00\x82\x81\x00", 6);
                     res_APDU_size = 6;
                 }
-                else if (algo == PIV_ALGO_RSA2048) {
+                else {
                     memcpy(res_APDU, "\x7C\x82\x00\x00\x82\x82\x00\x00", 8);
                     res_APDU_size = 8;
                 }
-                r = rsa_sign(&ctx, a81.data, a81.len, res_APDU + res_APDU_size, &olen);
+                r = mbedtls_rsa_private(&ctx, random_gen, NULL, a81.data, res_APDU + res_APDU_size);
                 mbedtls_rsa_free(&ctx);
                 if (algo == PIV_ALGO_RSA1024) {
                     res_APDU[res_APDU_size - 1] = olen;
                     res_APDU[res_APDU_size - 4] = olen + 3;
                 }
-                else if (algo == PIV_ALGO_RSA2048) {
+                else {
                     res_APDU[res_APDU_size - 2] = olen >> 8;
                     res_APDU[res_APDU_size - 1] = olen & 0xFF;
                     res_APDU[res_APDU_size - 6] = (olen + 4) >> 8;
@@ -728,7 +728,7 @@ static int cmd_authenticate() {
                 return SW_INCORRECT_P1P2();
             }
             if (!has_challenge) {
-                return SW_COMMAND_NOT_ALLOWED();
+                return SW_INCORRECT_PARAMS();
             }
             if (chal_len != a82.len) {
                 return SW_DATA_INVALID();
@@ -1051,7 +1051,7 @@ static int cmd_reset() {
     }
     uint8_t retPIN = *(file_get_data(pw_status) + 3 + (EF_PIV_PIN & 0xf)), retPUK = *(file_get_data(pw_status) + 3 + (EF_PIV_PUK & 0xf));
     if (retPIN != 0 || retPUK != 0) {
-        return SW_COMMAND_NOT_ALLOWED();
+        return SW_INCORRECT_PARAMS();
     }
     initialize_flash(true);
     low_flash_available();
@@ -1077,7 +1077,7 @@ static int cmd_attestation() {
         return SW_REFERENCE_NOT_FOUND();
     }
     if (meta[3] != ORIGIN_GENERATED) {
-        return SW_COMMAND_NOT_ALLOWED();
+        return SW_INCORRECT_PARAMS();
     }
     int r = 0;
     if (meta[0] == PIV_ALGO_RSA1024 || meta[0] == PIV_ALGO_RSA2048) {
