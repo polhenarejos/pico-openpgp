@@ -536,6 +536,14 @@ static int cmd_authenticate() {
             return SW_INCORRECT_P1P2();
         }
     }
+    uint8_t *meta = NULL;
+    int meta_len = 0;
+    if ((meta_len = meta_find(key_ref, &meta)) <= 0) {
+        return SW_REFERENCE_NOT_FOUND();
+    }
+    if (meta[1] == PINPOLICY_ALWAYS && !has_pwpiv && (key_ref == EF_PIV_KEY_AUTHENTICATION || key_ref == EF_PIV_KEY_SIGNATURE || key_ref == EF_PIV_KEY_KEYMGM || IS_RETIRED(key_ref))) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
     uint8_t chal_len = (algo == PIV_ALGO_3DES ? sizeof(challenge) / 2 : sizeof(challenge));
     asn1_ctx_t ctxi, a7c = { 0 };
     asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
