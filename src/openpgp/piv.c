@@ -541,7 +541,15 @@ static int cmd_authenticate() {
     if ((meta_len = meta_find(key_ref, &meta)) <= 0) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    if (meta[1] == PINPOLICY_ALWAYS && !has_pwpiv && (key_ref == EF_PIV_KEY_AUTHENTICATION || key_ref == EF_PIV_KEY_SIGNATURE || key_ref == EF_PIV_KEY_KEYMGM || IS_RETIRED(key_ref))) {
+    if (meta[1] == PINPOLICY_DEFAULT) {
+        if (key_ref == EF_PIV_KEY_SIGNATURE) {
+            meta[1] = PINPOLICY_ALWAYS;
+        }
+        else {
+            meta[1] = PINPOLICY_ONCE;
+        }
+    }
+    if ((meta[1] == PINPOLICY_ALWAYS || meta[1] == PINPOLICY_ONCE) && (!has_pwpiv && (key_ref == EF_PIV_KEY_AUTHENTICATION || key_ref == EF_PIV_KEY_SIGNATURE || key_ref == EF_PIV_KEY_KEYMGM || key_ref == EF_PIV_KEY_CARDAUTH || IS_RETIRED(key_ref)))) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     uint8_t chal_len = (algo == PIV_ALGO_3DES ? sizeof(challenge) / 2 : sizeof(challenge));
@@ -778,6 +786,9 @@ static int cmd_authenticate() {
             }
         }
     }
+    if (meta[1] == PINPOLICY_ALWAYS) {
+        has_pwpiv = false;
+    }
     return SW_OK();
 }
 
@@ -878,7 +889,11 @@ static int cmd_asym_keygen() {
     }
     else if (a80.data[0] == PIV_ALGO_X25519) {
     }
-    uint8_t meta[] = {a80.data[0], asn1_len(&aaa) ? aaa.data[0] : PINPOLICY_ALWAYS, asn1_len(&aab) ? aab.data[0] : TOUCHPOLICY_ALWAYS, ORIGIN_GENERATED};
+    uint8_t def_pinpol = PINPOLICY_ONCE;
+    if (key_ref == EF_PIV_KEY_SIGNATURE) {
+        def_pinpol = PINPOLICY_ALWAYS;
+    }
+    uint8_t meta[] = {a80.data[0], asn1_len(&aaa) ? aaa.data[0] : def_pinpol, asn1_len(&aab) ? aab.data[0] : TOUCHPOLICY_ALWAYS, ORIGIN_GENERATED};
     meta_add(key_ref, meta, sizeof(meta));
     low_flash_available();
     return SW_OK();
@@ -1205,7 +1220,11 @@ static int cmd_import_asym() {
     else {
         return SW_WRONG_DATA();
     }
-    uint8_t meta[] = { algo,  asn1_len(&aaa) ? aaa.data[0] : PINPOLICY_ALWAYS, asn1_len(&aab) ? aab.data[0] : TOUCHPOLICY_ALWAYS, ORIGIN_IMPORTED };
+    uint8_t def_pinpol = PINPOLICY_ONCE;
+    if (key_ref == EF_PIV_KEY_SIGNATURE) {
+        def_pinpol = PINPOLICY_ALWAYS;
+    }
+    uint8_t meta[] = { algo,  asn1_len(&aaa) ? aaa.data[0] : def_pinpol, asn1_len(&aab) ? aab.data[0] : TOUCHPOLICY_ALWAYS, ORIGIN_IMPORTED };
     meta_add(key_ref, meta, sizeof(meta));
     return SW_OK();
 }
