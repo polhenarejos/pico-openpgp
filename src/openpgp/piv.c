@@ -29,6 +29,7 @@
 #include "asn1.h"
 #include "mbedtls/aes.h"
 #include "mbedtls/des.h"
+#include "mbedtls/x509_crt.h"
 #include "openpgp.h"
 
 #define PIV_ALGO_3DES   0x03
@@ -55,6 +56,10 @@
 #define ORIGIN_GENERATED 0x01
 #define ORIGIN_IMPORTED 0x02
 
+#define IS_RETIRED(x) ((x) >= EF_PIV_KEY_RETIRED1 && (x) <= EF_PIV_KEY_RETIRED20)
+#define IS_ACTIVE(x) ((x) >= EF_PIV_KEY_AUTHENTICATION && (x) <= EF_PIV_KEY_CARDAUTH)
+#define IS_KEY(x) ((IS_ACTIVE((x))) || (IS_RETIRED((x))))
+
 uint8_t piv_aid[] = {
     5,
     0xA0, 0x00, 0x00, 0x03, 0x8,
@@ -72,6 +77,67 @@ bool has_pwpiv = false;
 uint8_t session_pwpiv[32];
 
 int piv_process_apdu();
+
+
+static int x509_create_cert(void *pk_ctx, uint8_t algo, uint8_t slot, bool attestation, uint8_t *buffer, size_t buffer_size) {
+    mbedtls_x509write_cert ctx;
+    mbedtls_x509write_crt_init(&ctx);
+    mbedtls_x509write_crt_set_version(&ctx, MBEDTLS_X509_CRT_VERSION_3);
+    mbedtls_x509write_crt_set_validity(&ctx, "20240325000000", "20741231235959");
+    uint8_t serial[20];
+    random_gen(NULL, serial, sizeof(serial));
+    mbedtls_x509write_crt_set_serial_raw(&ctx, serial, sizeof(serial));
+    mbedtls_pk_context skey, ikey;
+    mbedtls_ecdsa_context actx; // attestation key
+    mbedtls_pk_init(&skey);
+    mbedtls_pk_init(&ikey);
+    if (algo == PIV_ALGO_RSA1024 || algo == PIV_ALGO_RSA2048) {
+        mbedtls_pk_setup(&skey, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
+    }
+    else if (algo == PIV_ALGO_ECCP256 || algo == PIV_ALGO_ECCP384) {
+        mbedtls_pk_setup(&skey, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
+    }
+    skey.pk_ctx = pk_ctx;
+    mbedtls_x509write_crt_set_subject_key(&ctx, &skey);
+    char buf_sname[256];
+    if (attestation) {
+        sprintf(buf_sname, "C=ES,O=Pico Keys,CN=Pico OpenPGP PIV Attestation %X", slot);
+        mbedtls_x509write_crt_set_subject_name(&ctx, buf_sname);
+        sprintf(buf_sname, "C=ES,O=Pico Keys,CN=Pico OpenPGP PIV Slot %X", slot);
+        mbedtls_x509write_crt_set_issuer_name(&ctx, buf_sname);
+        file_t *ef_key = search_by_fid(EF_PIV_KEY_ATTESTATION, NULL, SPECIFY_EF);
+        mbedtls_ecdsa_init(&actx);
+        load_private_key_ecdsa(&actx, ef_key, false);
+        mbedtls_pk_setup(&ikey, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
+        ikey.pk_ctx = &actx;
+        mbedtls_x509write_crt_set_issuer_key(&ctx, &ikey);
+    }
+    else {
+        sprintf(buf_sname, "C=ES,O=Pico Keys,CN=Pico OpenPGP PIV Slot %X", slot);
+        mbedtls_x509write_crt_set_issuer_name(&ctx, buf_sname);
+        mbedtls_x509write_crt_set_subject_name(&ctx, buf_sname);
+        mbedtls_x509write_crt_set_issuer_key(&ctx, &skey);
+    }
+    if (algo == PIV_ALGO_ECCP384) {
+        mbedtls_x509write_crt_set_md_alg(&ctx, MBEDTLS_MD_SHA384);
+    }
+    else {
+        mbedtls_x509write_crt_set_md_alg(&ctx, MBEDTLS_MD_SHA256);
+    }
+    mbedtls_x509write_crt_set_basic_constraints(&ctx, 0, 0);
+    mbedtls_x509write_crt_set_subject_key_identifier(&ctx);
+    mbedtls_x509write_crt_set_authority_key_identifier(&ctx);
+    mbedtls_x509write_crt_set_key_usage(&ctx,
+                                        MBEDTLS_X509_KU_DIGITAL_SIGNATURE |
+                                        MBEDTLS_X509_KU_KEY_CERT_SIGN);
+    int ret = mbedtls_x509write_crt_der(&ctx, buffer, buffer_size, random_gen, NULL);
+    /* skey cannot be freed, as it is freed later */
+    if (attestation) {
+        mbedtls_ecdsa_free(&actx);
+    }
+    return ret;
+}
+
 static void scan_files() {
     scan_flash();
     file_t *ef = search_by_fid(EF_PIV_KEY_CARDMGM, NULL, SPECIFY_EF);
@@ -151,6 +217,20 @@ static void scan_files() {
             dhash[0] = sizeof(def);
             double_hash_pin(def, sizeof(def), dhash + 1);
             flash_write_data_to_file(ef, dhash, sizeof(dhash));
+        }
+    }
+    if ((ef = search_by_fid(EF_PIV_KEY_ATTESTATION, NULL, SPECIFY_ANY))) {
+        if (!ef->data) {
+            printf("ATTESTATION key is empty. Initializing with random one\r\n");
+            mbedtls_ecdsa_context ecdsa;
+            mbedtls_ecdsa_init(&ecdsa);
+            int r = mbedtls_ecdsa_genkey(&ecdsa, MBEDTLS_ECP_DP_SECP384R1, random_gen, NULL);
+            r = store_keys(&ecdsa, ALGO_ECDSA, EF_PIV_KEY_ATTESTATION, false);
+            uint8_t cert[2048];
+            r = x509_create_cert(&ecdsa, PIV_ALGO_ECCP384, 0xF9, false, cert, sizeof(cert));
+            ef = search_by_fid(EF_PIV_ATTESTATION, NULL, SPECIFY_ANY);
+            flash_write_data_to_file(ef, cert + sizeof(cert) - r, r);
+            mbedtls_ecdsa_free(&ecdsa);
         }
     }
     low_flash_available();
@@ -708,8 +788,8 @@ static int cmd_asym_keygen() {
     if (key_ref == 0x93) {
         key_ref = EF_PIV_KEY_RETIRED18;
     }
-    else if (key_ref == 0xF9) {
-        key_ref = EF_PIV_KEY_ATTESTATION;
+    if (key_ref != EF_PIV_KEY_AUTHENTICATION && key_ref != EF_PIV_KEY_SIGNATURE && key_ref != EF_PIV_KEY_KEYMGM && key_ref != EF_PIV_KEY_CARDAUTH && !(key_ref >= EF_PIV_KEY_RETIRED1 && key_ref <= EF_PIV_KEY_RETIRED20)) {
+        return SW_INCORRECT_P1P2();
     }
     asn1_ctx_t ctxi, aac = {0};
     asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
@@ -723,24 +803,43 @@ static int cmd_asym_keygen() {
     if (asn1_len(&a80) == 0) {
         return SW_WRONG_DATA();
     }
+    uint16_t key_cert = 0;
+    if (key_ref == EF_PIV_KEY_AUTHENTICATION) {
+        key_cert = EF_PIV_AUTHENTICATION;
+    }
+    else if (key_ref == EF_PIV_KEY_SIGNATURE) {
+        key_cert = EF_PIV_SIGNATURE;
+    }
+    else if (key_ref == EF_PIV_KEY_KEYMGM) {
+        key_cert = EF_PIV_KEY_MANAGEMENT;
+    }
+    else if (key_ref == EF_PIV_KEY_CARDAUTH) {
+        key_cert = EF_PIV_CARD_AUTH;
+    }
+    else {
+        key_cert = key_ref + 0xC08B;
+    }
     if (a80.data[0] == PIV_ALGO_RSA1024 || a80.data[0] == PIV_ALGO_RSA2048) {
         printf("KEYPAIR RSA\r\n");
         asn1_ctx_t a81 = {0};
         asn1_find_tag(&aac, 0x81, &a81);
         mbedtls_rsa_context rsa;
         mbedtls_rsa_init(&rsa);
-        uint8_t index = 0;
         int exponent = 65537, nlen = (a80.data[0] == PIV_ALGO_RSA1024 ? 1024 : 2048);
         if (asn1_len(&a81)) {
             exponent = (int)asn1_get_uint(&a81);
         }
-        int r = mbedtls_rsa_gen_key(&rsa, random_gen, &index, nlen, exponent);
+        int r = mbedtls_rsa_gen_key(&rsa, random_gen, NULL, nlen, exponent);
         if (r != 0) {
             mbedtls_rsa_free(&rsa);
             return SW_EXEC_ERROR();
         }
-        r = store_keys(&rsa, ALGO_RSA, key_ref, false);
         make_rsa_response(&rsa);
+        uint8_t cert[2048];
+        r = x509_create_cert(&rsa, a80.data[0], key_ref, false, cert, sizeof(cert));
+        file_t *ef = search_by_fid(key_cert, NULL, SPECIFY_ANY);
+        flash_write_data_to_file(ef, cert + sizeof(cert) - r, r);
+        r = store_keys(&rsa, ALGO_RSA, key_ref, false);
         mbedtls_rsa_free(&rsa);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
@@ -751,14 +850,17 @@ static int cmd_asym_keygen() {
         mbedtls_ecp_group_id gid = a80.data[0] == PIV_ALGO_ECCP256 ? MBEDTLS_ECP_DP_SECP256R1 : MBEDTLS_ECP_DP_SECP384R1;
         mbedtls_ecdsa_context ecdsa;
         mbedtls_ecdsa_init(&ecdsa);
-        uint8_t index = 0;
-        int r = mbedtls_ecdsa_genkey(&ecdsa, gid, random_gen, &index);
+        int r = mbedtls_ecdsa_genkey(&ecdsa, gid, random_gen, NULL);
         if (r != 0) {
             mbedtls_ecdsa_free(&ecdsa);
             return SW_EXEC_ERROR();
         }
-        r = store_keys(&ecdsa, ALGO_ECDSA, key_ref, false);
         make_ecdsa_response(&ecdsa);
+        uint8_t cert[2048];
+        r = x509_create_cert(&ecdsa, a80.data[0], key_ref, false, cert, sizeof(cert));
+        file_t *ef = search_by_fid(key_cert, NULL, SPECIFY_ANY);
+        flash_write_data_to_file(ef, cert + sizeof(cert) - r, r);
+        r = store_keys(&ecdsa, ALGO_ECDSA, key_ref, false);
         mbedtls_ecdsa_free(&ecdsa);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
@@ -836,14 +938,12 @@ static int cmd_set_mgmkey() {
     return SW_OK();
 }
 
-#define IS_RETIRED(x) ((x) >= EF_PIV_KEY_RETIRED1 && (x) <= EF_PIV_KEY_RETIRED20)
-#define IS_ACTIVE(x) ((x) >= EF_PIV_KEY_AUTHENTICATION && (x) <= EF_PIV_KEY_CARDAUTH)
 static int cmd_move_key() {
     if (apdu.nc != 0) {
         return SW_WRONG_LENGTH();
     }
     uint8_t to = P1(apdu), from = P2(apdu);
-    if ((!IS_RETIRED(from) && !IS_ACTIVE(from)) || (!IS_RETIRED(to) && !IS_ACTIVE(to))) {
+    if (!IS_KEY(to) || !IS_KEY(from)) {
         return SW_INCORRECT_P1P2();
     }
     if (from == 0x93) {
@@ -957,6 +1057,60 @@ static int cmd_reset() {
     return SW_OK();
 }
 
+static int cmd_attestation() {
+    uint8_t key_ref = P1(apdu);
+    if (P2(apdu) != 0x00) {
+        return SW_INCORRECT_P1P2();
+    }
+    if (!IS_KEY(key_ref)) {
+        return SW_REFERENCE_NOT_FOUND();
+    }
+    file_t *ef_key = NULL;
+    int meta_len = 0;
+    uint8_t *meta = NULL;
+    if (!(ef_key = search_by_fid(key_ref, NULL, SPECIFY_EF)) || !file_has_data(ef_key)) {
+        return SW_REFERENCE_NOT_FOUND();
+    }
+    if ((meta_len = meta_find(key_ref, &meta)) <= 0) {
+        return SW_REFERENCE_NOT_FOUND();
+    }
+    if (meta[3] != ORIGIN_GENERATED) {
+        return SW_COMMAND_NOT_ALLOWED();
+    }
+    int r = 0;
+    if (meta[0] == PIV_ALGO_RSA1024 || meta[0] == PIV_ALGO_RSA2048) {
+        mbedtls_rsa_context ctx;
+        mbedtls_rsa_init(&ctx);
+        r = load_private_key_rsa(&ctx, ef_key, false);
+        if (r != CCID_OK) {
+            mbedtls_rsa_free(&ctx);
+            return SW_EXEC_ERROR();
+        }
+        r = x509_create_cert(&ctx, meta[0], key_ref, true, res_APDU, 2048);
+        mbedtls_rsa_free(&ctx);
+    }
+    else if (meta[0] == PIV_ALGO_ECCP256 || meta[0] == PIV_ALGO_ECCP384) {
+        mbedtls_ecdsa_context ctx;
+        mbedtls_ecdsa_init(&ctx);
+        r = load_private_key_ecdsa(&ctx, ef_key, false);
+        if (r != CCID_OK) {
+            mbedtls_ecdsa_free(&ctx);
+            return SW_EXEC_ERROR();
+        }
+        r = x509_create_cert(&ctx, meta[0], key_ref, true, res_APDU, 2048);
+        mbedtls_ecdsa_free(&ctx);
+    }
+    else {
+        return SW_WRONG_DATA();
+    }
+    if (r <= 0) {
+        return SW_EXEC_ERROR();
+    }
+    memmove(res_APDU, res_APDU + 2048 - r, r);
+    res_APDU_size = r;
+    return SW_OK();
+}
+
 #define INS_VERIFY          0x20
 #define INS_VERSION         0xFD
 #define INS_SELECT          0xA4
@@ -973,6 +1127,7 @@ static int cmd_reset() {
 #define INS_RESET_RETRY     0x2C
 #define INS_SET_RETRIES     0xFA
 #define INS_RESET           0xFB
+#define INS_ATTESTATION     0xF9
 
 static const cmd_t cmds[] = {
     { INS_VERSION, cmd_version },
@@ -990,6 +1145,7 @@ static const cmd_t cmds[] = {
     { INS_RESET_RETRY, cmd_reset_retry },
     { INS_SET_RETRIES, cmd_set_retries },
     { INS_RESET, cmd_reset },
+    { INS_ATTESTATION, cmd_attestation },
     { 0x00, 0x0 }
 };
 
