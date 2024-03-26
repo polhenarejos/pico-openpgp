@@ -38,6 +38,8 @@
 #define PIV_ALGO_AES256 0x0c
 #define PIV_ALGO_RSA1024 0x06
 #define PIV_ALGO_RSA2048 0x07
+#define PIV_ALGO_RSA3072 0x05
+#define PIV_ALGO_RSA4096 0x16
 #define PIV_ALGO_ECCP256 0x11
 #define PIV_ALGO_ECCP384 0x14
 #define PIV_ALGO_X25519 0xE1
@@ -1111,6 +1113,95 @@ static int cmd_attestation() {
     return SW_OK();
 }
 
+static int cmd_import_asym() {
+    uint8_t algo = P1(apdu), key_ref = P2(apdu);
+    if (key_ref != EF_PIV_KEY_AUTHENTICATION && key_ref != EF_PIV_KEY_SIGNATURE && key_ref != EF_PIV_KEY_KEYMGM && key_ref != EF_PIV_KEY_CARDAUTH && !(key_ref >= EF_PIV_KEY_RETIRED1 && key_ref <= EF_PIV_KEY_RETIRED20)) {
+        return SW_INCORRECT_P1P2();
+    }
+    asn1_ctx_t ctxi, aaa = {0}, aab = {0};
+    asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+    asn1_find_tag(&ctxi, 0xAA, &aaa);
+    asn1_find_tag(&ctxi, 0xAB, &aab);
+    if (algo == PIV_ALGO_RSA1024 || algo == PIV_ALGO_RSA2048 || algo == PIV_ALGO_RSA3072 || algo == PIV_ALGO_RSA4096) {
+        asn1_ctx_t a1 = { 0 }, a2 = { 0 };
+        asn1_find_tag(&ctxi, 0x01, &a1);
+        asn1_find_tag(&ctxi, 0x02, &a2);
+        if (asn1_len(&a1) <= 0 || asn1_len(&a2) <= 0) {
+            return SW_WRONG_DATA();
+        }
+        mbedtls_rsa_context rsa;
+        mbedtls_rsa_init(&rsa);
+        int r = mbedtls_mpi_read_binary(&rsa.P, a1.data, a1.len);
+        if (r != 0) {
+            mbedtls_rsa_free(&rsa);
+            return SW_WRONG_DATA();
+        }
+        r = mbedtls_mpi_read_binary(&rsa.Q, a2.data, a2.len);
+        if (r != 0) {
+            mbedtls_rsa_free(&rsa);
+            return SW_WRONG_DATA();
+        }
+        int exponent = 65537;
+        mbedtls_mpi_lset(&rsa.E, exponent);
+        r = mbedtls_rsa_import(&rsa, NULL, &rsa.P, &rsa.Q, NULL, &rsa.E);
+        if (r != 0) {
+            mbedtls_rsa_free(&rsa);
+            return SW_EXEC_ERROR();
+        }
+        r = mbedtls_rsa_complete(&rsa);
+        if (r != 0) {
+            mbedtls_rsa_free(&rsa);
+            return SW_EXEC_ERROR();
+        }
+        r = mbedtls_rsa_check_privkey(&rsa);
+        if (r != 0) {
+            mbedtls_rsa_free(&rsa);
+            return SW_EXEC_ERROR();
+        }
+        r = store_keys(&rsa, ALGO_RSA, key_ref, false);
+        mbedtls_rsa_free(&rsa);
+        if (r != 0) {
+            return SW_EXEC_ERROR();
+        }
+    }
+    else if (algo == PIV_ALGO_ECCP256 || algo == PIV_ALGO_ECCP384) {
+        asn1_ctx_t a6 = {0};
+        asn1_find_tag(&ctxi, 0x06, &a6);
+        if (asn1_len(&a6) <= 0) {
+            return SW_WRONG_DATA();
+        }
+        mbedtls_ecp_group_id gid = algo == PIV_ALGO_ECCP256 ? MBEDTLS_ECP_DP_SECP256R1 : MBEDTLS_ECP_DP_SECP384R1;
+        mbedtls_ecdsa_context ecdsa;
+        mbedtls_ecdsa_init(&ecdsa);
+        int r = mbedtls_ecp_read_key(gid, &ecdsa, a6.data, a6.len);
+        if (r != 0) {
+            mbedtls_ecdsa_free(&ecdsa);
+            return SW_EXEC_ERROR();
+        }
+        r = mbedtls_ecp_mul(&ecdsa.grp, &ecdsa.Q, &ecdsa.d, &ecdsa.grp.G, random_gen, NULL);
+        if (r != 0) {
+            mbedtls_ecdsa_free(&ecdsa);
+            return SW_EXEC_ERROR();
+        }
+        r = mbedtls_ecp_check_pub_priv(&ecdsa, &ecdsa, random_gen, NULL);
+        if (r != 0) {
+            mbedtls_ecdsa_free(&ecdsa);
+            return SW_EXEC_ERROR();
+        }
+        r = store_keys(&ecdsa, ALGO_ECDSA, key_ref, false);
+        mbedtls_ecdsa_free(&ecdsa);
+        if (r != 0) {
+            return SW_EXEC_ERROR();
+        }
+    }
+    else {
+        return SW_WRONG_DATA();
+    }
+    uint8_t meta[] = { algo,  asn1_len(&aaa) ? aaa.data[0] : PINPOLICY_ALWAYS, asn1_len(&aab) ? aab.data[0] : TOUCHPOLICY_ALWAYS, ORIGIN_IMPORTED };
+    meta_add(key_ref, meta, sizeof(meta));
+    return SW_OK();
+}
+
 #define INS_VERIFY          0x20
 #define INS_VERSION         0xFD
 #define INS_SELECT          0xA4
@@ -1128,6 +1219,7 @@ static int cmd_attestation() {
 #define INS_SET_RETRIES     0xFA
 #define INS_RESET           0xFB
 #define INS_ATTESTATION     0xF9
+#define INS_IMPORT_ASYM     0xFE
 
 static const cmd_t cmds[] = {
     { INS_VERSION, cmd_version },
@@ -1146,6 +1238,7 @@ static const cmd_t cmds[] = {
     { INS_SET_RETRIES, cmd_set_retries },
     { INS_RESET, cmd_reset },
     { INS_ATTESTATION, cmd_attestation },
+    { INS_IMPORT_ASYM, cmd_import_asym },
     { 0x00, 0x0 }
 };
 
