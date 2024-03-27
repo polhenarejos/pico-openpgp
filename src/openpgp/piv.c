@@ -806,11 +806,11 @@ static int cmd_asym_keygen() {
     if (!has_mgm) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    if (key_ref == 0x93) {
-        key_ref = EF_PIV_KEY_RETIRED18;
-    }
     if (key_ref != EF_PIV_KEY_AUTHENTICATION && key_ref != EF_PIV_KEY_SIGNATURE && key_ref != EF_PIV_KEY_KEYMGM && key_ref != EF_PIV_KEY_CARDAUTH && !(key_ref >= EF_PIV_KEY_RETIRED1 && key_ref <= EF_PIV_KEY_RETIRED20)) {
         return SW_INCORRECT_P1P2();
+    }
+    if (key_ref == 0x93) {
+        key_ref = EF_PIV_KEY_RETIRED18;
     }
     asn1_ctx_t ctxi, aac = {0};
     asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
@@ -888,6 +888,9 @@ static int cmd_asym_keygen() {
         }
     }
     else if (a80.data[0] == PIV_ALGO_X25519) {
+    }
+    else {
+        return SW_DATA_INVALID();
     }
     uint8_t def_pinpol = PINPOLICY_ONCE;
     if (key_ref == EF_PIV_KEY_SIGNATURE) {
