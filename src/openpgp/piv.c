@@ -80,6 +80,16 @@ uint8_t session_pwpiv[32];
 
 int piv_process_apdu();
 
+static int get_serial() {
+#ifndef ENABLE_EMULATION
+    pico_unique_board_id_t unique_id;
+    pico_get_unique_board_id(&unique_id);
+    uint32_t serial = (unique_id.id[0] & 7F) << 24 | unique_id.id[1] << 16 | unique_id.id[2] << 8 | unique_id.id[3];
+    return serial;
+#else
+    return 0;
+#endif
+}
 
 static int x509_create_cert(void *pk_ctx, uint8_t algo, uint8_t slot, bool attestation, uint8_t *buffer, size_t buffer_size) {
     mbedtls_x509write_cert ctx;
@@ -112,6 +122,17 @@ static int x509_create_cert(void *pk_ctx, uint8_t algo, uint8_t slot, bool attes
         mbedtls_pk_setup(&ikey, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
         ikey.pk_ctx = &actx;
         mbedtls_x509write_crt_set_issuer_key(&ctx, &ikey);
+        uint8_t ver[] = {PIV_VERSION_MAJOR, PIV_VERSION_MINOR, 0};
+        mbedtls_x509write_crt_set_extension(&ctx, "\x2B\x06\x01\x04\x01\x82\xC4\x0A\x03\x03", 10, 0, ver, sizeof(ver));
+        uint32_t serial = get_serial();
+        mbedtls_x509write_crt_set_extension(&ctx, "\x2B\x06\x01\x04\x01\x82\xC4\x0A\x03\x07", 10, 0, (const uint8_t *)&serial, sizeof(serial));
+        int meta_len = 0;
+        uint8_t *meta;
+        if ((meta_len = meta_find(slot, &meta)) >= 0) {
+            mbedtls_x509write_crt_set_extension(&ctx, "\x2B\x06\x01\x04\x01\x82\xC4\x0A\x03\x08", 10, 0, &meta[1], 2);
+        }
+        uint8_t v = 1;
+        mbedtls_x509write_crt_set_extension(&ctx, "\x2B\x06\x01\x04\x01\x82\xC4\x0A\x03\x09", 10, 0, &v, sizeof(serial));
     }
     else {
         uint8_t wslot = slot;
@@ -324,14 +345,11 @@ int piv_parse_discovery(const file_t *ef) {
 }
 
 static int cmd_get_serial() {
-#ifndef ENABLE_EMULATION
-        pico_unique_board_id_t unique_id;
-        pico_get_unique_board_id(&unique_id);
-        memcpy(res_APDU, unique_id.id, 4);
-#else
-        memset(res_APDU, 0, 4);
-#endif
-    res_APDU_size = 4;
+    uint32_t serial = get_serial();
+    res_APDU[res_APDU_size++] = serial >> 24;
+    res_APDU[res_APDU_size++] = serial >> 16;
+    res_APDU[res_APDU_size++] = serial >> 8;
+    res_APDU[res_APDU_size++] = serial & 0xFF;
     return SW_OK();
 }
 
