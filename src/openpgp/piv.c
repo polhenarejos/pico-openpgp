@@ -374,7 +374,7 @@ static int cmd_get_data() {
         fid <<= 8;
         fid |= apdu.data[2 + lt];
     }
-    if ((fid & 0xFFFF00) != 0x5FC100 && fid != EF_PIV_BITGT && fid != EF_PIV_DISCOVERY) {
+    if ((fid & 0xFFFF00) != 0x5FC100 && (fid & 0xFFFF) != EF_PIV_BITGT && (fid & 0xFFFF) != EF_PIV_DISCOVERY && (fid & 0xFFFF) != EF_PIV_ATTESTATION) {
         return SW_REFERENCE_NOT_FOUND();
     }
     file_t *ef = NULL;
@@ -968,7 +968,7 @@ static int cmd_move_key() {
         return SW_WRONG_LENGTH();
     }
     uint8_t to = P1(apdu), from = P2(apdu);
-    if (!IS_KEY(to) || !IS_KEY(from)) {
+    if ((!IS_KEY(to) && to != 0xFF) || !IS_KEY(from)) {
         return SW_INCORRECT_P1P2();
     }
     if (from == 0x93) {
