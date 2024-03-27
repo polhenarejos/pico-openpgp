@@ -1258,6 +1258,12 @@ int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey, bool use_de
         mbedtls_ecdsa_free(ctx);
         return CCID_EXEC_ERROR;
     }
+    mbedtls_platform_zeroize(kdata, sizeof(kdata));
+    r = mbedtls_ecp_mul(&ctx->grp, &ctx->Q, &ctx->d, &ctx->grp.G, random_gen, NULL);
+    if (r != 0) {
+        mbedtls_ecdsa_free(ctx);
+        return CCID_EXEC_ERROR;
+    }
     return CCID_OK;
 }
 
