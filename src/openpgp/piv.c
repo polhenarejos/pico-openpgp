@@ -105,8 +105,7 @@ static int x509_create_cert(void *pk_ctx, uint8_t algo, uint8_t slot, bool attes
     if (attestation) {
         sprintf(buf_sname, "C=ES,O=Pico Keys,CN=Pico OpenPGP PIV Attestation %X", slot);
         mbedtls_x509write_crt_set_subject_name(&ctx, buf_sname);
-        sprintf(buf_sname, "C=ES,O=Pico Keys,CN=Pico OpenPGP PIV Slot %X", slot);
-        mbedtls_x509write_crt_set_issuer_name(&ctx, buf_sname);
+        mbedtls_x509write_crt_set_issuer_name(&ctx, "C=ES,O=Pico Keys,CN=Pico OpenPGP PIV Slot F9");
         file_t *ef_key = search_by_fid(EF_PIV_KEY_ATTESTATION, NULL, SPECIFY_EF);
         mbedtls_ecdsa_init(&actx);
         load_private_key_ecdsa(&actx, ef_key, false);
@@ -115,7 +114,14 @@ static int x509_create_cert(void *pk_ctx, uint8_t algo, uint8_t slot, bool attes
         mbedtls_x509write_crt_set_issuer_key(&ctx, &ikey);
     }
     else {
-        sprintf(buf_sname, "C=ES,O=Pico Keys,CN=Pico OpenPGP PIV Slot %X", slot);
+        uint8_t wslot = slot;
+        if (slot == EF_PIV_KEY_ATTESTATION) {
+            wslot = 0xF9;
+        }
+        else if (slot == EF_PIV_KEY_RETIRED18) {
+            wslot = 0x93;
+        }
+        sprintf(buf_sname, "C=ES,O=Pico Keys,CN=Pico OpenPGP PIV Slot %X", wslot);
         mbedtls_x509write_crt_set_issuer_name(&ctx, buf_sname);
         mbedtls_x509write_crt_set_subject_name(&ctx, buf_sname);
         mbedtls_x509write_crt_set_issuer_key(&ctx, &skey);
@@ -126,7 +132,12 @@ static int x509_create_cert(void *pk_ctx, uint8_t algo, uint8_t slot, bool attes
     else {
         mbedtls_x509write_crt_set_md_alg(&ctx, MBEDTLS_MD_SHA256);
     }
-    mbedtls_x509write_crt_set_basic_constraints(&ctx, 0, 0);
+    if (slot == EF_PIV_KEY_ATTESTATION) {
+        mbedtls_x509write_crt_set_basic_constraints(&ctx, 1, 1);
+    }
+    else {
+        mbedtls_x509write_crt_set_basic_constraints(&ctx, 0, 0);
+    }
     mbedtls_x509write_crt_set_subject_key_identifier(&ctx);
     mbedtls_x509write_crt_set_authority_key_identifier(&ctx);
     mbedtls_x509write_crt_set_key_usage(&ctx,
@@ -229,7 +240,7 @@ static void scan_files() {
             int r = mbedtls_ecdsa_genkey(&ecdsa, MBEDTLS_ECP_DP_SECP384R1, random_gen, NULL);
             r = store_keys(&ecdsa, ALGO_ECDSA, EF_PIV_KEY_ATTESTATION, false);
             uint8_t cert[2048];
-            r = x509_create_cert(&ecdsa, PIV_ALGO_ECCP384, 0xF9, false, cert, sizeof(cert));
+            r = x509_create_cert(&ecdsa, PIV_ALGO_ECCP384, EF_PIV_KEY_ATTESTATION, false, cert, sizeof(cert));
             ef = search_by_fid(EF_PIV_ATTESTATION, NULL, SPECIFY_ANY);
             flash_write_data_to_file(ef, cert + sizeof(cert) - r, r);
             mbedtls_ecdsa_free(&ecdsa);
