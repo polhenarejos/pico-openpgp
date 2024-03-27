@@ -981,10 +981,12 @@ static int cmd_move_key() {
         to = EF_PIV_KEY_RETIRED18;
     }
     file_t *efs, *efd;
-    if (!(efs = search_by_fid(from, NULL, SPECIFY_EF)) || !(efd = search_by_fid(to, NULL, SPECIFY_EF))) {
+    if (!(efs = search_by_fid(from, NULL, SPECIFY_EF)) || (!(efd = search_by_fid(to, NULL, SPECIFY_EF)) && to != 0xFF)) {
         return SW_FILE_NOT_FOUND();
     }
-    flash_write_data_to_file(efd, file_get_data(efs), file_get_size(efs));
+    if (to != 0xFF) {
+        flash_write_data_to_file(efd, file_get_data(efs), file_get_size(efs));
+    }
     flash_clear_file(efs);
     low_flash_available();
     return SW_OK();
