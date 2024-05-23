@@ -22,8 +22,6 @@
 #include "random.h"
 #include "eac.h"
 #include "crypto_utils.h"
-#include "mbedtls/rsa.h"
-#include "mbedtls/ecdsa.h"
 #include "mbedtls/ecdh.h"
 #include "mbedtls/asn1.h"
 #include "asn1.h"
@@ -174,8 +172,32 @@ void scan_files() {
         memset((char *) ef->data + 12, 0, 4);
 #endif
     }
-    if ((ef = search_by_fid(EF_PW1, NULL, SPECIFY_ANY))) {
+    bool reset_dek = false;
+    if ((ef = search_by_fid(EF_DEK, NULL, SPECIFY_ANY))) {
         if (!ef->data) {
+            printf("DEK is empty\r\n");
+            const uint8_t def1[6] = { 0x31, 0x32, 0x33, 0x34, 0x35, 0x36 };
+            const uint8_t def3[8] = { 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38 };
+
+            uint8_t def[IV_SIZE + 32 + 32 + 32];
+            const uint8_t *dek = random_bytes_get(IV_SIZE + 32);
+            memcpy(def, dek, IV_SIZE + 32);
+            memcpy(def + IV_SIZE + 32, dek + IV_SIZE, 32);
+            memcpy(def + IV_SIZE + 32 + 32, dek + IV_SIZE, 32);
+            hash_multi(def1, sizeof(def1), session_pw1);
+            aes_encrypt_cfb_256(session_pw1, def, def + IV_SIZE, 32);
+            memset(session_pw1, 0, sizeof(session_pw1));
+
+            hash_multi(def3, sizeof(def3), session_pw3);
+            aes_encrypt_cfb_256(session_pw3, def, def + IV_SIZE + 32, 32);
+            aes_encrypt_cfb_256(session_pw3, def, def + IV_SIZE + 32 + 32, 32);
+            memset(session_pw3, 0, sizeof(session_pw3));
+            flash_write_data_to_file(ef, def, sizeof(def));
+            reset_dek = true;
+        }
+    }
+    if ((ef = search_by_fid(EF_PW1, NULL, SPECIFY_ANY))) {
+        if (!ef->data || reset_dek) {
             printf("PW1 is empty. Initializing with default password\r\n");
             const uint8_t def[6] = { 0x31, 0x32, 0x33, 0x34, 0x35, 0x36 };
             uint8_t dhash[33];
@@ -185,7 +207,7 @@ void scan_files() {
         }
     }
     if ((ef = search_by_fid(EF_RC, NULL, SPECIFY_ANY))) {
-        if (!ef->data) {
+        if (!ef->data || reset_dek) {
             printf("RC is empty. Initializing with default password\r\n");
 
             const uint8_t def[8] = { 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38 };
@@ -196,7 +218,7 @@ void scan_files() {
         }
     }
     if ((ef = search_by_fid(EF_PW3, NULL, SPECIFY_ANY))) {
-        if (!ef->data) {
+        if (!ef->data || reset_dek) {
             printf("PW3 is empty. Initializing with default password\r\n");
 
             const uint8_t def[8] = { 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38 };
@@ -217,28 +239,6 @@ void scan_files() {
         if (!ef->data) {
             printf("PW status is empty. Initializing to default\r\n");
             const uint8_t def[] = { 0x1, 127, 127, 127, 3, 3, 3 };
-            flash_write_data_to_file(ef, def, sizeof(def));
-        }
-    }
-    if ((ef = search_by_fid(EF_DEK, NULL, SPECIFY_ANY))) {
-        if (!ef->data) {
-            printf("DEK is empty\r\n");
-            const uint8_t def1[6] = { 0x31, 0x32, 0x33, 0x34, 0x35, 0x36 };
-            const uint8_t def3[8] = { 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38 };
-
-            uint8_t def[IV_SIZE + 32 + 32 + 32];
-            const uint8_t *dek = random_bytes_get(IV_SIZE + 32);
-            memcpy(def, dek, IV_SIZE + 32);
-            memcpy(def + IV_SIZE + 32, dek + IV_SIZE, 32);
-            memcpy(def + IV_SIZE + 32 + 32, dek + IV_SIZE, 32);
-            hash_multi(def1, sizeof(def1), session_pw1);
-            aes_encrypt_cfb_256(session_pw1, def, def + IV_SIZE, 32);
-            memset(session_pw1, 0, sizeof(session_pw1));
-
-            hash_multi(def3, sizeof(def3), session_pw3);
-            aes_encrypt_cfb_256(session_pw3, def, def + IV_SIZE + 32, 32);
-            aes_encrypt_cfb_256(session_pw3, def, def + IV_SIZE + 32 + 32, 32);
-            memset(session_pw3, 0, sizeof(session_pw3));
             flash_write_data_to_file(ef, def, sizeof(def));
         }
     }
@@ -270,7 +270,6 @@ void scan_files() {
             flash_write_data_to_file(ef, def, sizeof(def));
         }
     }
-
     if ((ef = search_by_fid(EF_SEX, NULL, SPECIFY_ANY))) {
         if (!ef->data) {
             printf("Sex is empty. Initializing to default\r\n");
@@ -278,11 +277,20 @@ void scan_files() {
             flash_write_data_to_file(ef, def, sizeof(def));
         }
     }
+    if ((ef = search_by_fid(EF_PW_RETRIES, NULL, SPECIFY_ANY))) {
+        if (!ef->data) {
+            printf("PW retries is empty. Initializing to default\r\n");
+            const uint8_t def[] = { 0x1, 3, 3, 3 };
+            flash_write_data_to_file(ef, def, sizeof(def));
+        }
+    }
     low_flash_available();
 }
 
+extern bool has_pwpiv;
+extern uint8_t session_pwpiv[32];
 int load_dek() {
-    if (!has_pw1 && !has_pw2 && !has_pw3) {
+    if (!has_pw1 && !has_pw2 && !has_pw3 && !has_pwpiv) {
         return CCID_NO_LOGIN;
     }
     file_t *tf = search_by_fid(EF_DEK, NULL, SPECIFY_EF);
@@ -298,6 +306,11 @@ int load_dek() {
         memcpy(dek, file_get_data(tf), IV_SIZE);
         memcpy(dek + IV_SIZE, file_get_data(tf) + IV_SIZE + 32 + 32, 32);
         r = aes_decrypt_cfb_256(session_pw3, dek, dek + IV_SIZE, 32);
+    }
+    else if (has_pwpiv) {
+        memcpy(dek, file_get_data(tf), IV_SIZE);
+        memcpy(dek + IV_SIZE, file_get_data(tf) + IV_SIZE + 32 + 32 + 32, 32);
+        r = aes_decrypt_cfb_256(session_pwpiv, dek, dek + IV_SIZE, 32);
     }
     if (r != 0) {
         return CCID_EXEC_ERROR;
@@ -578,14 +591,6 @@ int parse_pw_status(const file_t *f, int mode) {
     return res_APDU_size - init_len;
 }
 
-#define ALGO_RSA        0x01
-#define ALGO_ECDH       0x12
-#define ALGO_ECDSA      0x13
-#define ALGO_AES        0x70
-#define ALGO_AES_128    0x71
-#define ALGO_AES_192    0x72
-#define ALGO_AES_256    0x74
-
 #define ALGO_RSA_1K     0
 #define ALGO_RSA_2k     1
 #define ALGO_RSA_3K     2
@@ -820,8 +825,10 @@ static int cmd_get_data() {
         uint16_t data_len = parse_do(fids, 1);
         uint8_t *p = NULL;
         uint16_t tg = 0;
-        size_t tg_len = 0;
-        if (walk_tlv(res_APDU, data_len, &p, &tg, &tg_len, NULL)) {
+        uint16_t tg_len = 0;
+        asn1_ctx_t ctxi;
+        asn1_ctx_init(res_APDU, data_len, &ctxi);
+        if (walk_tlv(&ctxi, &p, &tg, &tg_len, NULL)) {
             uint8_t dec = 2;
             if ((tg & 0x1f) == 0x1f) {
                 dec++;
@@ -846,16 +853,21 @@ int pin_reset_retries(const file_t *pin, bool force) {
         return CCID_ERR_NULL_PARAM;
     }
     file_t *pw_status = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF);
-    if (!pw_status) {
+    file_t *pw_retries = search_by_fid(EF_PW_RETRIES, NULL, SPECIFY_EF);
+    if (!pw_status || !pw_retries) {
         return CCID_ERR_FILE_NOT_FOUND;
     }
-    uint8_t p[7];
-    memcpy(p, file_get_data(pw_status), 7);
-    uint8_t retries = p[3 + (pin->fid & 0x3)];
+    if (3 + (pin->fid & 0xf) >= file_get_size(pw_status) || (pin->fid & 0xf) >= file_get_size(pw_retries)) {
+        return CCID_ERR_MEMORY_FATAL;
+    }
+    uint8_t p[64];
+    memcpy(p, file_get_data(pw_status), file_get_size(pw_status));
+    uint8_t retries = p[3 + (pin->fid & 0xf)];
     if (retries == 0 && force == false) { //blocked
         return CCID_ERR_BLOCKED;
     }
-    p[3 + (pin->fid & 0x3)] = 3;
+    uint8_t max_retries = file_get_data(pw_retries)[(pin->fid & 0xf)];
+    p[3 + (pin->fid & 0xf)] = max_retries;
     int r = flash_write_data_to_file(pw_status, p, file_get_size(pw_status));
     low_flash_available();
     return r;
@@ -869,19 +881,19 @@ int pin_wrong_retry(const file_t *pin) {
     if (!pw_status) {
         return CCID_ERR_FILE_NOT_FOUND;
     }
-    uint8_t p[7];
-    memcpy(p, file_get_data(pw_status), 7);
-    if (p[3 + (pin->fid & 0x3)] > 0) {
-        p[3 + (pin->fid & 0x3)] -= 1;
+    uint8_t p[64];
+    memcpy(p, file_get_data(pw_status), file_get_size(pw_status));
+    if (p[3 + (pin->fid & 0xf)] > 0) {
+        p[3 + (pin->fid & 0xf)] -= 1;
         int r = flash_write_data_to_file(pw_status, p, file_get_size(pw_status));
         if (r != CCID_OK) {
             return r;
         }
         low_flash_available();
-        if (p[3 + (pin->fid & 0x3)] == 0) {
+        if (p[3 + (pin->fid & 0xf)] == 0) {
             return CCID_ERR_BLOCKED;
         }
-        return p[3 + (pin->fid & 0x3)];
+        return p[3 + (pin->fid & 0xf)];
     }
     return CCID_ERR_BLOCKED;
 }
@@ -972,7 +984,7 @@ static int cmd_verify() {
     if (apdu.nc > 0) {
         return check_pin(pw, apdu.data, apdu.nc);
     }
-    uint8_t retries = *(file_get_data(pw_status) + 3 + (fid & 0x3));
+    uint8_t retries = *(file_get_data(pw_status) + 3 + (fid & 0xf));
     if (retries == 0) {
         return SW_PIN_BLOCKED();
     }
@@ -1020,7 +1032,7 @@ static int cmd_put_data() {
             if (!tf) {
                 return SW_REFERENCE_NOT_FOUND();
             }
-            uint8_t def[IV_SIZE + 32 + 32 + 32];
+            uint8_t def[IV_SIZE + 32 + 32 + 32 + 32];
             memcpy(def, file_get_data(tf), file_get_size(tf));
             hash_multi(apdu.data, apdu.nc, session_rc);
             memcpy(def + IV_SIZE + 32, dek + IV_SIZE, 32);
@@ -1065,7 +1077,7 @@ static int cmd_change_pin() {
     if (!tf) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    uint8_t def[IV_SIZE + 32 + 32 + 32];
+    uint8_t def[IV_SIZE + 32 + 32 + 32 + 32];
     memcpy(def, file_get_data(tf), file_get_size(tf));
     if (P2(apdu) == 0x81) {
         hash_multi(apdu.data + pin_len, apdu.nc - pin_len, session_pw1);
@@ -1124,7 +1136,7 @@ static int cmd_reset_retry() {
         if (!tf) {
             return SW_REFERENCE_NOT_FOUND();
         }
-        uint8_t def[IV_SIZE + 32 + 32 + 32];
+        uint8_t def[IV_SIZE + 32 + 32 + 32 + 32];
         memcpy(def, file_get_data(tf), file_get_size(tf));
         hash_multi(apdu.data + (apdu.nc - newpin_len), newpin_len, session_pw1);
         memcpy(def + IV_SIZE, dek + IV_SIZE, 32);
@@ -1144,7 +1156,7 @@ static int cmd_reset_retry() {
     return SW_INCORRECT_P1P2();
 }
 
-int store_keys(void *key_ctx, int type, uint16_t key_id) {
+int store_keys(void *key_ctx, int type, uint16_t key_id, bool use_kek) {
     int r, key_size = 0;
     uint8_t kdata[4096 / 8]; //worst
 
@@ -1182,9 +1194,11 @@ int store_keys(void *key_ctx, int type, uint16_t key_id) {
         }
         memcpy(kdata, key_ctx, key_size);
     }
-    r = dek_encrypt(kdata, key_size);
-    if (r != CCID_OK) {
-        return r;
+    if (use_kek) {
+        r = dek_encrypt(kdata, key_size);
+        if (r != CCID_OK) {
+            return r;
+        }
     }
     //r = aes_encrypt_cfb_256(file_read(pw3->data+2), session_pw3, kdata, key_size);
     //if (r != CCID_OK)
@@ -1197,11 +1211,11 @@ int store_keys(void *key_ctx, int type, uint16_t key_id) {
     return CCID_OK;
 }
 
-int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
+int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey, bool use_dek) {
     int key_size = file_get_size(fkey);
     uint8_t kdata[4096 / 8];
     memcpy(kdata, file_get_data(fkey), key_size);
-    if (dek_decrypt(kdata, key_size) != 0) {
+    if (use_dek && dek_decrypt(kdata, key_size) != 0) {
         return CCID_EXEC_ERROR;
     }
     if (mbedtls_mpi_read_binary(&ctx->P, kdata, key_size / 2) != 0) {
@@ -1231,15 +1245,21 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
     return CCID_OK;
 }
 
-int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
+int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey, bool use_dek) {
     int key_size = file_get_size(fkey);
     uint8_t kdata[67]; //Worst case, 521 bit + 1byte
     memcpy(kdata, file_get_data(fkey), key_size);
-    if (dek_decrypt(kdata, key_size) != 0) {
+    if (use_dek && dek_decrypt(kdata, key_size) != 0) {
         return CCID_EXEC_ERROR;
     }
     mbedtls_ecp_group_id gid = kdata[0];
     int r = mbedtls_ecp_read_key(gid, ctx, kdata + 1, key_size - 1);
+    if (r != 0) {
+        mbedtls_ecdsa_free(ctx);
+        return CCID_EXEC_ERROR;
+    }
+    mbedtls_platform_zeroize(kdata, sizeof(kdata));
+    r = mbedtls_ecp_mul(&ctx->grp, &ctx->Q, &ctx->d, &ctx->grp.G, random_gen, NULL);
     if (r != 0) {
         mbedtls_ecdsa_free(ctx);
         return CCID_EXEC_ERROR;
@@ -1376,7 +1396,7 @@ static int cmd_keypair_gen() {
                 mbedtls_rsa_free(&rsa);
                 return SW_EXEC_ERROR();
             }
-            r = store_keys(&rsa, ALGO_RSA, fid);
+            r = store_keys(&rsa, ALGO_RSA, fid, true);
             make_rsa_response(&rsa);
             mbedtls_rsa_free(&rsa);
             if (r != CCID_OK) {
@@ -1397,7 +1417,7 @@ static int cmd_keypair_gen() {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
-            r = store_keys(&ecdsa, algo[0], fid);
+            r = store_keys(&ecdsa, algo[0], fid, true);
             make_ecdsa_response(&ecdsa);
             mbedtls_ecdsa_free(&ecdsa);
             if (r != CCID_OK) {
@@ -1424,7 +1444,7 @@ static int cmd_keypair_gen() {
             uint8_t aes_key[32]; //maximum AES key size
             uint8_t key_size = 32;
             memcpy(aes_key, random_bytes_get(key_size), key_size);
-            r = store_keys(aes_key, ALGO_AES_256, EF_AES_KEY);
+            r = store_keys(aes_key, ALGO_AES_256, EF_AES_KEY, true);
             /* if storing the key fails, we silently continue */
             //if (r != CCID_OK)
             //    return SW_EXEC_ERROR();
@@ -1452,7 +1472,7 @@ int rsa_sign(mbedtls_rsa_context *ctx,
     uint8_t *d = (uint8_t *) data, *end = d + data_len, *hsh = NULL;
     size_t seq_len = 0, hash_len = 0;
     int key_size = ctx->len, r = 0;
-    mbedtls_md_type_t md = MBEDTLS_MD_SHA256;
+    mbedtls_md_type_t md = MBEDTLS_MD_NONE;
     if (mbedtls_asn1_get_tag(&d, end, &seq_len,
                              MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) == 0) {
         mbedtls_asn1_buf mdb;
@@ -1608,7 +1628,7 @@ static int cmd_pso() {
     if (algo[0] == ALGO_RSA) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
-        r = load_private_key_rsa(&ctx, ef);
+        r = load_private_key_rsa(&ctx, ef, true);
         if (r != CCID_OK) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
@@ -1647,7 +1667,7 @@ static int cmd_pso() {
         if (P1(apdu) == 0x9E && P2(apdu) == 0x9A) {
             mbedtls_ecdsa_context ctx;
             mbedtls_ecdsa_init(&ctx);
-            r = load_private_key_ecdsa(&ctx, ef);
+            r = load_private_key_ecdsa(&ctx, ef, true);
             if (r != CCID_OK) {
                 mbedtls_ecdsa_free(&ctx);
                 return SW_EXEC_ERROR();
@@ -1777,7 +1797,7 @@ static int cmd_internal_aut() {
     if (algo[0] == ALGO_RSA) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
-        r = load_private_key_rsa(&ctx, ef);
+        r = load_private_key_rsa(&ctx, ef, true);
         if (r != CCID_OK) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
@@ -1793,7 +1813,7 @@ static int cmd_internal_aut() {
     else if (algo[0] == ALGO_ECDH || algo[0] == ALGO_ECDSA) {
         mbedtls_ecdsa_context ctx;
         mbedtls_ecdsa_init(&ctx);
-        r = load_private_key_ecdsa(&ctx, ef);
+        r = load_private_key_ecdsa(&ctx, ef, true);
         if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
@@ -1964,7 +1984,7 @@ static int cmd_import_data() {
             mbedtls_rsa_free(&rsa);
             return SW_EXEC_ERROR();
         }
-        r = store_keys(&rsa, ALGO_RSA, fid);
+        r = store_keys(&rsa, ALGO_RSA, fid, true);
         make_rsa_response(&rsa);
         mbedtls_rsa_free(&rsa);
         if (r != CCID_OK) {
@@ -1997,7 +2017,7 @@ static int cmd_import_data() {
             mbedtls_ecdsa_free(&ecdsa);
             return SW_EXEC_ERROR();
         }
-        r = store_keys(&ecdsa, ALGO_ECDSA, fid);
+        r = store_keys(&ecdsa, ALGO_ECDSA, fid, true);
         make_ecdsa_response(&ecdsa);
         mbedtls_ecdsa_free(&ecdsa);
         if (r != CCID_OK) {

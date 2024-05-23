@@ -25,8 +25,35 @@
 
 #include "pico_keys.h"
 #include "apdu.h"
+#include "mbedtls/rsa.h"
+#include "mbedtls/ecdsa.h"
 
 extern bool has_pw1;
 extern bool has_pw3;
+
+extern int store_keys(void *key_ctx, int type, uint16_t key_id, bool use_kek);
+extern void make_rsa_response(mbedtls_rsa_context *rsa);
+extern void make_ecdsa_response(mbedtls_ecdsa_context *ecdsa);
+extern int ecdsa_sign(mbedtls_ecdsa_context *ctx,
+                      const uint8_t *data,
+                      size_t data_len,
+                      uint8_t *out,
+                      size_t *out_len);
+extern int rsa_sign(mbedtls_rsa_context *ctx,
+                    const uint8_t *data,
+                    size_t data_len,
+                    uint8_t *out,
+                    size_t *out_len);
+extern int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey, bool use_dek);
+extern int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey, bool use_dek);
+extern int pin_reset_retries(const file_t *pin, bool force);
+
+#define ALGO_RSA        0x01
+#define ALGO_ECDH       0x12
+#define ALGO_ECDSA      0x13
+#define ALGO_AES        0x70
+#define ALGO_AES_128    0x71
+#define ALGO_AES_192    0x72
+#define ALGO_AES_256    0x74
 
 #endif
