@@ -1860,7 +1860,7 @@ static int cmd_mse() {
     return SW_OK();
 }
 
-size_t tag_len(uint8_t **data) {
+uint16_t tag_len(uint8_t **data) {
     size_t len = *(*data)++;
     if (len == 0x82) {
         len = *(*data)++ << 8;
@@ -1885,7 +1885,7 @@ static int cmd_import_data() {
     if (*start++ != 0x4D) {
         return SW_WRONG_DATA();
     }
-    size_t tgl = tag_len(&start);
+    uint16_t tgl = tag_len(&start);
     if (*start != 0xB6 && *start != 0xB8 && *start != 0xA4) {
         return SW_WRONG_DATA();
     }
@@ -1914,7 +1914,7 @@ static int cmd_import_data() {
     }
     tgl = tag_len(&start);
     uint8_t *end = start + tgl, *p[9] = { 0 };
-    size_t len[9] = { 0 };
+    uint16_t len[9] = { 0 };
     while (start < end) {
         uint8_t tag = *start++;
         if ((tag >= 0x91 && tag <= 0x97) || tag == 0x99) {
