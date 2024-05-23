@@ -1893,7 +1893,8 @@ static int cmd_import_data() {
         return SW_WRONG_DATA();
     }
     tgl = tag_len(&start);
-    uint8_t *end = start + tgl, len[9] = { 0 }, *p[9] = { 0 };
+    uint8_t *end = start + tgl, *p[9] = { 0 };
+    size_t len[9] = { 0 };
     while (start < end) {
         uint8_t tag = *start++;
         if ((tag >= 0x91 && tag <= 0x97) || tag == 0x99) {
