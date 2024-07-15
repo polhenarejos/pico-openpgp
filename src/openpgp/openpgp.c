@@ -473,7 +473,7 @@ int inc_sig_count() {
     if (!(pw_status = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF)) || !pw_status->data) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    if (file_get_data(pw_status)[0] == 1) {
+    if (file_get_data(pw_status)[0] == 0) {
         has_pw1 = false;
     }
     file_t *ef = search_by_fid(EF_SIG_COUNT, NULL, SPECIFY_ANY);
