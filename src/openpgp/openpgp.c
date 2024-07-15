@@ -1177,10 +1177,10 @@ int store_keys(void *key_ctx, int type, uint16_t key_id, bool use_kek) {
     }
     else if (type == ALGO_ECDSA || type == ALGO_ECDH) {
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *) key_ctx;
-        key_size = mbedtls_mpi_size(&ecdsa->d);
+        size_t olen = 0;
         kdata[0] = ecdsa->grp.id & 0xff;
-        mbedtls_ecp_write_key(ecdsa, kdata + 1, key_size);
-        key_size++;
+        mbedtls_ecp_write_key_ext(ecdsa, &olen, kdata + 1, sizeof(kdata) - 1);
+        key_size = olen + 1;
     }
     else if (type & ALGO_AES) {
         if (type == ALGO_AES_128) {
