@@ -399,7 +399,7 @@ static int cmd_get_data() {
         fid |= apdu.data[2 + lt];
     }
     if ((fid & 0xFFFF00) != 0x5FC100 && (fid & 0xFFFF) != EF_PIV_BITGT && (fid & 0xFFFF) != EF_PIV_DISCOVERY && (fid & 0xFFFF) != EF_PIV_ATTESTATION) {
-        return SW_REFERENCE_NOT_FOUND();
+        return SW_FILE_NOT_FOUND();
     }
     file_t *ef = NULL;
     if ((ef = search_by_fid((uint16_t)(fid & 0xFFFF), NULL, SPECIFY_EF))) {
