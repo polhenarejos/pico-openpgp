@@ -529,8 +529,13 @@ static int cmd_get_metadata() {
                 return SW_REFERENCE_NOT_FOUND();
             }
             uint8_t retries = *(file_get_data(pw_status) + 3 + (key_ref & 0xf));
+            if (!(pw_status = search_by_fid(EF_PW_RETRIES, NULL, SPECIFY_EF))) {
+                return SW_REFERENCE_NOT_FOUND();
+            }
+            uint8_t total = *(file_get_data(pw_status) + (key_ref & 0xf));
             res_APDU[res_APDU_size++] = 0x6;
-            res_APDU[res_APDU_size++] = 1;
+            res_APDU[res_APDU_size++] = 2;
+            res_APDU[res_APDU_size++] = total;
             res_APDU[res_APDU_size++] = retries;
         }
     }
