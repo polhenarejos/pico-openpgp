@@ -465,6 +465,8 @@ static int cmd_get_metadata() {
         res_APDU[res_APDU_size++] = meta[3];
         if (meta[0] == PIV_ALGO_RSA1024 || meta[0] == PIV_ALGO_RSA2048 || meta[0] == PIV_ALGO_RSA3072 || meta[0] == PIV_ALGO_RSA4096 || meta[0] == PIV_ALGO_ECCP256 || meta[0] == PIV_ALGO_ECCP384) {
             res_APDU[res_APDU_size++] = 0x4;
+            res_APDU[res_APDU_size++] = 0; // Filled later
+            uint8_t *pk = &res_APDU[res_APDU_size];
             if (meta[0] == PIV_ALGO_RSA1024 || meta[0] == PIV_ALGO_RSA2048 || meta[0] == PIV_ALGO_RSA3072 || meta[0] == PIV_ALGO_RSA4096) {
                 mbedtls_rsa_context ctx;
                 mbedtls_rsa_init(&ctx);
@@ -503,6 +505,23 @@ static int cmd_get_metadata() {
                 res_APDU[res_APDU_size++] = plen;
                 memcpy(res_APDU + res_APDU_size, pt, plen);
                 res_APDU_size += plen;
+            }
+            uint16_t pk_len = res_APDU_size - (pk - res_APDU);
+            if (pk_len > 255) {
+                memmove(pk + 2, pk, pk_len);
+                pk[-1] = 0x82;
+                pk[0] = pk_len >> 8;
+                pk[1] = pk_len & 0xff;
+                res_APDU_size += 2;
+            }
+            else if (pk_len > 127) {
+                memmove(pk + 1, pk, pk_len);
+                pk[-1] = 0x81;
+                pk[0] = pk_len;
+                res_APDU_size += 1;
+            }
+            else {
+                pk[-1] = pk_len;
             }
         }
     }
