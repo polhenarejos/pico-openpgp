@@ -70,10 +70,6 @@ uint8_t yk_aid[] = {
     8,
     0xA0, 0x00, 0x00, 0x05, 0x27, 0x20, 0x1, 0x1
 };
-uint8_t mgmt_aid[] = {
-    8,
-    0xA0, 0x00, 0x00, 0x05, 0x27, 0x47, 0x11, 0x17
-};
 
 bool has_pwpiv = false;
 uint8_t session_pwpiv[32];
@@ -318,7 +314,6 @@ int piv_select_aid(app_t *a) {
 void __attribute__((constructor)) piv_ctor() {
     register_app(piv_select_aid, piv_aid);
     register_app(piv_select_aid, yk_aid);
-    register_app(piv_select_aid, mgmt_aid);
 }
 
 static int cmd_version() {

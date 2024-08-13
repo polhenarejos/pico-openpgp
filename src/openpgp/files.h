@@ -161,4 +161,6 @@
 #define EF_PIV_RETIRED19 0xc11f
 #define EF_PIV_RETIRED20 0xc120
 
+#define EF_DEV_CONF     0x1122
+
 #endif
