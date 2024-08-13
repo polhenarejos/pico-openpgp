@@ -506,7 +506,7 @@ static int cmd_get_metadata() {
             }
         }
     }
-    if (key_ref == EF_PIV_PIN || key_ref == EF_PIV_PUK || key_ref == EF_PIV_KEY_MANAGEMENT) {
+    if (key_ref == EF_PIV_PIN || key_ref == EF_PIV_PUK || key_ref == EF_PIV_KEY_CARDMGM) {
         uint8_t dhash[32];
         int32_t eq = false;
         if (key_ref == EF_PIV_PIN) {
@@ -517,7 +517,7 @@ static int cmd_get_metadata() {
             double_hash_pin((const uint8_t *)"\x31\x32\x33\x34\x35\x36\x37\x38", 8, dhash);
             eq = memcmp(dhash, file_get_data(ef_key) + 1, file_get_size(ef_key) - 1);
         }
-        else if (key_ref == EF_PIV_KEY_MANAGEMENT) {
+        else if (key_ref == EF_PIV_KEY_CARDMGM) {
             eq = memcmp("\x01\x02\x03\x04\x05\x06\x07\x08\x01\x02\x03\x04\x05\x06\x07\x08\x01\x02\x03\x04\x05\x06\x07\x08", file_get_data(ef_key), file_get_size(ef_key));
         }
         res_APDU[res_APDU_size++] = 0x5;
