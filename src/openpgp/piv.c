@@ -446,7 +446,7 @@ static int cmd_get_metadata() {
     }
     file_t *ef_key = search_by_fid(key_ref, NULL, SPECIFY_EF);
     if (!file_has_data(ef_key)) {
-        return SW_MEMORY_FAILURE();
+        return SW_REFERENCE_NOT_FOUND();
     }
     if (key_ref != EF_PIV_PIN && key_ref != EF_PIV_PUK) {
         int meta_len = 0;
