@@ -15,7 +15,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef ESP_PLATFORM
+#include "esp_compat.h"
+#define MBEDTLS_ALLOW_PRIVATE_ACCESS
+#else
 #include "common.h"
+#endif
 #include "openpgp.h"
 #include "version.h"
 #include "files.h"
@@ -57,7 +62,6 @@ char atr_openpgp[] = {
 };
 
 int openpgp_process_apdu();
-
 
 extern uint32_t board_button_read(void);
 
@@ -166,11 +170,7 @@ void scan_files() {
     file_t *ef;
     if ((ef = search_by_fid(EF_FULL_AID, NULL, SPECIFY_ANY))) {
         ef->data = openpgp_aid_full;
-#ifndef ENABLE_EMULATION
-        pico_get_unique_board_id_string((char *) ef->data + 12, 4);
-#else
-        memset((char *) ef->data + 12, 0, 4);
-#endif
+        memcpy(ef->data + 12, pico_serial.id, 4);
     }
     bool reset_dek = false;
     if ((ef = search_by_fid(EF_DEK, NULL, SPECIFY_ANY))) {
@@ -365,7 +365,7 @@ int openpgp_unload() {
 
 extern char __StackLimit;
 int heapLeft() {
-#ifndef ENABLE_EMULATION
+#if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
     char *p = malloc(256);   // try to avoid undue fragmentation
     int left = &__StackLimit - p;
     free(p);
@@ -392,7 +392,7 @@ int openpgp_select_aid(app_t *a) {
     return CCID_OK;
 }
 
-void __attribute__((constructor)) openpgp_ctor() {
+INITIALIZER( openpgp_ctor ) {
     ccid_atr = (uint8_t *) atr_openpgp;
     register_app(openpgp_select_aid, openpgp_aid);
 }

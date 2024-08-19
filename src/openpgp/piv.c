@@ -15,7 +15,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef ESP_PLATFORM
+#include "esp_compat.h"
+#define MBEDTLS_ALLOW_PRIVATE_ACCESS
+#else
 #include "common.h"
+#endif
 #include "files.h"
 #include "apdu.h"
 #include "pico_keys.h"
@@ -23,9 +28,6 @@
 #include "eac.h"
 #include "crypto_utils.h"
 #include "version.h"
-#ifndef ENABLE_EMULATION
-#include "pico/unique_id.h"
-#endif
 #include "asn1.h"
 #include "mbedtls/aes.h"
 #include "mbedtls/des.h"
@@ -77,14 +79,8 @@ uint8_t session_pwpiv[32];
 int piv_process_apdu();
 
 static int get_serial() {
-#ifndef ENABLE_EMULATION
-    pico_unique_board_id_t unique_id;
-    pico_get_unique_board_id(&unique_id);
-    uint32_t serial = (unique_id.id[0] & 0x7F) << 24 | unique_id.id[1] << 16 | unique_id.id[2] << 8 | unique_id.id[3];
+    uint32_t serial = (pico_serial.id[0] & 0x7F) << 24 | pico_serial.id[1] << 16 | pico_serial.id[2] << 8 | pico_serial.id[3];
     return serial;
-#else
-    return 0;
-#endif
 }
 
 static int x509_create_cert(void *pk_ctx, uint8_t algo, uint8_t slot, bool attestation, uint8_t *buffer, size_t buffer_size) {
@@ -311,7 +307,7 @@ int piv_select_aid(app_t *a) {
     return CCID_OK;
 }
 
-void __attribute__((constructor)) piv_ctor() {
+INITIALIZER( piv_ctor ) {
     register_app(piv_select_aid, piv_aid);
     register_app(piv_select_aid, yk_aid);
 }

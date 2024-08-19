@@ -41,7 +41,7 @@ int man_select(app_t *a) {
     return CCID_OK;
 }
 
-void __attribute__((constructor)) man_ctor() {
+INITIALIZER( man_ctor ) {
     register_app(man_select, man_aid);
 }
 
@@ -79,9 +79,7 @@ int man_get_config() {
     res_APDU[res_APDU_size++] = CAP_PIV | CAP_OPENPGP;
     res_APDU[res_APDU_size++] = TAG_SERIAL;
     res_APDU[res_APDU_size++] = 4;
-#ifndef ENABLE_EMULATION
-    pico_get_unique_board_id_string((char *) res_APDU + res_APDU_size, 4);
-#endif
+    memcpy(res_APDU + res_APDU_size, pico_serial.id, 4);
     res_APDU_size += 4;
     res_APDU[res_APDU_size++] = TAG_FORM_FACTOR;
     res_APDU[res_APDU_size++] = 1;
