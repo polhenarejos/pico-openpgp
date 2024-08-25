@@ -1078,7 +1078,7 @@ static int cmd_change_pin() {
     if (!tf) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    uint8_t def[IV_SIZE + 32 + 32 + 32 + 32];
+    uint8_t def[IV_SIZE + 32 + 32 + 32 + 32] = {0};
     memcpy(def, file_get_data(tf), file_get_size(tf));
     if (P2(apdu) == 0x81) {
         hash_multi(apdu.data + pin_len, apdu.nc - pin_len, session_pw1);
