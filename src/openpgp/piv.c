@@ -161,6 +161,7 @@ static int x509_create_cert(void *pk_ctx, uint8_t algo, uint8_t slot, bool attes
     if (attestation) {
         mbedtls_ecdsa_free(&actx);
     }
+    mbedtls_x509write_crt_free(&ctx);
     return ret;
 }
 
