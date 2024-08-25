@@ -375,7 +375,8 @@ int heapLeft() {
     return left;
 }
 
-int openpgp_select_aid(app_t *a) {
+int openpgp_select_aid(app_t *a, uint8_t force) {
+    (void) force;
     a->process_apdu = openpgp_process_apdu;
     a->unload = openpgp_unload;
     init_openpgp();

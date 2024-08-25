@@ -31,7 +31,8 @@ const uint8_t man_aid[] = {
 };
 
 extern void init_piv();
-int man_select(app_t *a) {
+int man_select(app_t *a, uint8_t force) {
+    (void) force;
     a->process_apdu = man_process_apdu;
     a->unload = man_unload;
     sprintf((char *) res_APDU, "%d.%d.0", PIV_VERSION_MAJOR, PIV_VERSION_MINOR);

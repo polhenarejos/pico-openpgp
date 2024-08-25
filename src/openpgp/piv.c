@@ -299,7 +299,8 @@ void select_piv_aid() {
     res_APDU[res_APDU_size++] = 0x00;
 }
 
-int piv_select_aid(app_t *a) {
+int piv_select_aid(app_t *a, uint8_t force) {
+    (void) force;
     a->process_apdu = piv_process_apdu;
     a->unload = piv_unload;
     init_piv();
