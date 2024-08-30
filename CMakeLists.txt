@@ -81,6 +81,7 @@ target_link_options(pico_openpgp PUBLIC
         -Wl,--gc-sections
         )
 endif (APPLE)
+target_link_libraries(pico_openpgp PRIVATE pthread m)
 else()
 
 pico_add_extra_outputs(pico_openpgp)
