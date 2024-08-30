@@ -88,6 +88,6 @@ pico_add_extra_outputs(pico_openpgp)
 
 #target_compile_definitions(pico_openpgp PRIVATE MBEDTLS_ECDSA_DETERMINISTIC=1)
 
-target_link_libraries(pico_openpgp PRIVATE pico_keys_sdk pico_stdlib tinyusb_device tinyusb_board pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id hardware_rtc)
+target_link_libraries(pico_openpgp PRIVATE pico_keys_sdk pico_stdlib tinyusb_device tinyusb_board pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id pico_aon_timer)
 endif()
 endif()
