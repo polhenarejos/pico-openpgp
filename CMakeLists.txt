@@ -44,7 +44,7 @@ set(INCLUDES ${INCLUDES}
         )
 
 set(USB_ITF_CCID 1)
-include(pico-hsm-sdk/pico_hsm_sdk_import.cmake)
+include(pico-keys-sdk/pico_keys_sdk_import.cmake)
 
 target_sources(pico_openpgp PUBLIC ${SOURCES})
 target_include_directories(pico_openpgp PUBLIC ${INCLUDES})
