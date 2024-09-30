@@ -2025,6 +2025,9 @@ static int cmd_import_data() {
             return SW_EXEC_ERROR();
         }
     }
+    else {
+        return SW_FUNC_NOT_SUPPORTED();
+    }
     if (fid == EF_PK_SIG) {
         reset_sig_count();
     }
