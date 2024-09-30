@@ -1,43 +1,43 @@
- #
- # This file is part of the Pico OpenPGP distribution (https://github.com/polhenarejos/pico-openpgp).
- # Copyright (c) 2022 Pol Henarejos.
- #
- # This program is free software: you can redistribute it and/or modify
- # it under the terms of the GNU General Public License as published by
- # the Free Software Foundation, version 3.
- #
- # This program is distributed in the hope that it will be useful, but
- # WITHOUT ANY WARRANTY; without even the implied warranty of
- # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- # General Public License for more details.
- #
- # You should have received a copy of the GNU General Public License
- # along with this program. If not, see <http://www.gnu.org/licenses/>.
- #
+#
+# This file is part of the Pico OpenPGP distribution (https://github.com/polhenarejos/pico-openpgp).
+# Copyright (c) 2022 Pol Henarejos.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, version 3.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
 
 cmake_minimum_required(VERSION 3.13)
 
 if(ESP_PLATFORM)
-set(EXTRA_COMPONENT_DIRS src pico-keys-sdk/src)
-include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+        set(EXTRA_COMPONENT_DIRS src pico-keys-sdk/src)
+        include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 else()
 
-if(ENABLE_EMULATION)
-else()
-include(pico_sdk_import.cmake)
-endif()
+        if(ENABLE_EMULATION)
+        else()
+                include(pico_sdk_import.cmake)
+        endif()
 
-project(pico_openpgp C CXX ASM)
+        project(pico_openpgp C CXX ASM)
 
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
+        set(CMAKE_C_STANDARD 11)
+        set(CMAKE_CXX_STANDARD 17)
 
-if(ENABLE_EMULATION)
-else()
-pico_sdk_init()
-endif()
+        if(ENABLE_EMULATION)
+        else()
+                pico_sdk_init()
+        endif()
 
-add_executable(pico_openpgp)
+        add_executable(pico_openpgp)
 endif()
 
 set(SOURCES ${SOURCES}
@@ -45,49 +45,54 @@ set(SOURCES ${SOURCES}
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/files.c
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/piv.c
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/management.c
-        )
+)
+
+set(USB_ITF_CCID 1)
+set(USB_ITF_WCID 1)
+include(pico-keys-sdk/pico_keys_sdk_import.cmake)
+if(ESP_PLATFORM)
+        project(pico_openpgp)
+endif()
 
 set(INCLUDES ${INCLUDES}
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp
-        )
-
-set(USB_ITF_CCID 1)
-include(pico-keys-sdk/pico_keys_sdk_import.cmake)
-if(ESP_PLATFORM)
-    project(pico_fido)
-endif()
-
-if(NOT ESP_PLATFORM)
-target_sources(pico_openpgp PUBLIC ${SOURCES})
-target_include_directories(pico_openpgp PUBLIC ${INCLUDES})
-
-target_compile_options(pico_openpgp PUBLIC
-    -Wall
-    -Werror
 )
+if(NOT ESP_PLATFORM)
+        target_sources(pico_openpgp PUBLIC ${SOURCES})
+        target_include_directories(pico_openpgp PUBLIC ${INCLUDES})
 
-if(ENABLE_EMULATION)
-
-target_compile_options(pico_openpgp PUBLIC
-        -fdata-sections
-        -ffunction-sections
+        target_compile_options(pico_openpgp PUBLIC
+                -Wall
         )
-if(APPLE)
-target_link_options(pico_openpgp PUBLIC
-        -Wl,-dead_strip
-        )
-else()
-target_link_options(pico_openpgp PUBLIC
-        -Wl,--gc-sections
-        )
-endif (APPLE)
-target_link_libraries(pico_openpgp PRIVATE pthread m)
-else()
+        if(NOT MSVC)
+                target_compile_options(pico_openpgp PUBLIC
+                        -Werror
+                )
+        endif()
 
-pico_add_extra_outputs(pico_openpgp)
+        if(ENABLE_EMULATION)
+                if(NOT MSVC)
+                        target_compile_options(pico_openpgp PUBLIC
+                                -fdata-sections
+                                -ffunction-sections
+                        )
+                endif()
+                if(APPLE)
+                        target_link_options(pico_openpgp PUBLIC
+                                -Wl,-dead_strip
+                        )
+                elseif(MSVC)
+                        target_compile_options(pico_openpgp PUBLIC
+                                -WX
+                        )
 
-#target_compile_definitions(pico_openpgp PRIVATE MBEDTLS_ECDSA_DETERMINISTIC=1)
-
-target_link_libraries(pico_openpgp PRIVATE pico_keys_sdk pico_stdlib tinyusb_device tinyusb_board pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id pico_aon_timer)
+                        target_link_libraries(pico_openpgp PUBLIC wsock32 ws2_32 Bcrypt)
+                else()
+                        target_link_options(pico_openpgp PUBLIC
+                                -Wl,--gc-sections
+                        )
+                endif(APPLE)
+                target_link_libraries(pico_openpgp PRIVATE pthread m)
+        endif()
 endif()
-endif()
+
