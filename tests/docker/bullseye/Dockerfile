@@ -1,9 +1,11 @@
-FROM ubuntu:jammy
+FROM debian:bullseye
 
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt update && apt upgrade -y
 RUN apt install -y apt-utils
+RUN apt autoremove -y
+RUN rm -rf /var/cache/apt/archives/*
 RUN apt install -y libccid \
     libpcsclite-dev \
     git \

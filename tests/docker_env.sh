@@ -46,10 +46,10 @@
 
 
 # default values, can be overridden by the environment
-: ${MBEDTLS_DOCKER_GUEST:=jammy}
+: ${MBEDTLS_DOCKER_GUEST:=bullseye}
 
 
-DOCKER_IMAGE_TAG="pico-hsm-test:${MBEDTLS_DOCKER_GUEST}"
+DOCKER_IMAGE_TAG="pico-openpgp-test:${MBEDTLS_DOCKER_GUEST}"
 
 # Make sure docker is available
 if ! which docker > /dev/null; then
@@ -79,7 +79,7 @@ ${DOCKER} image build \
     --cache-from=${DOCKER_IMAGE_TAG} \
     --network host \
     --build-arg MAKEFLAGS_PARALLEL="-j ${NUM_PROC}" \
-    tests/docker/${MBEDTLS_DOCKER_GUEST}
+    -f tests/docker/${MBEDTLS_DOCKER_GUEST}/Dockerfile .
 
 run_in_docker()
 {

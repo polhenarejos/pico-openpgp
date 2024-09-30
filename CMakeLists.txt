@@ -17,6 +17,11 @@
 
 cmake_minimum_required(VERSION 3.13)
 
+if(ESP_PLATFORM)
+set(EXTRA_COMPONENT_DIRS src pico-keys-sdk/src)
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+else()
+
 if(ENABLE_EMULATION)
 else()
 include(pico_sdk_import.cmake)
@@ -33,10 +38,13 @@ pico_sdk_init()
 endif()
 
 add_executable(pico_openpgp)
+endif()
 
 set(SOURCES ${SOURCES}
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/openpgp.c
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/files.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/piv.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/management.c
         )
 
 set(INCLUDES ${INCLUDES}
@@ -45,7 +53,11 @@ set(INCLUDES ${INCLUDES}
 
 set(USB_ITF_CCID 1)
 include(pico-keys-sdk/pico_keys_sdk_import.cmake)
+if(ESP_PLATFORM)
+    project(pico_fido)
+endif()
 
+if(NOT ESP_PLATFORM)
 target_sources(pico_openpgp PUBLIC ${SOURCES})
 target_include_directories(pico_openpgp PUBLIC ${INCLUDES})
 
@@ -69,11 +81,13 @@ target_link_options(pico_openpgp PUBLIC
         -Wl,--gc-sections
         )
 endif (APPLE)
+target_link_libraries(pico_openpgp PRIVATE pthread m)
 else()
 
 pico_add_extra_outputs(pico_openpgp)
 
 #target_compile_definitions(pico_openpgp PRIVATE MBEDTLS_ECDSA_DETERMINISTIC=1)
 
-target_link_libraries(pico_openpgp PRIVATE pico_hsm_sdk pico_stdlib tinyusb_device tinyusb_board pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id hardware_rtc)
+target_link_libraries(pico_openpgp PRIVATE pico_keys_sdk pico_stdlib tinyusb_device tinyusb_board pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id pico_aon_timer)
+endif()
 endif()

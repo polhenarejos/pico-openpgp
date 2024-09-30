@@ -1,7 +1,7 @@
 #!/bin/bash
 
-VERSION_MAJOR="1"
-VERSION_MINOR="10"
+VERSION_MAJOR="2"
+VERSION_MINOR="2"
 
 rm -rf release/*
 cd build_release
@@ -17,6 +17,7 @@ for board in adafruit_feather_rp2040 \
     eetree_gamekit_rp2040 \
     garatronic_pybstick26_rp2040 \
     melopero_shake_rp2040 \
+    nullbits_bit_c_pro \
     pico \
     pico_w \
     pimoroni_badger2040 \
@@ -31,6 +32,7 @@ for board in adafruit_feather_rp2040 \
     pimoroni_servo2040 \
     pimoroni_tiny2040 \
     pimoroni_tiny2040_2mb \
+    pololu_3pi_2040_robot \
     seeed_xiao_rp2040 \
     solderparty_rp2040_stamp \
     solderparty_rp2040_stamp_carrier \
@@ -40,6 +42,8 @@ for board in adafruit_feather_rp2040 \
     sparkfun_thingplus \
     vgaboard \
     waveshare_rp2040_lcd_0.96 \
+    waveshare_rp2040_lcd_1.28 \
+    waveshare_rp2040_one \
     waveshare_rp2040_plus_4mb \
     waveshare_rp2040_plus_16mb \
     waveshare_rp2040_zero \

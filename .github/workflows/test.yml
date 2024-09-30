@@ -14,10 +14,10 @@ name: "Emulation and test"
 on:
   workflow_dispatch:
   push:
-    branches: [ "main", "eddsa" ]
+    branches: [ "main", "piv", "eddsa" ]
   pull_request:
     # The branches below must be a subset of the branches above
-    branches: [ "main", "eddsa" ]
+    branches: [ "main", "piv", "eddsa" ]
   schedule:
     - cron: '23 5 * * 4'
 
