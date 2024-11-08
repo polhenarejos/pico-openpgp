@@ -33,6 +33,8 @@
 #include "usb.h"
 #include "ccid/ccid.h"
 
+uint8_t PICO_PRODUCT = 3;
+
 bool has_pw1 = false;
 bool has_pw2 = false;
 bool has_pw3 = false;
