@@ -270,7 +270,7 @@ void init_piv() {
 }
 
 int piv_unload() {
-    return CCID_OK;
+    return PICOKEY_OK;
 }
 
 void select_piv_aid() {
@@ -306,7 +306,7 @@ int piv_select_aid(app_t *a, uint8_t force) {
     a->unload = piv_unload;
     init_piv();
     select_piv_aid();
-    return CCID_OK;
+    return PICOKEY_OK;
 }
 
 INITIALIZER( piv_ctor ) {
@@ -469,7 +469,7 @@ static int cmd_get_metadata() {
                 mbedtls_rsa_context ctx;
                 mbedtls_rsa_init(&ctx);
                 int r = load_private_key_rsa(&ctx, ef_key, false);
-                if (r != CCID_OK) {
+                if (r != PICOKEY_OK) {
                     mbedtls_rsa_free(&ctx);
                     return SW_EXEC_ERROR();
                 }
@@ -488,7 +488,7 @@ static int cmd_get_metadata() {
                 mbedtls_ecdsa_context ctx;
                 mbedtls_ecdsa_init(&ctx);
                 int r = load_private_key_ecdsa(&ctx, ef_key, false);
-                if (r != CCID_OK) {
+                if (r != PICOKEY_OK) {
                     mbedtls_ecdsa_free(&ctx);
                     return SW_EXEC_ERROR();
                 }
@@ -690,7 +690,7 @@ static int cmd_authenticate() {
                 mbedtls_rsa_context ctx;
                 mbedtls_rsa_init(&ctx);
                 int r = load_private_key_rsa(&ctx, ef_key, false);
-                if (r != CCID_OK) {
+                if (r != PICOKEY_OK) {
                     mbedtls_rsa_free(&ctx);
                     return SW_EXEC_ERROR();
                 }
@@ -724,7 +724,7 @@ static int cmd_authenticate() {
                 mbedtls_ecdsa_context ctx;
                 mbedtls_ecdsa_init(&ctx);
                 int r = load_private_key_ecdsa(&ctx, ef_key, false);
-                if (r != CCID_OK) {
+                if (r != PICOKEY_OK) {
                     mbedtls_ecdsa_free(&ctx);
                     return SW_EXEC_ERROR();
                 }
@@ -905,7 +905,7 @@ static int cmd_asym_keygen() {
         file_put_data(ef, cert + sizeof(cert) - r, r);
         r = store_keys(&rsa, ALGO_RSA, key_ref == 0x93 ? EF_PIV_KEY_RETIRED18 : key_ref, false);
         mbedtls_rsa_free(&rsa);
-        if (r != CCID_OK) {
+        if (r != PICOKEY_OK) {
             return SW_EXEC_ERROR();
         }
     }
@@ -926,7 +926,7 @@ static int cmd_asym_keygen() {
         file_put_data(ef, cert + sizeof(cert) - r, r);
         r = store_keys(&ecdsa, ALGO_ECDSA, key_ref == 0x93 ? EF_PIV_KEY_RETIRED18 : key_ref, false);
         mbedtls_ecdsa_free(&ecdsa);
-        if (r != CCID_OK) {
+        if (r != PICOKEY_OK) {
             return SW_EXEC_ERROR();
         }
     }
@@ -1155,7 +1155,7 @@ static int cmd_attestation() {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
         r = load_private_key_rsa(&ctx, ef_key, false);
-        if (r != CCID_OK) {
+        if (r != PICOKEY_OK) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
@@ -1166,7 +1166,7 @@ static int cmd_attestation() {
         mbedtls_ecdsa_context ctx;
         mbedtls_ecdsa_init(&ctx);
         r = load_private_key_ecdsa(&ctx, ef_key, false);
-        if (r != CCID_OK) {
+        if (r != PICOKEY_OK) {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
