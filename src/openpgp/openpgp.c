@@ -32,6 +32,7 @@
 #include "asn1.h"
 #include "usb.h"
 #include "ccid/ccid.h"
+#include "otp.h"
 
 uint8_t PICO_PRODUCT = 3;
 
@@ -316,6 +317,11 @@ int load_dek() {
     }
     if (r != 0) {
         return PICOKEY_EXEC_ERROR;
+    }
+    if (otp_key_1) {
+        for (int i = 0; i < 32; i++) {
+            dek[IV_SIZE + i] ^= otp_key_1[i];
+        }
     }
     return PICOKEY_OK;
 }
