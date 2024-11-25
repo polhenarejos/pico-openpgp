@@ -93,6 +93,8 @@ if(NOT ESP_PLATFORM)
                         )
                 endif(APPLE)
                 target_link_libraries(pico_openpgp PRIVATE pthread m)
+        else()
+                pico_add_extra_outputs(${CMAKE_PROJECT_NAME})
         endif()
 endif()
 
