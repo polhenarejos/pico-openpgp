@@ -34,7 +34,7 @@ idf.py set-target esp32s3
 idf.py all
 mkdir -p release
 cd build
-esptool.py --chip ESP32-S3 merge_bin -o ../release/esp32-s3.bin @flash_args
+esptool.py --chip ESP32-S3 merge_bin -o ../release/pico_openpgp_esp32-s3.bin @flash_args
 cd ..
 else
 mkdir build
