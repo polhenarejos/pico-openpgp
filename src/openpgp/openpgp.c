@@ -108,7 +108,7 @@ static int cmd_select() {
     uint16_t fid = 0x0;
 
     if (apdu.nc >= 2) {
-        fid = get_uint16_t(apdu.data, 0);
+        fid = get_uint16_t_be(apdu.data);
     }
 
     if (!pe) {
@@ -1338,14 +1338,14 @@ void make_rsa_response(mbedtls_rsa_context *rsa) {
     res_APDU_size = 5;
     res_APDU[res_APDU_size++] = 0x81;
     res_APDU[res_APDU_size++] = 0x82;
-    put_uint16_t(mbedtls_mpi_size(&rsa->N), res_APDU + res_APDU_size); res_APDU_size += 2;
+    put_uint16_t_be(mbedtls_mpi_size(&rsa->N), res_APDU + res_APDU_size); res_APDU_size += 2;
     mbedtls_mpi_write_binary(&rsa->N, res_APDU + res_APDU_size, mbedtls_mpi_size(&rsa->N));
     res_APDU_size += mbedtls_mpi_size(&rsa->N);
     res_APDU[res_APDU_size++] = 0x82;
     res_APDU[res_APDU_size++] = mbedtls_mpi_size(&rsa->E) & 0xff;
     mbedtls_mpi_write_binary(&rsa->E, res_APDU + res_APDU_size, mbedtls_mpi_size(&rsa->E));
     res_APDU_size += mbedtls_mpi_size(&rsa->E);
-    put_uint16_t(res_APDU_size - 5, res_APDU + 3);
+    put_uint16_t_be(res_APDU_size - 5, res_APDU + 3);
 }
 
 void make_ecdsa_response(mbedtls_ecp_keypair *ecdsa) {

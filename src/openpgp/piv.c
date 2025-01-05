@@ -475,7 +475,7 @@ static int cmd_get_metadata() {
                 }
                 res_APDU[res_APDU_size++] = 0x81;
                 res_APDU[res_APDU_size++] = 0x82;
-                put_uint16_t(mbedtls_mpi_size(&ctx.N), res_APDU + res_APDU_size); res_APDU_size += 2;
+                put_uint16_t_be(mbedtls_mpi_size(&ctx.N), res_APDU + res_APDU_size); res_APDU_size += 2;
                 mbedtls_mpi_write_binary(&ctx.N, res_APDU + res_APDU_size, mbedtls_mpi_size(&ctx.N));
                 res_APDU_size += mbedtls_mpi_size(&ctx.N);
                 res_APDU[res_APDU_size++] = 0x82;
