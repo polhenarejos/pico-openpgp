@@ -165,7 +165,7 @@ static int x509_create_cert(void *pk_ctx, uint8_t algo, uint8_t slot, bool attes
     return ret;
 }
 
-static void scan_files() {
+static void scan_files_piv() {
     scan_flash();
     file_t *ef = search_by_fid(EF_PIV_KEY_CARDMGM, NULL, SPECIFY_EF);
     if ((ef = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_ANY))) {
@@ -264,7 +264,7 @@ static void scan_files() {
 }
 
 void init_piv() {
-    scan_files();
+    scan_files_piv();
     has_pwpiv = false;
     // cmd_select();
 }
@@ -945,7 +945,7 @@ static int cmd_asym_keygen() {
     return SW_OK();
 }
 
-int cmd_put_data() {
+static int cmd_put_data() {
     if (P1(apdu) != 0x3F || P2(apdu) != 0xFF) {
         return SW_INCORRECT_P1P2();
     }
