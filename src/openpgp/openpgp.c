@@ -1082,6 +1082,11 @@ static int cmd_change_pin() {
     if ((r = load_dek()) != PICOKEY_OK) {
         return SW_EXEC_ERROR();
     }
+    if (otp_key_1) {
+        for (int i = 0; i < 32; i++) {
+            dek[IV_SIZE + i] ^= otp_key_1[i];
+        }
+    }
     r = check_pin(pw, apdu.data, pin_len);
     if (r != 0x9000) {
         return r;
