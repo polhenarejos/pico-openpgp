@@ -16,6 +16,7 @@
  */
 
 #include "openpgp.h"
+#include "otp.h"
 
 int cmd_change_pin() {
     if (P1(apdu) != 0x0) {
@@ -30,6 +31,12 @@ int cmd_change_pin() {
     uint16_t r = 0;
     if ((r = load_dek()) != PICOKEY_OK) {
         return SW_EXEC_ERROR();
+    }
+
+    if (otp_key_1) {
+        for (int i = 0; i < 32; i++) {
+            dek[IV_SIZE + i] ^= otp_key_1[i];
+        }
     }
     r = check_pin(pw, apdu.data, pin_len);
     if (r != 0x9000) {
