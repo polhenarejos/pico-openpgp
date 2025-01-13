@@ -165,7 +165,7 @@ static int x509_create_cert(void *pk_ctx, uint8_t algo, uint8_t slot, bool attes
     return ret;
 }
 
-static void scan_files() {
+static void scan_files_piv() {
     scan_flash();
     file_t *ef = search_by_fid(EF_PIV_KEY_CARDMGM, NULL, SPECIFY_EF);
     if ((ef = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_ANY))) {
@@ -264,7 +264,7 @@ static void scan_files() {
 }
 
 void init_piv() {
-    scan_files();
+    scan_files_piv();
     has_pwpiv = false;
     // cmd_select();
 }
@@ -475,7 +475,7 @@ static int cmd_get_metadata() {
                 }
                 res_APDU[res_APDU_size++] = 0x81;
                 res_APDU[res_APDU_size++] = 0x82;
-                put_uint16_t(mbedtls_mpi_size(&ctx.N), res_APDU + res_APDU_size); res_APDU_size += 2;
+                put_uint16_t_be(mbedtls_mpi_size(&ctx.N), res_APDU + res_APDU_size); res_APDU_size += 2;
                 mbedtls_mpi_write_binary(&ctx.N, res_APDU + res_APDU_size, mbedtls_mpi_size(&ctx.N));
                 res_APDU_size += mbedtls_mpi_size(&ctx.N);
                 res_APDU[res_APDU_size++] = 0x82;
@@ -945,7 +945,7 @@ static int cmd_asym_keygen() {
     return SW_OK();
 }
 
-int cmd_put_data() {
+static int cmd_put_data() {
     if (P1(apdu) != 0x3F || P2(apdu) != 0xFF) {
         return SW_INCORRECT_P1P2();
     }
