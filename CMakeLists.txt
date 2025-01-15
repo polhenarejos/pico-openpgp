@@ -18,26 +18,30 @@
 cmake_minimum_required(VERSION 3.13)
 
 if(ESP_PLATFORM)
-        set(EXTRA_COMPONENT_DIRS src pico-keys-sdk/src)
-        include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+    set(EXTRA_COMPONENT_DIRS src pico-keys-sdk/src)
+    include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 else()
+    if(NOT ENABLE_EMULATION)
+        include(pico_sdk_import.cmake)
+    endif()
 
-        if(ENABLE_EMULATION)
-        else()
-                include(pico_sdk_import.cmake)
-        endif()
+    project(pico_openpgp C CXX ASM)
 
-        project(pico_openpgp C CXX ASM)
+    set(CMAKE_C_STANDARD 11)
+    set(CMAKE_CXX_STANDARD 17)
 
-        set(CMAKE_C_STANDARD 11)
-        set(CMAKE_CXX_STANDARD 17)
+    if(NOT ENABLE_EMULATION)
+        pico_sdk_init()
+    endif()
 
-        if(ENABLE_EMULATION)
-        else()
-                pico_sdk_init()
-        endif()
+    if(NOT DEFINED __FOR_CI)
+        set(__FOR_CI 0)
+    endif()
+    if(__FOR_CI)
+        add_definitions(-D__FOR_CI)
+    endif()
 
-        add_executable(pico_openpgp)
+    add_executable(pico_openpgp)
 endif()
 
 set(SOURCES ${SOURCES}
@@ -45,56 +49,75 @@ set(SOURCES ${SOURCES}
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/files.c
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/piv.c
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/management.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_select.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_get_data.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_verify.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_put_data.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_select_data.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_import_data.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_version.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_change_pin.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_mse.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_internal_aut.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_challenge.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_activate_file.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_terminate_df.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_pso.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_keypair_gen.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_reset_retry.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/do.c
 )
 
 set(USB_ITF_CCID 1)
 set(USB_ITF_WCID 1)
 include(pico-keys-sdk/pico_keys_sdk_import.cmake)
+
+SET_VERSION(ver_major ver_minor "${CMAKE_CURRENT_LIST_DIR}/src/openpgp/version.h" 1)
+
 if(ESP_PLATFORM)
-        project(pico_openpgp)
+    project(pico_openpgp)
 endif()
 
 set(INCLUDES ${INCLUDES}
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp
 )
 if(NOT ESP_PLATFORM)
-        target_sources(pico_openpgp PUBLIC ${SOURCES})
-        target_include_directories(pico_openpgp PUBLIC ${INCLUDES})
+    target_sources(pico_openpgp PUBLIC ${SOURCES})
+    target_include_directories(pico_openpgp PUBLIC ${INCLUDES})
 
+    target_compile_options(pico_openpgp PUBLIC
+        -Wall
+    )
+    if(NOT MSVC)
         target_compile_options(pico_openpgp PUBLIC
-                -Wall
+            -Werror
         )
+    endif()
+
+    if(ENABLE_EMULATION)
         if(NOT MSVC)
-                target_compile_options(pico_openpgp PUBLIC
-                        -Werror
-                )
+            target_compile_options(pico_openpgp PUBLIC
+                -fdata-sections
+                -ffunction-sections
+            )
         endif()
+        if(APPLE)
+            target_link_options(pico_openpgp PUBLIC
+                -Wl,-dead_strip
+            )
+        elseif(MSVC)
+            target_compile_options(pico_openpgp PUBLIC
+                -WX
+            )
 
-        if(ENABLE_EMULATION)
-                if(NOT MSVC)
-                        target_compile_options(pico_openpgp PUBLIC
-                                -fdata-sections
-                                -ffunction-sections
-                        )
-                endif()
-                if(APPLE)
-                        target_link_options(pico_openpgp PUBLIC
-                                -Wl,-dead_strip
-                        )
-                elseif(MSVC)
-                        target_compile_options(pico_openpgp PUBLIC
-                                -WX
-                        )
-
-                        target_link_libraries(pico_openpgp PUBLIC wsock32 ws2_32 Bcrypt)
-                else()
-                        target_link_options(pico_openpgp PUBLIC
-                                -Wl,--gc-sections
-                        )
-                endif(APPLE)
-                target_link_libraries(pico_openpgp PRIVATE pthread m)
+            target_link_libraries(pico_openpgp PUBLIC wsock32 ws2_32 Bcrypt)
         else()
-                pico_add_extra_outputs(${CMAKE_PROJECT_NAME})
-        endif()
+            target_link_options(pico_openpgp PUBLIC
+                -Wl,--gc-sections
+            )
+        endif(APPLE)
+        target_link_libraries(pico_openpgp PRIVATE pthread m)
+    else()
+        pico_add_extra_outputs(${CMAKE_PROJECT_NAME})
+    endif()
 endif()
-

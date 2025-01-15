@@ -15,23 +15,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __VERSION_H_
-#define __VERSION_H_
-
-#define OPGP_VERSION 0x0304
-
-#define OPGP_VERSION_MAJOR ((OPGP_VERSION >> 8) & 0xff)
-#define OPGP_VERSION_MINOR (OPGP_VERSION & 0xff)
-
-#define PIV_VERSION 0x0507
-
-#define PIV_VERSION_MAJOR ((PIV_VERSION >> 8) & 0xff)
-#define PIV_VERSION_MINOR (PIV_VERSION & 0xff)
-
-
-#define PIPGP_VERSION 0x0302
-
-#define PIPGP_VERSION_MAJOR ((PIPGP_VERSION >> 8) & 0xff)
-#define PIPGP_VERSION_MINOR (PIPGP_VERSION & 0xff)
-
-#endif
+extern const uint8_t algorithm_attr_p256k1[];
+extern const uint8_t algorithm_attr_p256r1[];
+extern const uint8_t algorithm_attr_p384r1[];
+extern const uint8_t algorithm_attr_p521r1[];
+extern const uint8_t algorithm_attr_bp256r1[];
+extern const uint8_t algorithm_attr_bp384r1[];
+extern const uint8_t algorithm_attr_bp512r1[];
+extern const uint8_t algorithm_attr_cv25519[];
+extern const uint8_t algorithm_attr_x448[];
+extern const uint8_t algorithm_attr_rsa2k[];
+extern const uint8_t algorithm_attr_rsa4096[];
+extern const uint8_t algorithm_attr_ed25519[];

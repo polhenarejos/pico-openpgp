@@ -15,23 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __VERSION_H_
-#define __VERSION_H_
+#include "openpgp.h"
 
-#define OPGP_VERSION 0x0304
-
-#define OPGP_VERSION_MAJOR ((OPGP_VERSION >> 8) & 0xff)
-#define OPGP_VERSION_MINOR (OPGP_VERSION & 0xff)
-
-#define PIV_VERSION 0x0507
-
-#define PIV_VERSION_MAJOR ((PIV_VERSION >> 8) & 0xff)
-#define PIV_VERSION_MINOR (PIV_VERSION & 0xff)
-
-
-#define PIPGP_VERSION 0x0302
-
-#define PIPGP_VERSION_MAJOR ((PIPGP_VERSION >> 8) & 0xff)
-#define PIPGP_VERSION_MINOR (PIPGP_VERSION & 0xff)
-
-#endif
+int cmd_activate_file() {
+    return SW_OK();
+}
