@@ -7,6 +7,7 @@ if [[ $1 == "pico" ]]; then
 sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
 git clone https://github.com/raspberrypi/pico-sdk
 cd pico-sdk
+git checkout tags/2.1.1
 git submodule update --init
 cd ..
 git clone https://github.com/raspberrypi/picotool
@@ -35,6 +36,16 @@ idf.py all
 mkdir -p release
 cd build
 esptool.py --chip ESP32-S3 merge_bin -o ../release/pico_openpgp_esp32-s3.bin @flash_args
+cd ..
+cd esp-idf
+./install.sh esp32s2
+. ./export.sh
+cd ..
+idf.py set-target esp32s2
+idf.py all
+mkdir -p release
+cd build
+esptool.py --chip ESP32-S2 merge_bin -o ../release/pico_openpgp_esp32-s2.bin @flash_args
 cd ..
 else
 mkdir build
