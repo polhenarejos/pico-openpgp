@@ -275,6 +275,12 @@ const uint8_t algorithm_attr_cv25519[] = {
     0x2b, 0x06, 0x01, 0x04, 0x01, 0x97, 0x55, 0x01, 0x05, 0x01
 };
 
+const uint8_t algorithm_attr_ed25519[] = {
+    10,
+    ALGO_EDDSA,
+    0x2b, 0x06, 0x01, 0x04, 0x01, 0xda, 0x47, 0x0f, 0x01
+};
+
 int parse_algo(const uint8_t *algo, uint16_t tag) {
     res_APDU[res_APDU_size++] = tag & 0xff;
     memcpy(res_APDU + res_APDU_size, algo, algo[0] + 1);
@@ -300,6 +306,7 @@ int parse_algoinfo(const file_t *f, int mode) {
         datalen += parse_algo(algorithm_attr_bp256r1, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_bp384r1, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_bp512r1, EF_ALGO_SIG);
+        datalen += parse_algo(algorithm_attr_ed25519, EF_ALGO_SIG);
 
         datalen += parse_algo(algorithm_attr_rsa1k, EF_ALGO_DEC);
         datalen += parse_algo(algorithm_attr_rsa2k, EF_ALGO_DEC);
@@ -326,6 +333,7 @@ int parse_algoinfo(const file_t *f, int mode) {
         datalen += parse_algo(algorithm_attr_bp256r1, EF_ALGO_AUT);
         datalen += parse_algo(algorithm_attr_bp384r1, EF_ALGO_AUT);
         datalen += parse_algo(algorithm_attr_bp512r1, EF_ALGO_AUT);
+        datalen += parse_algo(algorithm_attr_ed25519, EF_ALGO_AUT);
         uint16_t lpdif = res_APDU + res_APDU_size - lp - 2;
         *lp++ = lpdif >> 8;
         *lp++ = lpdif & 0xff;

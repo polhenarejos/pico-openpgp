@@ -137,18 +137,18 @@ int cmd_pso() {
             res_APDU_size = olen;
         }
     }
-    else if (algo[0] == ALGO_ECDH || algo[0] == ALGO_ECDSA) {
+    else if (algo[0] == ALGO_ECDH || algo[0] == ALGO_ECDSA || algo[0] == ALGO_EDDSA) {
         if (P1(apdu) == 0x9E && P2(apdu) == 0x9A) {
-            mbedtls_ecdsa_context ctx;
-            mbedtls_ecdsa_init(&ctx);
+            mbedtls_ecp_keypair ctx;
+            mbedtls_ecp_keypair_init(&ctx);
             r = load_private_key_ecdsa(&ctx, ef, true);
             if (r != PICOKEY_OK) {
-                mbedtls_ecdsa_free(&ctx);
+                mbedtls_ecp_keypair_free(&ctx);
                 return SW_EXEC_ERROR();
             }
             size_t olen = 0;
             r = ecdsa_sign(&ctx, apdu.data, apdu.nc, res_APDU, &olen);
-            mbedtls_ecdsa_free(&ctx);
+            mbedtls_ecp_keypair_free(&ctx);
             if (r != 0) {
                 return SW_EXEC_ERROR();
             }

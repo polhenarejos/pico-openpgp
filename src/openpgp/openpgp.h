@@ -59,6 +59,7 @@ extern int pin_reset_retries(const file_t *pin, bool force);
 #define ALGO_RSA        0x01
 #define ALGO_ECDH       0x12
 #define ALGO_ECDSA      0x13
+#define ALGO_EDDSA      0x16
 #define ALGO_AES        0x70
 #define ALGO_AES_128    0x71
 #define ALGO_AES_192    0x72

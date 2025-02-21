@@ -57,17 +57,17 @@ int cmd_internal_aut() {
         }
         res_APDU_size = olen;
     }
-    else if (algo[0] == ALGO_ECDH || algo[0] == ALGO_ECDSA) {
-        mbedtls_ecdsa_context ctx;
-        mbedtls_ecdsa_init(&ctx);
+    else if (algo[0] == ALGO_ECDH || algo[0] == ALGO_ECDSA || algo[0] == ALGO_EDDSA) {
+        mbedtls_ecp_keypair ctx;
+        mbedtls_ecp_keypair_init(&ctx);
         r = load_private_key_ecdsa(&ctx, ef, true);
         if (r != PICOKEY_OK) {
-            mbedtls_ecdsa_free(&ctx);
+            mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
         }
         size_t olen = 0;
         r = ecdsa_sign(&ctx, apdu.data, apdu.nc, res_APDU, &olen);
-        mbedtls_ecdsa_free(&ctx);
+        mbedtls_ecp_keypair_free(&ctx);
         if (r != 0) {
             return SW_EXEC_ERROR();
         }

@@ -26,3 +26,4 @@ extern const uint8_t algorithm_attr_cv25519[];
 extern const uint8_t algorithm_attr_x448[];
 extern const uint8_t algorithm_attr_rsa2k[];
 extern const uint8_t algorithm_attr_rsa4096[];
+extern const uint8_t algorithm_attr_ed25519[];

@@ -76,23 +76,23 @@ int cmd_keypair_gen() {
                 return SW_EXEC_ERROR();
             }
         }
-        else if (algo[0] == ALGO_ECDH || algo[0] == ALGO_ECDSA) {
+        else if (algo[0] == ALGO_ECDH || algo[0] == ALGO_ECDSA || algo[0] == ALGO_EDDSA) {
             printf("KEYPAIR ECDSA\r\n");
             mbedtls_ecp_group_id gid = get_ec_group_id_from_attr(algo + 1, algo_len - 1);
             if (gid == MBEDTLS_ECP_DP_NONE) {
                 return SW_FUNC_NOT_SUPPORTED();
             }
-            mbedtls_ecdsa_context ecdsa;
-            mbedtls_ecdsa_init(&ecdsa);
+            mbedtls_ecp_keypair ecdsa;
+            mbedtls_ecp_keypair_init(&ecdsa);
             uint8_t index = 0;
             r = mbedtls_ecdsa_genkey(&ecdsa, gid, random_gen, &index);
             if (r != 0) {
-                mbedtls_ecdsa_free(&ecdsa);
+                mbedtls_ecp_keypair_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
             r = store_keys(&ecdsa, algo[0], fid, true);
             make_ecdsa_response(&ecdsa);
-            mbedtls_ecdsa_free(&ecdsa);
+            mbedtls_ecp_keypair_free(&ecdsa);
             if (r != PICOKEY_OK) {
                 return SW_EXEC_ERROR();
             }

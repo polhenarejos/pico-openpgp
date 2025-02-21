@@ -156,8 +156,8 @@ int cmd_import_data() {
             return SW_EXEC_ERROR();
         }
     }
-    else if (algo[0] == ALGO_ECDSA || algo[0] == ALGO_ECDH) {
-        mbedtls_ecdsa_context ecdsa;
+    else if (algo[0] == ALGO_ECDSA || algo[0] == ALGO_ECDH || algo[0] == ALGO_EDDSA) {
+        mbedtls_ecp_keypair ecdsa;
         if (p[1] == NULL || len[1] == 0) {
             return SW_WRONG_DATA();
         }
@@ -165,7 +165,7 @@ int cmd_import_data() {
         if (gid == MBEDTLS_ECP_DP_NONE) {
             return SW_FUNC_NOT_SUPPORTED();
         }
-        mbedtls_ecdsa_init(&ecdsa);
+        mbedtls_ecp_keypair_init(&ecdsa);
         if (gid == MBEDTLS_ECP_DP_CURVE25519) {
             mbedtls_ecp_group_load(&ecdsa.grp, gid);
             r = mbedtls_mpi_read_binary(&ecdsa.d, p[1], len[1]);
@@ -174,17 +174,22 @@ int cmd_import_data() {
             r = mbedtls_ecp_read_key(gid, &ecdsa, p[1], len[1]);
         }
         if (r != 0) {
-            mbedtls_ecdsa_free(&ecdsa);
+            mbedtls_ecp_keypair_free(&ecdsa);
             return SW_EXEC_ERROR();
         }
-        r = mbedtls_ecp_mul(&ecdsa.grp, &ecdsa.Q, &ecdsa.d, &ecdsa.grp.G, random_gen, NULL);
+        if (ecdsa.grp.id == MBEDTLS_ECP_DP_ED25519) {
+            r = mbedtls_ecp_point_edwards(&ecdsa.grp, &ecdsa.Q, &ecdsa.d, random_gen, NULL);
+        }
+        else {
+            r = mbedtls_ecp_mul(&ecdsa.grp, &ecdsa.Q, &ecdsa.d, &ecdsa.grp.G, random_gen, NULL);
+        }
         if (r != 0) {
-            mbedtls_ecdsa_free(&ecdsa);
+            mbedtls_ecp_keypair_free(&ecdsa);
             return SW_EXEC_ERROR();
         }
         r = store_keys(&ecdsa, ALGO_ECDSA, fid, true);
         make_ecdsa_response(&ecdsa);
-        mbedtls_ecdsa_free(&ecdsa);
+        mbedtls_ecp_keypair_free(&ecdsa);
         if (r != PICOKEY_OK) {
             return SW_EXEC_ERROR();
         }
