@@ -177,10 +177,13 @@ int cmd_import_data() {
             mbedtls_ecp_keypair_free(&ecdsa);
             return SW_EXEC_ERROR();
         }
+#ifdef MBEDTLS_EDDSA_C
         if (ecdsa.grp.id == MBEDTLS_ECP_DP_ED25519) {
             r = mbedtls_ecp_point_edwards(&ecdsa.grp, &ecdsa.Q, &ecdsa.d, random_gen, NULL);
         }
-        else {
+        else
+#endif
+        {
             r = mbedtls_ecp_mul(&ecdsa.grp, &ecdsa.Q, &ecdsa.d, &ecdsa.grp.G, random_gen, NULL);
         }
         if (r != 0) {
