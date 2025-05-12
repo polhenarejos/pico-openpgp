@@ -174,20 +174,6 @@ int parse_pw_status(const file_t *f, int mode) {
     return res_APDU_size - init_len;
 }
 
-#define ALGO_RSA_1K     0
-#define ALGO_RSA_2k     1
-#define ALGO_RSA_3K     2
-#define ALGO_RSA_4K     3
-#define ALGO_X448       4
-#define ALGO_P256K1     5
-#define ALGO_P256R1     6
-#define ALGO_P384R1     7
-#define ALGO_P521R1     8
-#define ALGO_BP256R1    9
-#define ALGO_BP384R1    10
-#define ALGO_BP512R1    11
-#define ALGO_CV22519    12
-
 const uint8_t algorithm_attr_x448[] = {
     4,
     ALGO_ECDH,
@@ -275,11 +261,19 @@ const uint8_t algorithm_attr_cv25519[] = {
     0x2b, 0x06, 0x01, 0x04, 0x01, 0x97, 0x55, 0x01, 0x05, 0x01
 };
 
+#ifdef MBEDTLS_EDDSA_C
 const uint8_t algorithm_attr_ed25519[] = {
     10,
     ALGO_EDDSA,
     0x2b, 0x06, 0x01, 0x04, 0x01, 0xda, 0x47, 0x0f, 0x01
 };
+
+const uint8_t algorithm_attr_ed448[] = {
+    4,
+    ALGO_EDDSA,
+    0x2b, 0x65, 0x71
+};
+#endif
 
 int parse_algo(const uint8_t *algo, uint16_t tag) {
     res_APDU[res_APDU_size++] = tag & 0xff;
@@ -306,7 +300,10 @@ int parse_algoinfo(const file_t *f, int mode) {
         datalen += parse_algo(algorithm_attr_bp256r1, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_bp384r1, EF_ALGO_SIG);
         datalen += parse_algo(algorithm_attr_bp512r1, EF_ALGO_SIG);
+#ifdef MBEDTLS_EDDSA_C
         datalen += parse_algo(algorithm_attr_ed25519, EF_ALGO_SIG);
+        datalen += parse_algo(algorithm_attr_ed448, EF_ALGO_SIG);
+#endif
 
         datalen += parse_algo(algorithm_attr_rsa1k, EF_ALGO_DEC);
         datalen += parse_algo(algorithm_attr_rsa2k, EF_ALGO_DEC);
@@ -333,7 +330,10 @@ int parse_algoinfo(const file_t *f, int mode) {
         datalen += parse_algo(algorithm_attr_bp256r1, EF_ALGO_AUT);
         datalen += parse_algo(algorithm_attr_bp384r1, EF_ALGO_AUT);
         datalen += parse_algo(algorithm_attr_bp512r1, EF_ALGO_AUT);
+#ifdef MBEDTLS_EDDSA_C
         datalen += parse_algo(algorithm_attr_ed25519, EF_ALGO_AUT);
+        datalen += parse_algo(algorithm_attr_ed448, EF_ALGO_AUT);
+#endif
         uint16_t lpdif = res_APDU + res_APDU_size - lp - 2;
         *lp++ = lpdif >> 8;
         *lp++ = lpdif & 0xff;

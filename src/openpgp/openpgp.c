@@ -574,7 +574,7 @@ int load_private_key_ecdsa(mbedtls_ecp_keypair *ctx, file_t *fkey, bool use_dek)
     }
     mbedtls_platform_zeroize(kdata, sizeof(kdata));
 #ifdef MBEDTLS_EDDSA_C
-    if (ctx->grp.id == MBEDTLS_ECP_DP_ED25519) {
+    if (ctx->grp.id == MBEDTLS_ECP_DP_ED25519 || ctx->grp.id == MBEDTLS_ECP_DP_ED448) {
         r = mbedtls_ecp_point_edwards(&ctx->grp, &ctx->Q, &ctx->d, random_gen, NULL);
     }
     else
@@ -629,6 +629,9 @@ mbedtls_ecp_group_id get_ec_group_id_from_attr(const uint8_t *algo, size_t algo_
 #ifdef MBEDTLS_EDDSA_C
     else if (memcmp(algorithm_attr_ed25519 + 2, algo, algo_len) == 0) {
         return MBEDTLS_ECP_DP_ED25519;
+    }
+    else if (memcmp(algorithm_attr_ed448 + 2, algo, algo_len) == 0) {
+        return MBEDTLS_ECP_DP_ED448;
     }
 #endif
     return MBEDTLS_ECP_DP_NONE;
@@ -750,8 +753,8 @@ int ecdsa_sign(mbedtls_ecp_keypair *ctx,
 
     int r = 0;
 #ifdef MBEDTLS_EDDSA_C
-    if (ctx->grp.id == MBEDTLS_ECP_DP_ED25519) {
-        r = mbedtls_eddsa_write_signature(ctx, data, data_len, out, 64, out_len, MBEDTLS_EDDSA_PURE, NULL, 0, random_gen, NULL);
+    if (ctx->grp.id == MBEDTLS_ECP_DP_ED25519 || ctx->grp.id == MBEDTLS_ECP_DP_ED448) {
+           r = mbedtls_eddsa_write_signature(ctx, data, data_len, out, 114, out_len, MBEDTLS_EDDSA_PURE, NULL, 0, random_gen, NULL);
     }
     else
 #endif
