@@ -127,7 +127,7 @@ int cmd_keypair_gen() {
     }
     else if (P1(apdu) == 0x81) { //read
         file_t *ef = search_by_fid(fid + 3, NULL, SPECIFY_EF);
-        if (!ef || !ef->data) {
+        if (!file_has_data(ef)) {
             return SW_REFERENCE_NOT_FOUND();
         }
         res_APDU_size = file_get_size(ef);

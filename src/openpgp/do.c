@@ -28,12 +28,7 @@ int parse_do(uint16_t *fids, int mode) {
                 data_len = ((int (*)(const file_t *, int))(ef->data))((const file_t *) ef, mode);
             }
             else {
-                if (ef->data) {
-                    data_len = file_get_size(ef);
-                }
-                else {
-                    data_len = 0;
-                }
+                data_len = file_get_size(ef);
                 if (mode == 1) {
                     if (fids[0] > 1 && res_APDU_size > 0) {
                         if (fids[i + 1] < 0x0100) {
@@ -45,7 +40,7 @@ int parse_do(uint16_t *fids, int mode) {
                         }
                         res_APDU_size += format_tlv_len(data_len, res_APDU + res_APDU_size);
                     }
-                    if (ef->data) {
+                    if (file_has_data(ef)) {
                         memcpy(res_APDU + res_APDU_size, file_get_data(ef), data_len);
                     }
                     res_APDU_size += data_len;
