@@ -29,6 +29,10 @@ int cmd_change_pin() {
     }
     uint8_t pin_len = file_get_data(pw)[0];
     uint16_t r = 0;
+    r = check_pin(pw, apdu.data, pin_len);
+    if (r != 0x9000) {
+        return r;
+    }
     if ((r = load_dek()) != PICOKEY_OK) {
         return SW_EXEC_ERROR();
     }
@@ -37,10 +41,6 @@ int cmd_change_pin() {
         for (int i = 0; i < 32; i++) {
             dek[IV_SIZE + i] ^= otp_key_1[i];
         }
-    }
-    r = check_pin(pw, apdu.data, pin_len);
-    if (r != 0x9000) {
-        return r;
     }
     uint8_t dhash[33];
     dhash[0] = apdu.nc - pin_len;
