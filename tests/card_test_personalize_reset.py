@@ -29,7 +29,7 @@ import pytest
 
 class Test_Personalize_Reset(object):
     def test_verify_pw3_0_test(self, card):
-        v = card.verify(3, PW3_TEST0)
+        v = card.verify(3, FACTORY_PASSPHRASE_PW3)
         assert v
 
     def test_login_put(self, card):
@@ -61,17 +61,17 @@ class Test_Personalize_Reset(object):
         r = card.cmd_put_data(0x00, 0xc4, b"\x00")
         assert r
 
-    def test_setup_pw3_0(self, card):
-        r = card.change_passwd(3, PW3_TEST0, FACTORY_PASSPHRASE_PW3)
-        assert r
+    #def test_setup_pw3_0(self, card):
+    #    r = card.change_passwd(3, PW3_TEST0, FACTORY_PASSPHRASE_PW3)
+    #    assert r
 
     def test_verify_pw3_0(self, card):
         v = card.verify(3, FACTORY_PASSPHRASE_PW3)
         assert v
 
-    def test_setup_pw1_0(self, card):
-        r = card.change_passwd(1, PW1_TEST4, FACTORY_PASSPHRASE_PW1)
-        assert r
+    #def test_setup_pw1_0(self, card):
+    #    r = card.change_passwd(1, PW1_TEST4, FACTORY_PASSPHRASE_PW1)
+    #    assert r
 
     def test_verify_pw1_0(self, card):
         v = card.verify(1, FACTORY_PASSPHRASE_PW1)

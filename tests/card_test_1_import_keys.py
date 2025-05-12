@@ -144,7 +144,7 @@ class Test_Card_Personalize_Card_2(object):
         assert v
 
     def test_setup_pw3_1(self, card):
-        r = card.change_passwd(3, PW3_TEST0, PW3_TEST1)
+        r = card.change_passwd(3, FACTORY_PASSPHRASE_PW3, PW3_TEST1)
         assert r
 
     def test_verify_pw3_1(self, card):
@@ -176,9 +176,9 @@ class Test_Card_Personalize_Card_2(object):
         assert v
 
     def test_setup_pw3_2(self, card):
-        r = card.change_passwd(3, PW3_TEST1, PW3_TEST0)
+        r = card.change_passwd(3, PW3_TEST1, FACTORY_PASSPHRASE_PW3)
         assert r
 
     def test_verify_pw3_2(self, card):
-        v = card.verify(3, PW3_TEST0)
+        v = card.verify(3, FACTORY_PASSPHRASE_PW3)
         assert v

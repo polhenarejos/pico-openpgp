@@ -29,7 +29,7 @@ from constants_for_test import *
 
 class Test_Card_PK_OPs_KG(object):
     def test_verify_pw3_0(self, card):
-        v = card.verify(3, PW3_TEST0)
+        v = card.verify(3, FACTORY_PASSPHRASE_PW3)
         assert v
 
     def test_signature_sigkey(self, card):

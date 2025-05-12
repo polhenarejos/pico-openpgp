@@ -28,7 +28,7 @@ import pytest
 
 class Test_Card_Keygen(object):
     def test_verify_pw3_0(self, card):
-        v = card.verify(3, PW3_TEST0)
+        v = card.verify(3, FACTORY_PASSPHRASE_PW3)
         assert v
 
     def test_keygen_1(self, card):
@@ -66,9 +66,9 @@ class Test_Card_Keygen(object):
             pytest.skip("Gnuk resets passphrase on keygen, so, change passwd")
 
     def test_verify_pw1(self, card):
-        v = card.verify(1, PW1_TEST4)
+        v = card.verify(1, FACTORY_PASSPHRASE_PW1)
         assert v
 
     def test_verify_pw1_2(self, card):
-        v = card.verify(2, PW1_TEST4)
+        v = card.verify(2, FACTORY_PASSPHRASE_PW1)
         assert v
