@@ -16,6 +16,7 @@
  */
 
 #include "openpgp.h"
+#include "otp.h"
 
 int cmd_reset_retry() {
     if (P2(apdu) != 0x81) {
@@ -44,6 +45,8 @@ int cmd_reset_retry() {
             newpin_len = apdu.nc - pin_len;
             has_rc = true;
             hash_multi(apdu.data, pin_len, session_rc);
+            has_pw1 = has_pw3 = false;
+            isUserAuthenticated = false;
         }
         else if (P1(apdu) == 0x2) {
             if (!has_pw3) {
@@ -58,6 +61,11 @@ int cmd_reset_retry() {
         file_t *tf = search_by_fid(EF_DEK, NULL, SPECIFY_EF);
         if (!tf) {
             return SW_REFERENCE_NOT_FOUND();
+        }
+        if (otp_key_1) {
+            for (int i = 0; i < 32; i++) {
+                dek[IV_SIZE + i] ^= otp_key_1[i];
+            }
         }
         uint8_t def[IV_SIZE + 32 + 32 + 32 + 32];
         memcpy(def, file_get_data(tf), file_get_size(tf));
@@ -74,6 +82,9 @@ int cmd_reset_retry() {
             return SW_MEMORY_FAILURE();
         }
         low_flash_available();
+        if ((r = load_dek()) != PICOKEY_OK) {
+            return SW_EXEC_ERROR();
+        }
         return SW_OK();
     }
     return SW_INCORRECT_P1P2();
