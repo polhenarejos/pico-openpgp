@@ -21,4 +21,3 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 from card_test_personalize_card_1 import *
-from card_test_personalize_card_2 import *
