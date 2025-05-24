@@ -67,6 +67,7 @@ set(SOURCES ${SOURCES}
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_keypair_gen.c
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_reset_retry.c
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/do.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/defs.c
 )
 
 set(USB_ITF_CCID 1)
