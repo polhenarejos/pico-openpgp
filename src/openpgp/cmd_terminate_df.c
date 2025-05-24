@@ -32,6 +32,6 @@ int cmd_terminate_df() {
         return SW_WRONG_LENGTH();
     }
     initialize_flash(true);
-    scan_files();
+    scan_files_openpgp();
     return SW_OK();
 }

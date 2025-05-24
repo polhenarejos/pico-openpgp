@@ -99,7 +99,7 @@ void select_file(file_t *pe) {
     }
 }
 
-void scan_files() {
+void scan_files_openpgp() {
     scan_flash();
     file_t *ef;
     if ((ef = search_by_fid(EF_FULL_AID, NULL, SPECIFY_ANY))) {
@@ -288,7 +288,7 @@ void init_openpgp() {
     algo_aut = EF_ALGO_PRIV3;
     pk_dec = EF_PK_DEC;
     pk_aut = EF_PK_AUT;
-    scan_files();
+    scan_files_openpgp();
     //cmd_select();
 }
 
