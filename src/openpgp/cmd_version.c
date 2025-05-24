@@ -18,7 +18,7 @@
 #include "openpgp.h"
 #include "version.h"
 
-int cmd_version() {
+int cmd_version_openpgp() {
     res_APDU[res_APDU_size++] = PIPGP_VERSION_MAJOR;
     res_APDU[res_APDU_size++] = PIPGP_VERSION_MINOR;
     res_APDU[res_APDU_size++] = 0x0;

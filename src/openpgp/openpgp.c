@@ -778,7 +778,7 @@ extern int cmd_get_next_data();
 extern int cmd_put_data();
 extern int cmd_verify();
 extern int cmd_select_data();
-extern int cmd_version();
+extern int cmd_version_openpgp();
 extern int cmd_import_data();
 extern int cmd_change_pin();
 extern int cmd_mse();
@@ -823,7 +823,7 @@ static const cmd_t cmds[] = {
     { INS_INTERNAL_AUT, cmd_internal_aut },
     { INS_MSE, cmd_mse },
     { INS_IMPORT_DATA, cmd_import_data },
-    { INS_VERSION, cmd_version },
+    { INS_VERSION, cmd_version_openpgp },
     { INS_SELECT_DATA, cmd_select_data },
     { INS_GET_NEXT_DATA, cmd_get_next_data },
     { 0x00, 0x0 }
