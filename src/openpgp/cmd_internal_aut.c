@@ -37,7 +37,7 @@ int cmd_internal_aut() {
     if (!ef) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    if (wait_button_pressed(EF_UIF_AUT) == true) {
+    if (wait_button_pressed_fid(EF_UIF_AUT) == true) {
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     }
     int r = PICOKEY_OK;

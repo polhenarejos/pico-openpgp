@@ -66,7 +66,7 @@ int cmd_pso() {
     if (!ef) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    if (wait_button_pressed(pk_fid == EF_PK_SIG ? EF_UIF_SIG : EF_UIF_DEC) == true) {
+    if (wait_button_pressed_fid(pk_fid == EF_PK_SIG ? EF_UIF_SIG : EF_UIF_DEC) == true) {
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     }
     int r = PICOKEY_OK;

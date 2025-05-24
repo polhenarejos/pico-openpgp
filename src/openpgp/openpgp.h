@@ -72,7 +72,7 @@ extern int check_pin(const file_t *pin, const uint8_t *data, size_t len);
 extern mbedtls_ecp_group_id get_ec_group_id_from_attr(const uint8_t *algo, size_t algo_len);
 extern int reset_sig_count();
 extern uint16_t algo_dec, algo_aut, pk_dec, pk_aut;
-extern bool wait_button_pressed(uint16_t fid);
+extern bool wait_button_pressed_fid(uint16_t fid);
 extern void scan_files();
 extern int load_aes_key(uint8_t *aes_key, file_t *fkey);
 extern int inc_sig_count();

@@ -67,7 +67,7 @@ int openpgp_process_apdu();
 
 extern uint32_t board_button_read(void);
 
-bool wait_button_pressed(uint16_t fid) {
+bool wait_button_pressed_fid(uint16_t fid) {
     uint32_t val = EV_PRESS_BUTTON;
 #ifndef ENABLE_EMULATION
     file_t *ef = search_by_fid(fid, NULL, SPECIFY_ANY);
