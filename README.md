@@ -3,6 +3,8 @@ This project aims at transforming your Raspberry Pico or ESP32 microcontroller i
 
 OpenPGP cards are used to manage PGP keys and do cryptographic operations, such as keypair generation, signing and asymmetric deciphering. Pico OpenPGP follows the [**OpenPGP 3.4.1** specifications](https://gnupg.org/ftp/specs/OpenPGP-smart-card-application-3.4.pdf "**OpenPGP 3.4.1** specifications"), available at [GnuPG](http://gnupg.org "GnuPG").
 
+If you are looking for a OpenPGP + Fido, see: https://github.com/polhenarejos/pico-fido2
+
 ## Features
 Pico OpenPGP has implemented the following features:
 
