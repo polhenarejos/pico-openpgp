@@ -218,7 +218,7 @@ static void scan_files_piv() {
             uint8_t *key = (uint8_t *)"\x01\x02\x03\x04\x05\x06\x07\x08\x01\x02\x03\x04\x05\x06\x07\x08\x01\x02\x03\x04\x05\x06\x07\x08";
             file_t *ef = search_by_fid(EF_PIV_KEY_CARDMGM, NULL, SPECIFY_ANY);
             file_put_data(ef, key, 24);
-            uint8_t meta[] = { PIV_ALGO_AES192, PINPOLICY_ALWAYS, TOUCHPOLICY_ALWAYS, ORIGIN_GENERATED };
+            uint8_t meta[] = { PIV_ALGO_AES192, PINPOLICY_ALWAYS, TOUCHPOLICY_ALWAYS };
             meta_add(EF_PIV_KEY_CARDMGM, meta, sizeof(meta));
             has_pwpiv = false;
             memset(session_pwpiv, 0, sizeof(session_pwpiv));
@@ -458,74 +458,76 @@ static int cmd_get_metadata() {
         res_APDU[res_APDU_size++] = 2;
         res_APDU[res_APDU_size++] = meta[1];
         res_APDU[res_APDU_size++] = meta[2];
-        res_APDU[res_APDU_size++] = 0x3;
-        res_APDU[res_APDU_size++] = 1;
-        res_APDU[res_APDU_size++] = meta[3];
-        if (meta[0] == PIV_ALGO_RSA1024 || meta[0] == PIV_ALGO_RSA2048 || meta[0] == PIV_ALGO_RSA3072 || meta[0] == PIV_ALGO_RSA4096 || meta[0] == PIV_ALGO_ECCP256 || meta[0] == PIV_ALGO_ECCP384) {
-            res_APDU[res_APDU_size++] = 0x4;
-            res_APDU[res_APDU_size++] = 0; // Filled later
-            uint8_t *pk = &res_APDU[res_APDU_size];
-            if (meta[0] == PIV_ALGO_RSA1024 || meta[0] == PIV_ALGO_RSA2048 || meta[0] == PIV_ALGO_RSA3072 || meta[0] == PIV_ALGO_RSA4096) {
-                mbedtls_rsa_context ctx;
-                mbedtls_rsa_init(&ctx);
-                int r = load_private_key_rsa(&ctx, ef_key, false);
-                if (r != PICOKEY_OK) {
-                    mbedtls_rsa_free(&ctx);
-                    return SW_EXEC_ERROR();
-                }
-                res_APDU[res_APDU_size++] = 0x81;
-                res_APDU[res_APDU_size++] = 0x82;
-                put_uint16_t_be(mbedtls_mpi_size(&ctx.N), res_APDU + res_APDU_size); res_APDU_size += 2;
-                mbedtls_mpi_write_binary(&ctx.N, res_APDU + res_APDU_size, mbedtls_mpi_size(&ctx.N));
-                res_APDU_size += mbedtls_mpi_size(&ctx.N);
-                res_APDU[res_APDU_size++] = 0x82;
-                res_APDU[res_APDU_size++] = mbedtls_mpi_size(&ctx.E) & 0xff;
-                mbedtls_mpi_write_binary(&ctx.E, res_APDU + res_APDU_size, mbedtls_mpi_size(&ctx.E));
-                res_APDU_size += mbedtls_mpi_size(&ctx.E);
-                mbedtls_rsa_free(&ctx);
-            }
-            else {
-                mbedtls_ecdsa_context ctx;
-                mbedtls_ecdsa_init(&ctx);
-                int r = load_private_key_ecdsa(&ctx, ef_key, false);
-                if (r != PICOKEY_OK) {
-                    mbedtls_ecdsa_free(&ctx);
-                    return SW_EXEC_ERROR();
-                }
-                uint8_t pt[MBEDTLS_ECP_MAX_PT_LEN];
-                size_t plen = 0;
-                mbedtls_ecp_point_write_binary(&ctx.grp, &ctx.Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &plen, pt, sizeof(pt));
-                mbedtls_ecdsa_free(&ctx);
-                res_APDU[res_APDU_size++] = 0x86;
-                if (plen >= 128) {
+        if (key_ref != EF_PIV_KEY_CARDMGM) {
+            res_APDU[res_APDU_size++] = 0x3;
+            res_APDU[res_APDU_size++] = 1;
+            res_APDU[res_APDU_size++] = meta[3];
+            if (meta[0] == PIV_ALGO_RSA1024 || meta[0] == PIV_ALGO_RSA2048 || meta[0] == PIV_ALGO_RSA3072 || meta[0] == PIV_ALGO_RSA4096 || meta[0] == PIV_ALGO_ECCP256 || meta[0] == PIV_ALGO_ECCP384) {
+                res_APDU[res_APDU_size++] = 0x4;
+                res_APDU[res_APDU_size++] = 0; // Filled later
+                uint8_t *pk = &res_APDU[res_APDU_size];
+                if (meta[0] == PIV_ALGO_RSA1024 || meta[0] == PIV_ALGO_RSA2048 || meta[0] == PIV_ALGO_RSA3072 || meta[0] == PIV_ALGO_RSA4096) {
+                    mbedtls_rsa_context ctx;
+                    mbedtls_rsa_init(&ctx);
+                    int r = load_private_key_rsa(&ctx, ef_key, false);
+                    if (r != PICOKEY_OK) {
+                        mbedtls_rsa_free(&ctx);
+                        return SW_EXEC_ERROR();
+                    }
                     res_APDU[res_APDU_size++] = 0x81;
+                    res_APDU[res_APDU_size++] = 0x82;
+                    put_uint16_t_be(mbedtls_mpi_size(&ctx.N), res_APDU + res_APDU_size); res_APDU_size += 2;
+                    mbedtls_mpi_write_binary(&ctx.N, res_APDU + res_APDU_size, mbedtls_mpi_size(&ctx.N));
+                    res_APDU_size += mbedtls_mpi_size(&ctx.N);
+                    res_APDU[res_APDU_size++] = 0x82;
+                    res_APDU[res_APDU_size++] = mbedtls_mpi_size(&ctx.E) & 0xff;
+                    mbedtls_mpi_write_binary(&ctx.E, res_APDU + res_APDU_size, mbedtls_mpi_size(&ctx.E));
+                    res_APDU_size += mbedtls_mpi_size(&ctx.E);
+                    mbedtls_rsa_free(&ctx);
                 }
-                res_APDU[res_APDU_size++] = plen;
-                memcpy(res_APDU + res_APDU_size, pt, plen);
-                res_APDU_size += plen;
-            }
-            uint16_t pk_len = res_APDU_size - (pk - res_APDU);
-            if (pk_len > 255) {
-                memmove(pk + 2, pk, pk_len);
-                pk[-1] = 0x82;
-                pk[0] = pk_len >> 8;
-                pk[1] = pk_len & 0xff;
-                res_APDU_size += 2;
-            }
-            else if (pk_len > 127) {
-                memmove(pk + 1, pk, pk_len);
-                pk[-1] = 0x81;
-                pk[0] = pk_len;
-                res_APDU_size += 1;
-            }
-            else {
-                pk[-1] = pk_len;
+                else {
+                    mbedtls_ecdsa_context ctx;
+                    mbedtls_ecdsa_init(&ctx);
+                    int r = load_private_key_ecdsa(&ctx, ef_key, false);
+                    if (r != PICOKEY_OK) {
+                        mbedtls_ecdsa_free(&ctx);
+                        return SW_EXEC_ERROR();
+                    }
+                    uint8_t pt[MBEDTLS_ECP_MAX_PT_LEN];
+                    size_t plen = 0;
+                    mbedtls_ecp_point_write_binary(&ctx.grp, &ctx.Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &plen, pt, sizeof(pt));
+                    mbedtls_ecdsa_free(&ctx);
+                    res_APDU[res_APDU_size++] = 0x86;
+                    if (plen >= 128) {
+                        res_APDU[res_APDU_size++] = 0x81;
+                    }
+                    res_APDU[res_APDU_size++] = plen;
+                    memcpy(res_APDU + res_APDU_size, pt, plen);
+                    res_APDU_size += plen;
+                }
+                uint16_t pk_len = res_APDU_size - (pk - res_APDU);
+                if (pk_len > 255) {
+                    memmove(pk + 2, pk, pk_len);
+                    pk[-1] = 0x82;
+                    pk[0] = pk_len >> 8;
+                    pk[1] = pk_len & 0xff;
+                    res_APDU_size += 2;
+                }
+                else if (pk_len > 127) {
+                    memmove(pk + 1, pk, pk_len);
+                    pk[-1] = 0x81;
+                    pk[0] = pk_len;
+                    res_APDU_size += 1;
+                }
+                else {
+                    pk[-1] = pk_len;
+                }
             }
         }
     }
     if (key_ref == EF_PIV_PIN || key_ref == EF_PIV_PUK || key_ref == EF_PIV_KEY_CARDMGM) {
         uint8_t dhash[32];
-        int32_t eq = false;
+        int32_t eq = 0;
         if (key_ref == EF_PIV_PIN) {
             double_hash_pin((const uint8_t *)"\x31\x32\x33\x34\x35\x36\xFF\xFF", 8, dhash);
             eq = memcmp(dhash, file_get_data(ef_key) + 1, file_get_size(ef_key) - 1);
@@ -539,7 +541,7 @@ static int cmd_get_metadata() {
         }
         res_APDU[res_APDU_size++] = 0x5;
         res_APDU[res_APDU_size++] = 1;
-        res_APDU[res_APDU_size++] = eq;
+        res_APDU[res_APDU_size++] = eq == 0;
         if (key_ref == EF_PIV_PIN || key_ref == EF_PIV_PUK) {
             file_t *pw_status;
             if (!(pw_status = search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF))) {
