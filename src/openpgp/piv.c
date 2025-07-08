@@ -983,12 +983,13 @@ static int cmd_set_mgmkey() {
     }
     uint8_t touch = P2(apdu);
     if (touch != 0xFF && touch != 0xFE) {
-        if (touch == 0xFF) {
-            touch = TOUCHPOLICY_NEVER;
-        }
-        else if (touch == 0xFE) {
-            touch = TOUCHPOLICY_ALWAYS;
-        }
+        return SW_INCORRECT_P1P2();
+    }
+    if (touch == 0xFF) {
+        touch = TOUCHPOLICY_NEVER;
+    }
+    else if (touch == 0xFE) {
+        touch = TOUCHPOLICY_ALWAYS;
     }
     uint8_t algo = apdu.data[0], key_ref = apdu.data[1], pinlen = apdu.data[2];
     if ((key_ref != EF_PIV_KEY_CARDMGM) || (!(algo == PIV_ALGO_AES128 && pinlen == 16) && !(algo == PIV_ALGO_AES192 && pinlen == 24) && !(algo == PIV_ALGO_AES256 && pinlen == 32) && !(algo == PIV_ALGO_3DES && pinlen == 24))) {
