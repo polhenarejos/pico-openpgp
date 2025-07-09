@@ -45,6 +45,13 @@ else()
     add_executable(pico_openpgp)
 endif()
 
+set(USB_ITF_CCID 1)
+set(USB_ITF_WCID 1)
+include(pico-keys-sdk/pico_keys_sdk_import.cmake)
+
+if(NOT ESP_PLATFORM)
+    set(SOURCES ${PICO_KEYS_SOURCES})
+endif()
 set(SOURCES ${SOURCES}
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/openpgp.c
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/files.c
@@ -69,10 +76,6 @@ set(SOURCES ${SOURCES}
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/do.c
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/defs.c
 )
-
-set(USB_ITF_CCID 1)
-set(USB_ITF_WCID 1)
-include(pico-keys-sdk/pico_keys_sdk_import.cmake)
 
 SET_VERSION(ver_major ver_minor "${CMAKE_CURRENT_LIST_DIR}/src/openpgp/version.h" 1)
 
