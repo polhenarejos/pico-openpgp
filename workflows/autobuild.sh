@@ -38,6 +38,7 @@ cd build
 esptool.py --chip ESP32-S3 merge_bin -o ../release/pico_openpgp_esp32-s3.bin @flash_args
 cd ..
 cd esp-idf
+git checkout tags/v5.5
 ./install.sh esp32s2
 . ./export.sh
 cd ..
