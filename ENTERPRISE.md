@@ -90,7 +90,7 @@ Pricing depends on scope, fleet size, number of users/tenants, regulatory requir
 
 ### Request a quote
 
-Email: <your email>
+Email: pol@henarejos.me
 Subject: `ENTERPRISE LICENSE <your company name>`
 
 Please include:
