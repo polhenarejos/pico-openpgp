@@ -16,5 +16,8 @@
  */
 
 #include "openpgp.h"
+#include "version.h"
 
 uint8_t PICO_PRODUCT = 3;
+uint8_t PICO_VERSION_MAJOR = PIPGP_VERSION_MAJOR;
+uint8_t PICO_VERSION_MINOR = PIPGP_VERSION_MINOR;
