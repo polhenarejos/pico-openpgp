@@ -37,6 +37,9 @@ int cmd_get_data() {
         select_file(ef);
     }
     if (ef->data) {
+        if (fid == EF_PW_STATUS || fid == EF_HIST_BYTES || fid == EF_FULL_AID || fid == EF_SEC_TPL) {
+            is_gpg = true;
+        }
         uint16_t fids[] = { 1, fid };
         uint16_t data_len = parse_do(fids, 1);
         uint8_t *p = NULL;
@@ -58,8 +61,42 @@ int cmd_get_data() {
                 res_APDU_size -= dec;
             }
         }
-        //if (apdu.ne > data_len)
-        //    apdu.ne = data_len;
+        if (is_gpg == false) {
+            uint8_t off = 2;
+            if (P1(apdu) > 0x0) {
+                off++;
+            }
+            if (data_len >= 128) {
+                off++;
+            }
+            if (data_len >= 256) {
+                off++;
+            }
+            memmove(res_APDU + off, res_APDU, data_len);
+            off = 0;
+            if (P1(apdu) > 0x0) {
+                res_APDU[off++] = P1(apdu);
+                res_APDU[off++] = P2(apdu);
+            }
+            else {
+                res_APDU[off++] = P2(apdu);
+            }
+            if (data_len >= 256) {
+                res_APDU[off++] = 0x82;
+                res_APDU[off++] = (data_len >> 8) & 0xff;
+                res_APDU[off++] = data_len & 0xff;
+            }
+            else if (data_len >= 128) {
+                res_APDU[off++] = 0x81;
+                res_APDU[off++] = data_len;
+            }
+            else {
+                res_APDU[off++] = data_len;
+            }
+            res_APDU_size += off;
+        }
+        // if (apdu.ne > data_len)
+        //     apdu.ne = data_len;
     }
     return SW_OK();
 }

@@ -145,6 +145,7 @@ int man_process_apdu() {
     }
     for (const cmd_t *cmd = cmds; cmd->ins != 0x00; cmd++) {
         if (cmd->ins == INS(apdu)) {
+            is_gpg = false;
             int r = cmd->cmd_handler();
             return r;
         }
