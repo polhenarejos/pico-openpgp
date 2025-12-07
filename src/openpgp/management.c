@@ -22,6 +22,8 @@
 #include "asn1.h"
 #include "management.h"
 
+bool is_gpg = true;
+
 int man_process_apdu();
 int man_unload();
 
@@ -39,6 +41,7 @@ int man_select(app_t *a, uint8_t force) {
     res_APDU_size = strlen((char *) res_APDU);
     apdu.ne = res_APDU_size;
     init_piv();
+    is_gpg = false;
     return PICOKEY_OK;
 }
 
@@ -145,7 +148,6 @@ int man_process_apdu() {
     }
     for (const cmd_t *cmd = cmds; cmd->ins != 0x00; cmd++) {
         if (cmd->ins == INS(apdu)) {
-            is_gpg = false;
             int r = cmd->cmd_handler();
             return r;
         }

@@ -17,8 +17,6 @@
 
 #include "files.h"
 
-bool is_gpg = true;
-
 extern const uint8_t openpgp_aid[];
 extern const uint8_t openpgp_aid_full[];
 

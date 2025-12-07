@@ -18,6 +18,8 @@
 #include "openpgp.h"
 #include "asn1.h"
 
+extern bool is_gpg;
+
 int cmd_get_data() {
     if (apdu.nc > 0) {
         return SW_WRONG_LENGTH();

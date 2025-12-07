@@ -163,6 +163,4 @@
 
 #define EF_DEV_CONF     0x1122
 
-extern bool is_gpg;
-
 #endif
