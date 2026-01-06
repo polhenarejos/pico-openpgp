@@ -3,7 +3,7 @@ This project aims at transforming your Raspberry Pico or ESP32 microcontroller i
 
 OpenPGP cards are used to manage PGP keys and do cryptographic operations, such as keypair generation, signing and asymmetric deciphering. Pico OpenPGP follows the [**OpenPGP 3.4.1** specifications](https://gnupg.org/ftp/specs/OpenPGP-smart-card-application-3.4.pdf "**OpenPGP 3.4.1** specifications"), available at [GnuPG](http://gnupg.org "GnuPG").
 
-If you are looking for a OpenPGP + Fido, see: https://github.com/polhenarejos/pico-fido2
+If you are looking for a OpenPGP + Fido, see: https://github.com/polhenarejos/pico-fido2. Available through [PicoKey App](https://www.picokeys.com/picokeyapp/ "PicoKey App").
 
 ## Features
 Pico OpenPGP has implemented the following features:
@@ -34,7 +34,7 @@ Pico OpenPGP has implemented the following features:
 - Secure Boot and Secure Lock in RP2350 and ESP32-S3 MCUs.
 - One Time Programming to store the master key that encrypts all resident keys and seeds.
 - Rescue interface to allow recovery of the device if it becomes unresponsive or undetectable.
-- LED customization with Pico Commissioner.
+- LED customization with PicoKey App.
 
 All these features are compliant with the specification. Therefore, if you detect some behaviour that is not expected or it does not follow the rules of specs, please open an issue.
 
@@ -62,26 +62,16 @@ If the Pico is stolen the contents of private and secret keys cannot be read wit
 ### RP2350 and ESP32-S3
 RP2350 and ESP32-S3 microcontrollers are equipped with advanced security features, including Secure Boot and Secure Lock, ensuring that firmware integrity and authenticity are tightly controlled. Both devices support the storage of the Device Encryption Key (DEK) in an OTP (One-Time Programmable) memory region, making it permanently inaccessible for external access or tampering. This secure, non-volatile region guarantees that critical security keys are embedded into the hardware, preventing unauthorized access and supporting robust defenses against code injection or firmware modification. Together, Secure Boot and Secure Lock enforce firmware authentication, while the DEK in OTP memory solidifies the foundation for secure operations.
 
-### Secure Boot
-Secure Boot is a security feature that ensures that only trusted firmware, verified through digital signatures, can be loaded onto the device during the boot process. Once enabled, Secure Boot checks every piece of firmware against a cryptographic signature before execution, rejecting any unauthorized or modified code. This prevents malicious firmware from compromising the device’s operation and integrity. With Secure Boot activated, only firmware versions signed by a trusted authority, such as the device manufacturer, will be accepted, ensuring the device remains protected from unauthorized software modifications. **This is irreversible. Once enabled, it CANNOT be disabled.**
-
-**IMPORTANT:** For users wishing to develop and compile custom firmware, a private-public key pair is essential. Activating Secure Boot requires users to generate and manage their own unique private-public key pair. The public key from this pair must be embedded into the device to validate all firmware. Firmware will not boot without a proper digital signature from this key pair. This means that users must sign all future firmware versions with their private key and embed the public key in the device to ensure compatibility.
-
-### Secure Lock
-Secure Lock builds on Secure Boot by imposing an even stricter security model. Once activated, Secure Lock prevents any further installation of new boot keys, effectively locking the device to only run firmware that is authorized by the device's primary vendor—in this case, Pico Keys. In addition to preventing additional keys, Secure Lock disables debugging interfaces and puts additional safeguards in place to resist tampering and intrusion attempts. This ensures that the device operates exclusively with the original vendor’s firmware and resists unauthorized access, making it highly secure against external threats. **This is irreversible. Once enabled, it CANNOT be disabled.**
-
-**IMPORTANT:** Activating Secure Lock not only enables Secure Boot but also invalidates all keys except the official Pico Key. This means that only firmware signed by Pico Key will be recognized, and custom code will no longer be allowed. Once enabled, the Pico Key device will run solely on the official firmware available on the website, with no option for generating or compiling new code for the device.
-
 ## Download
 **If you own an ESP32-S3 board, go to [ESP32 Flasher](https://www.picokeys.com/esp32-flasher/) for flashing your Pico OpenPGP.**
 
 If you own a Raspberry Pico (RP2040 or RP2350), go to [Download page](https://www.picokeys.com/getting-started/), select your vendor and model and download the proper firmware; or go to [Release page](https://www.github.com/polhenarejos/pico-openpgp/releases/) and download the UF2 file for your board.
 
-Note that UF2 files are shiped with a dummy VID/PID to avoid license issues (FEFF:FCFD). If you plan to use it with OpenSC or similar tools, you should modify Info.plist of CCID driver to add these VID/PID or use the [Pico Commissioner](https://www.picokeys.com/pico-commissioner/ "Pico Commissioner").
+Note that UF2 files are shiped with a dummy VID/PID to avoid license issues (FEFF:FCFD). If you plan to use it with OpenSC or similar tools, you should modify Info.plist of CCID driver to add these VID/PID or use the [PicoKey App](https://www.picokeys.com/picokeyapp/ "PicoKey App").
 
 You can use whatever VID/PID (i.e., 234b:0000 from FISJ), but remember that you are not authorized to distribute the binary with a VID/PID that you do not own.
 
-Note that the pure-browser option [Pico Commissioner](https://www.picokeys.com/pico-commissioner/ "Pico Commissioner") is the most recommended.
+Note that the [PicoKey App](https://www.picokeys.com/picokeyapp/ "PicoKey App") is the most recommended.
 
 ## Build for Raspberry Pico
 Before building, ensure you have installed the toolchain for the Pico and the Pico SDK is properly located in your drive.
@@ -169,7 +159,7 @@ The way to communicate is exactly the same as with other cards, such as OpenPGP 
 
 ### Important
 OpenSC relies on PCSC driver, which reads a list (`Info.plist`) that contains a pair of VID/PID of supported readers. In order to be detectable, you have several options:
-- Use the pure-browser online [Pico Commissioner](https://www.picokeys.com/pico-commissioner/ "Pico Commissioner") that commissions the Pico Key on-the-fly without external tools.
+- Use the [PicoKey App](https://www.picokeys.com/picokeyapp/ "PicoKey App") that commissions the PicoKey on-the-fly without external tools.
 - Build and configure the project with the proper VID/PID with `USB_VID` and `USB_PID` parameters in `CMake` (see [Build section](#build "Build section")). Note that you cannot distribute the patched/compiled binary if you do not own the VID/PID or have an explicit authorization.
 
 ## License and Commercial Use
