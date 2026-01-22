@@ -219,6 +219,10 @@ void scan_files_openpgp() {
     low_flash_available();
 }
 
+void release_dek() {
+    memset(dek, 0, sizeof(dek));
+}
+
 extern bool has_pwpiv;
 extern uint8_t session_pwpiv[32];
 int load_dek() {
@@ -245,6 +249,7 @@ int load_dek() {
         r = aes_decrypt_cfb_256(session_pwpiv, dek, dek + IV_SIZE, 32);
     }
     if (r != 0) {
+        release_dek();
         return PICOKEY_EXEC_ERROR;
     }
     if (otp_key_1) {
@@ -253,10 +258,6 @@ int load_dek() {
         }
     }
     return PICOKEY_OK;
-}
-
-void release_dek() {
-    memset(dek, 0, sizeof(dek));
 }
 
 int dek_encrypt(uint8_t *data, size_t len) {
