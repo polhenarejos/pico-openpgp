@@ -153,9 +153,7 @@ static int x509_create_cert(void *pk_ctx, uint8_t algo, uint8_t slot, bool attes
     }
     mbedtls_x509write_crt_set_subject_key_identifier(&ctx);
     mbedtls_x509write_crt_set_authority_key_identifier(&ctx);
-    mbedtls_x509write_crt_set_key_usage(&ctx,
-                                        MBEDTLS_X509_KU_DIGITAL_SIGNATURE |
-                                        MBEDTLS_X509_KU_KEY_CERT_SIGN);
+    mbedtls_x509write_crt_set_key_usage(&ctx, MBEDTLS_X509_KU_DIGITAL_SIGNATURE | MBEDTLS_X509_KU_KEY_CERT_SIGN);
     int ret = mbedtls_x509write_crt_der(&ctx, buffer, buffer_size, random_gen, NULL);
     /* skey cannot be freed, as it is freed later */
     if (attestation) {
@@ -1154,6 +1152,7 @@ static int cmd_attestation() {
         return SW_INCORRECT_PARAMS();
     }
     int r = 0;
+    uint8_t abuf[2048];
     if (meta[0] == PIV_ALGO_RSA1024 || meta[0] == PIV_ALGO_RSA2048) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
@@ -1162,7 +1161,7 @@ static int cmd_attestation() {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        r = x509_create_cert(&ctx, meta[0], key_ref, true, res_APDU, 2048);
+        r = x509_create_cert(&ctx, meta[0], key_ref, true, abuf, sizeof(abuf));
         mbedtls_rsa_free(&ctx);
     }
     else if (meta[0] == PIV_ALGO_ECCP256 || meta[0] == PIV_ALGO_ECCP384) {
@@ -1173,7 +1172,7 @@ static int cmd_attestation() {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        r = x509_create_cert(&ctx, meta[0], key_ref, true, res_APDU, 2048);
+        r = x509_create_cert(&ctx, meta[0], key_ref, true, abuf, sizeof(abuf));
         mbedtls_ecdsa_free(&ctx);
     }
     else {
@@ -1182,8 +1181,7 @@ static int cmd_attestation() {
     if (r <= 0) {
         return SW_EXEC_ERROR();
     }
-    printf("r = %d\r\n", r);
-    memmove(res_APDU, res_APDU + 2048 - r, r);
+    memcpy(res_APDU, abuf + sizeof(abuf) - r, r);
     res_APDU_size = r;
     return SW_OK();
 }
