@@ -1018,6 +1018,9 @@ static int cmd_move_key() {
     if ((!IS_KEY(to) && to != 0xFF) || !IS_KEY(from)) {
         return SW_INCORRECT_P1P2();
     }
+    if (IS_RETIRED(from) && IS_ACTIVE(to)) {
+        return SW_INCORRECT_P1P2();
+    }
     if (from == 0x93) {
         from = EF_PIV_KEY_RETIRED18;
     }
