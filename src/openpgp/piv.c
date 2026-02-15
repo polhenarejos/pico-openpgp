@@ -124,7 +124,7 @@ static int x509_create_cert(void *pk_ctx, uint8_t algo, uint8_t slot, bool attes
             mbedtls_x509write_crt_set_extension(&ctx, "\x2B\x06\x01\x04\x01\x82\xC4\x0A\x03\x08", 10, 0, &meta[1], 2);
         }
         uint8_t v = 1;
-        mbedtls_x509write_crt_set_extension(&ctx, "\x2B\x06\x01\x04\x01\x82\xC4\x0A\x03\x09", 10, 0, &v, sizeof(serial));
+        mbedtls_x509write_crt_set_extension(&ctx, "\x2B\x06\x01\x04\x01\x82\xC4\x0A\x03\x09", 10, 0, &v, sizeof(v));
     }
     else {
         uint8_t wslot = slot;
@@ -1182,6 +1182,7 @@ static int cmd_attestation() {
     if (r <= 0) {
         return SW_EXEC_ERROR();
     }
+    printf("r = %d\r\n", r);
     memmove(res_APDU, res_APDU + 2048 - r, r);
     res_APDU_size = r;
     return SW_OK();
