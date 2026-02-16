@@ -1031,9 +1031,85 @@ static int cmd_move_key() {
     if (!(efs = search_by_fid(from, NULL, SPECIFY_EF)) || (!(efd = search_by_fid(to, NULL, SPECIFY_EF)) && to != 0xFF)) {
         return SW_FILE_NOT_FOUND();
     }
+    uint16_t cert_from_fid = 0;
+    uint16_t cert_to_fid = 0;
+    if (from == EF_PIV_KEY_AUTHENTICATION) {
+        cert_from_fid = EF_PIV_AUTHENTICATION;
+    }
+    else if (from == EF_PIV_KEY_SIGNATURE) {
+        cert_from_fid = EF_PIV_SIGNATURE;
+    }
+    else if (from == EF_PIV_KEY_KEYMGM) {
+        cert_from_fid = EF_PIV_KEY_MANAGEMENT;
+    }
+    else if (from == EF_PIV_KEY_CARDAUTH) {
+        cert_from_fid = EF_PIV_CARD_AUTH;
+    }
+    else if (from == EF_PIV_KEY_RETIRED18) {
+        cert_from_fid = EF_PIV_RETIRED18;
+    }
+    else {
+        cert_from_fid = from + 0xC08B;
+    }
+    if (to != 0xFF) {
+        if (to == EF_PIV_KEY_AUTHENTICATION) {
+            cert_to_fid = EF_PIV_AUTHENTICATION;
+        }
+        else if (to == EF_PIV_KEY_SIGNATURE) {
+            cert_to_fid = EF_PIV_SIGNATURE;
+        }
+        else if (to == EF_PIV_KEY_KEYMGM) {
+            cert_to_fid = EF_PIV_KEY_MANAGEMENT;
+        }
+        else if (to == EF_PIV_KEY_CARDAUTH) {
+            cert_to_fid = EF_PIV_CARD_AUTH;
+        }
+        else if (to == EF_PIV_KEY_RETIRED18) {
+            cert_to_fid = EF_PIV_RETIRED18;
+        }
+        else {
+            cert_to_fid = to + 0xC08B;
+        }
+    }
+
     if (to != 0xFF) {
         file_put_data(efd, file_get_data(efs), file_get_size(efs));
     }
+
+    file_t *ef_cert_from = search_by_fid(cert_from_fid, NULL, SPECIFY_EF);
+    if (to != 0xFF) {
+        file_t *ef_cert_to = search_by_fid(cert_to_fid, NULL, SPECIFY_EF);
+        if (!ef_cert_to) {
+            return SW_FILE_NOT_FOUND();
+        }
+        if (file_has_data(ef_cert_from)) {
+            file_put_data(ef_cert_to, file_get_data(ef_cert_from), file_get_size(ef_cert_from));
+        }
+        else {
+            flash_clear_file(ef_cert_to);
+        }
+    }
+    if (ef_cert_from) {
+        flash_clear_file(ef_cert_from);
+    }
+
+    uint8_t *meta_src = NULL;
+    int meta_len = meta_find(from, &meta_src);
+    if (to != 0xFF) {
+        if (meta_len > 0 && meta_src != NULL) {
+            uint8_t *meta_copy = (uint8_t *)calloc(1, (size_t)meta_len);
+            if (!meta_copy) {
+                return SW_MEMORY_FAILURE();
+            }
+            memcpy(meta_copy, meta_src, (size_t)meta_len);
+            meta_add(to, meta_copy, (uint16_t)meta_len);
+            free(meta_copy);
+        }
+        else {
+            meta_delete(to);
+        }
+    }
+    meta_delete(from);
     flash_clear_file(efs);
     low_flash_available();
     return SW_OK();
