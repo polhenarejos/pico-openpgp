@@ -282,7 +282,7 @@ int dek_decrypt(uint8_t *data, size_t len) {
 
 void init_openpgp() {
     isUserAuthenticated = false;
-    has_pw1 = has_pw3 = false;
+    has_pw1 = has_pw2 = has_pw3 = false;
     algo_dec = EF_ALGO_PRIV2;
     algo_aut = EF_ALGO_PRIV3;
     pk_dec = EF_PK_DEC;
@@ -293,7 +293,7 @@ void init_openpgp() {
 
 int openpgp_unload() {
     isUserAuthenticated = false;
-    has_pw1 = has_pw3 = false;
+    has_pw1 = has_pw2 = has_pw3 = false;
     algo_dec = EF_ALGO_PRIV2;
     algo_aut = EF_ALGO_PRIV3;
     pk_dec = EF_PK_DEC;
