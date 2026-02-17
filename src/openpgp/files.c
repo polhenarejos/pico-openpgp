@@ -114,7 +114,7 @@ file_t file_entries[] = {
                .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
     /* 10 */ { .fid = EF_CH_CERT, .parent = 0, .name = NULL,
                .type = FILE_TYPE_WORKING_EF | FILE_DATA_FUNC, .data = (uint8_t *) parse_ch_cert,
-               .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
+               .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_R_WP },
     /* 11 */ { .fid = EF_EXLEN_INFO, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF,
                .data = exlen_info, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
     /* 12 */ { .fid = EF_GFM, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF,
