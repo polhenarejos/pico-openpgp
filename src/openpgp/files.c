@@ -55,12 +55,12 @@ uint8_t historical_bytes[] = {
 
 uint8_t extended_capabilities[] = {
     10, 0,
-    0x77,           /*
+    0x7f,           /*
                      * No Secure Messaging supported
                      * GET CHALLENGE supported
                      * Key import supported
                      * PW status byte can be put
-                     * No private_use_DO
+                     * private_use_DO
                      * Algorithm attrs are changable
                      * ENC/DEC with AES
                      * KDF-DO available
@@ -68,7 +68,7 @@ uint8_t extended_capabilities[] = {
     0,        /* Secure Messaging Algorithm: N/A (TDES=0, AES=1) */
     0x00, 128,      /* Max size of GET CHALLENGE */
     0x08, 0x00,   /* max. length of cardholder certificate (2KiB) */
-    0x00, 0xff,
+    0x08, 0x00,   /* max. length of private DO (2KiB) */
     0x00, 0x1
 };
 
@@ -476,10 +476,28 @@ file_t file_entries[] = {
     /* 131 */ { .fid = EF_PW_RETRIES, .parent = 0, .name = NULL,
                .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_R_WP },
+    /* 131 */ { .fid = EF_PRIV_DO_1, .parent = 0, .name = NULL,
+               .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
+               .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_R_WP },
+    /* 132 */ { .fid = EF_PRIV_DO_2, .parent = 0, .name = NULL,
+               .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
+               .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_R_WP },
+    /* 133 */ { .fid = EF_PRIV_DO_3, .parent = 0, .name = NULL,
+               .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
+               .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_WP },
+    /* 134 */ { .fid = EF_PRIV_DO_4, .parent = 0, .name = NULL,
+               .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
+               .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_WP },
+    /* 135 */ { .fid = EF_PW_RETRIES, .parent = 0, .name = NULL,
+               .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
+               .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_R_WP },
+    /* 136 */ { .fid = EF_PW_STATUS, .parent = 0, .name = NULL,
+               .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
+               .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_R_WP },
 
-    /* 132 */ { .fid = 0x0000, .parent = 0, .name = openpgp_aid, .type = FILE_TYPE_WORKING_EF,
+    /* 137 */ { .fid = 0x0000, .parent = 0, .name = openpgp_aid, .type = FILE_TYPE_WORKING_EF,
                .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
-    /* 133 */ { .fid = 0x0000, .parent = 0xff, .name = NULL, .type = FILE_TYPE_NOT_KNOWN, .data = NULL,
+    /* 138 */ { .fid = 0x0000, .parent = 0xff, .name = NULL, .type = FILE_TYPE_NOT_KNOWN, .data = NULL,
                .ef_structure = 0, .acl = ACL_NONE }                                                                                       //end
 };
 

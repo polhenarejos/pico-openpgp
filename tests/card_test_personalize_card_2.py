@@ -28,6 +28,26 @@ from card_const import *
 from constants_for_test import *
 import pytest
 
+PRIVATE_DO_0101 = (0x01, 0x01)
+PRIVATE_DO_0102 = (0x01, 0x02)
+PRIVATE_DO_0103 = (0x01, 0x03)
+PRIVATE_DO_0104 = (0x01, 0x04)
+
+
+def _assert_sw(e, sw_list):
+    sw = e.args[0]
+    assert sw in sw_list
+
+
+def _expect_security_error(callable_):
+    try:
+        callable_()
+    except ValueError as e:
+        _assert_sw(e, ["6982", "6985"])
+        return
+    assert False
+
+
 class Test_Card_Personalize_Card_2(object):
     def test_verify_pw3_0(self, card):
         v = card.verify(3, PW3_TEST0)
@@ -202,3 +222,112 @@ class Test_Card_Personalize_Card_2(object):
     def test_verify_pw3_2(self, card):
         v = card.verify(3, PW3_TEST0)
         assert v
+
+    def test_private_do_0101_write_ok_with_pw3(self, card):
+        card.cmd_select_openpgp()
+        v = card.verify(3, PW3_TEST0)
+        assert v
+        r = card.cmd_put_data(PRIVATE_DO_0101[0], PRIVATE_DO_0101[1], b"priv0101_pw3_ok")
+        assert r
+
+    def test_private_do_0101_write_fail_with_pw1_81(self, card):
+        card.cmd_select_openpgp()
+        v = card.verify(1, PW1_TEST4)
+        assert v
+        _expect_security_error(
+            lambda: card.cmd_put_data(PRIVATE_DO_0101[0], PRIVATE_DO_0101[1], b"priv0101_pw1_81")
+        )
+
+    def test_private_do_0101_write_ok_with_pw1_82(self, card):
+        card.cmd_select_openpgp()
+        v = card.verify(2, PW1_TEST4)
+        assert v
+        r = card.cmd_put_data(PRIVATE_DO_0101[0], PRIVATE_DO_0101[1], b"priv0101_ok")
+        assert r
+
+    def test_private_do_0101_read_always(self, card):
+        card.cmd_select_openpgp()
+        data = get_data_object(card, 0x0101)
+        assert data == b"priv0101_ok" or data == b"priv0101_pw3_ok"
+
+    def test_private_do_0102_write_fail_with_pw1(self, card):
+        card.cmd_select_openpgp()
+        v = card.verify(2, PW1_TEST4)
+        assert v
+        _expect_security_error(
+            lambda: card.cmd_put_data(PRIVATE_DO_0102[0], PRIVATE_DO_0102[1], b"priv0102_pw1")
+        )
+
+    def test_private_do_0102_write_ok_with_pw3(self, card):
+        card.cmd_select_openpgp()
+        v = card.verify(3, PW3_TEST0)
+        assert v
+        r = card.cmd_put_data(PRIVATE_DO_0102[0], PRIVATE_DO_0102[1], b"priv0102_ok")
+        assert r
+
+    def test_private_do_0102_read_always(self, card):
+        card.cmd_select_openpgp()
+        data = get_data_object(card, 0x0102)
+        assert data == b"priv0102_ok"
+
+    def test_private_do_0103_read_fail_without_auth(self, card):
+        card.cmd_select_openpgp()
+        _expect_security_error(lambda: get_data_object(card, 0x0103))
+
+    def test_private_do_0103_read_fail_with_pw1_81(self, card):
+        card.cmd_select_openpgp()
+        v = card.verify(1, PW1_TEST4)
+        assert v
+        _expect_security_error(lambda: get_data_object(card, 0x0103))
+
+    def test_private_do_0103_write_ok_with_pw3(self, card):
+        card.cmd_select_openpgp()
+        v = card.verify(3, PW3_TEST0)
+        assert v
+        r = card.cmd_put_data(PRIVATE_DO_0103[0], PRIVATE_DO_0103[1], b"priv0103_pw3_ok")
+        assert r
+
+    def test_private_do_0103_read_ok_with_pw3(self, card):
+        card.cmd_select_openpgp()
+        v = card.verify(3, PW3_TEST0)
+        assert v
+        data = get_data_object(card, 0x0103)
+        assert data == b"priv0103_pw3_ok"
+
+    def test_private_do_0103_write_ok_with_pw1_82(self, card):
+        card.cmd_select_openpgp()
+        v = card.verify(2, PW1_TEST4)
+        assert v
+        r = card.cmd_put_data(PRIVATE_DO_0103[0], PRIVATE_DO_0103[1], b"priv0103_ok")
+        assert r
+
+    def test_private_do_0103_read_ok_with_pw1_82(self, card):
+        card.cmd_select_openpgp()
+        v = card.verify(2, PW1_TEST4)
+        assert v
+        data = get_data_object(card, 0x0103)
+        assert data == b"priv0103_ok"
+
+    def test_private_do_0104_read_fail_without_auth(self, card):
+        card.cmd_select_openpgp()
+        _expect_security_error(lambda: get_data_object(card, 0x0104))
+
+    def test_private_do_0104_read_fail_with_pw1(self, card):
+        card.cmd_select_openpgp()
+        v = card.verify(2, PW1_TEST4)
+        assert v
+        _expect_security_error(lambda: get_data_object(card, 0x0104))
+
+    def test_private_do_0104_write_ok_with_pw3(self, card):
+        card.cmd_select_openpgp()
+        v = card.verify(3, PW3_TEST0)
+        assert v
+        r = card.cmd_put_data(PRIVATE_DO_0104[0], PRIVATE_DO_0104[1], b"priv0104_ok")
+        assert r
+
+    def test_private_do_0104_read_ok_with_pw3(self, card):
+        card.cmd_select_openpgp()
+        v = card.verify(3, PW3_TEST0)
+        assert v
+        data = get_data_object(card, 0x0104)
+        assert data == b"priv0104_ok"

@@ -32,11 +32,17 @@ int cmd_put_data() {
     if (!authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
+    if ((fid == EF_PRIV_DO_1 || fid == EF_PRIV_DO_3) && (!has_pw2 && !has_pw3)) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
+    if ((fid == EF_PRIV_DO_2 || fid == EF_PRIV_DO_4) && !has_pw3) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
     if (fid == EF_PW_STATUS) {
         fid = EF_PW_PRIV;
         apdu.nc = 4; //we silently ommit the reset parameters
     }
-    if (currentEF && (currentEF->fid & 0x1FF0) == (fid & 0x1FF0)) { //previously selected
+    if (currentEF && currentEF->fid == fid) { // previously selected same EF
         ef = currentEF;
     }
     if (apdu.nc > 0 && (ef->type & FILE_DATA_FLASH)) {

@@ -29,10 +29,20 @@ int cmd_get_data() {
     if (!(ef = search_by_fid(fid, NULL, SPECIFY_EF))) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    if (!authenticate_action(ef, ACL_OP_READ_SEARCH)) {
+    if (fid == EF_PRIV_DO_3) {
+        if (!has_pw2 && !has_pw3) {
+            return SW_SECURITY_STATUS_NOT_SATISFIED();
+        }
+    }
+    else if (fid == EF_PRIV_DO_4) {
+        if (!has_pw3) {
+            return SW_SECURITY_STATUS_NOT_SATISFIED();
+        }
+    }
+    else if (!authenticate_action(ef, ACL_OP_READ_SEARCH)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    if (currentEF && (currentEF->fid & 0x1FF0) == (fid & 0x1FF0)) { //previously selected
+    if (currentEF && currentEF->fid == fid) { // previously selected same EF
         ef = currentEF;
     }
     else {

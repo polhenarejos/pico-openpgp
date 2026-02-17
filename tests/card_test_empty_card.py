@@ -201,7 +201,7 @@ def test_extended_capabilities(card):
         pytest.skip("Yubikey returns 6B00 when no key")
     else:
         a = get_data_object(card, 0xc0)
-        assert a == None or match(b'[\x70\x74\x75\x77]\x00\x00.[\x00\x08]\x00\x00\xff[\x00\x01][\x00\x01]', a)
+        assert a == None or match(b'[\x70\x7F\x75\x77]\x00\x00.[\x00\x08]\x00\x08\x00[\x00\x01][\x00\x01]', a)
 
 def test_key_attributes_1(card):
     if card.is_yubikey:

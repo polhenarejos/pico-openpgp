@@ -163,4 +163,9 @@
 
 #define EF_DEV_CONF     0x1122
 
+#define EF_PRIV_DO_1        0x0101
+#define EF_PRIV_DO_2        0x0102
+#define EF_PRIV_DO_3        0x0103
+#define EF_PRIV_DO_4        0x0104
+
 #endif
