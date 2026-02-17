@@ -54,23 +54,25 @@ int cmd_get_data() {
         }
         uint16_t fids[] = { 1, fid };
         uint16_t data_len = parse_do(fids, 1);
-        uint8_t *p = NULL;
-        uint16_t tg = 0;
-        uint16_t tg_len = 0;
-        asn1_ctx_t ctxi;
-        asn1_ctx_init(res_APDU, data_len, &ctxi);
-        if (walk_tlv(&ctxi, &p, &tg, &tg_len, NULL)) {
-            uint8_t dec = 2;
-            if ((tg & 0x1f) == 0x1f) {
-                dec++;
-            }
-            if ((res_APDU[dec - 1] & 0xF0) == 0x80) {
-                dec += (res_APDU[dec - 1] & 0x0F);
-            }
-            if (tg_len + dec == data_len) {
-                memmove(res_APDU, res_APDU + dec, data_len - dec);
-                data_len -= dec;
-                res_APDU_size -= dec;
+        if (!(fid >= EF_PRIV_DO_1 && fid <= EF_PRIV_DO_4)) {
+            uint8_t *p = NULL;
+            uint16_t tg = 0;
+            uint16_t tg_len = 0;
+            asn1_ctx_t ctxi;
+            asn1_ctx_init(res_APDU, data_len, &ctxi);
+            if (walk_tlv(&ctxi, &p, &tg, &tg_len, NULL)) {
+                uint8_t dec = 2;
+                if ((tg & 0x1f) == 0x1f) {
+                    dec++;
+                }
+                if ((res_APDU[dec - 1] & 0xF0) == 0x80) {
+                    dec += (res_APDU[dec - 1] & 0x0F);
+                }
+                if (tg_len + dec == data_len) {
+                    memmove(res_APDU, res_APDU + dec, data_len - dec);
+                    data_len -= dec;
+                    res_APDU_size -= dec;
+                }
             }
         }
         if (is_gpg == false) {
