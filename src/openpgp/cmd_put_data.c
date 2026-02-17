@@ -35,7 +35,7 @@ int cmd_put_data() {
     if ((fid == EF_PRIV_DO_1 || fid == EF_PRIV_DO_3) && (!has_pw2 && !has_pw3)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    if ((fid == EF_PRIV_DO_2 || fid == EF_PRIV_DO_4) && !has_pw3) {
+    if (!(fid == EF_PRIV_DO_1 || fid == EF_PRIV_DO_3) && !has_pw3) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     if (fid == EF_PW_STATUS) {
