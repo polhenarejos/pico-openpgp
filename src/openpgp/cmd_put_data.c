@@ -45,36 +45,41 @@ int cmd_put_data() {
     if (currentEF && currentEF->fid == fid) { // previously selected same EF
         ef = currentEF;
     }
-    if (apdu.nc > 0 && (ef->type & FILE_DATA_FLASH)) {
+    if (ef->type & FILE_DATA_FLASH) {
         int r = 0;
-        if (fid == EF_RC) {
-            has_rc = false;
-            if ((r = load_dek()) != PICOKEY_OK) {
-                return SW_EXEC_ERROR();
-            }
-            uint8_t dhash[33];
-            dhash[0] = apdu.nc;
-            double_hash_pin(apdu.data, apdu.nc, dhash + 1);
-            r = file_put_data(ef, dhash, sizeof(dhash));
+        if (apdu.nc > 0) {
+            if (fid == EF_RC) {
+                has_rc = false;
+                if ((r = load_dek()) != PICOKEY_OK) {
+                    return SW_EXEC_ERROR();
+                }
+                uint8_t dhash[33];
+                dhash[0] = apdu.nc;
+                double_hash_pin(apdu.data, apdu.nc, dhash + 1);
+                r = file_put_data(ef, dhash, sizeof(dhash));
 
-            file_t *tf = search_by_fid(EF_DEK, NULL, SPECIFY_EF);
-            if (!tf) {
-                return SW_REFERENCE_NOT_FOUND();
+                file_t *tf = search_by_fid(EF_DEK, NULL, SPECIFY_EF);
+                if (!tf) {
+                    return SW_REFERENCE_NOT_FOUND();
+                }
+                uint8_t def[IV_SIZE + 32 + 32 + 32 + 32];
+                memcpy(def, file_get_data(tf), file_get_size(tf));
+                hash_multi(apdu.data, apdu.nc, session_rc);
+                memcpy(def + IV_SIZE + 32, dek + IV_SIZE, 32);
+                aes_encrypt_cfb_256(session_rc, def, def + IV_SIZE + 32, 32);
+                r = file_put_data(tf, def, sizeof(def));
             }
-            uint8_t def[IV_SIZE + 32 + 32 + 32 + 32];
-            memcpy(def, file_get_data(tf), file_get_size(tf));
-            hash_multi(apdu.data, apdu.nc, session_rc);
-            memcpy(def + IV_SIZE + 32, dek + IV_SIZE, 32);
-            aes_encrypt_cfb_256(session_rc, def, def + IV_SIZE + 32, 32);
-            r = file_put_data(tf, def, sizeof(def));
+            else {
+                r = file_put_data(ef, apdu.data, apdu.nc);
+            }
+            if (r != PICOKEY_OK) {
+                return SW_MEMORY_FAILURE();
+            }
+            low_flash_available();
         }
         else {
-            r = file_put_data(ef, apdu.data, apdu.nc);
+            delete_file(ef);
         }
-        if (r != PICOKEY_OK) {
-            return SW_MEMORY_FAILURE();
-        }
-        low_flash_available();
     }
     return SW_OK();
 }
