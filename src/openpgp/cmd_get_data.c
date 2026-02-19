@@ -140,3 +140,10 @@ int cmd_get_next_data() {
     select_file(ef);
     return cmd_get_data();
 }
+
+int cmd_get_bulk_data() {
+    if (apdu.nc < 3) {
+        return SW_WRONG_LENGTH();
+    }
+    return bulk_cmd(cmd_get_data);
+}

@@ -793,6 +793,7 @@ extern int cmd_terminate_df();
 extern int cmd_pso();
 extern int cmd_keypair_gen();
 extern int cmd_reset_retry();
+extern int cmd_get_bulk_data();
 
 #define INS_VERIFY          0x20
 #define INS_MSE             0x22
@@ -807,6 +808,7 @@ extern int cmd_reset_retry();
 #define INS_SELECT_DATA     0xA5
 #define INS_GET_DATA        0xCA
 #define INS_GET_NEXT_DATA   0xCC
+#define INS_GET_BULK_DATA   0xCE
 #define INS_PUT_DATA        0xDA
 #define INS_IMPORT_DATA     0xDB
 #define INS_TERMINATE_DF    0xE6
@@ -830,7 +832,8 @@ static const cmd_t cmds[] = {
     { INS_VERSION, cmd_version_openpgp },
     { INS_SELECT_DATA, cmd_select_data },
     { INS_GET_NEXT_DATA, cmd_get_next_data },
-    { 0x00, 0x0 }
+    { INS_GET_BULK_DATA, cmd_get_bulk_data },
+    { 0x00, NULL }
 };
 
 int openpgp_process_apdu() {
