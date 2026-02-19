@@ -54,7 +54,7 @@ int cmd_get_data() {
         }
         uint16_t fids[] = { 1, fid };
         uint16_t data_len = parse_do(fids, 1);
-        if (!(fid >= EF_PRIV_DO_1 && fid <= EF_PRIV_DO_4)) {
+        if (!(ef->type & FILE_DATA_FLASH)) {
             uint8_t *p = NULL;
             uint16_t tg = 0;
             uint16_t tg_len = 0;
