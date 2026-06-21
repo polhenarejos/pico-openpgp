@@ -16,7 +16,7 @@
  */
 
 #include "openpgp.h"
-#include "asn1.h"
+#include "tlv.h"
 
 extern bool is_gpg;
 
@@ -58,9 +58,9 @@ int cmd_get_data(void) {
             uint8_t *p = NULL;
             uint16_t tg = 0;
             uint16_t tg_len = 0;
-            asn1_ctx_t ctxi;
-            asn1_ctx_init(res_APDU, data_len, &ctxi);
-            if (walk_tlv(&ctxi, &p, &tg, &tg_len, NULL)) {
+            tlv_ctx_t ctxi;
+            tlv_ctx_init(res_APDU, data_len, &ctxi);
+            if (tlv_walk(&ctxi, &p, &tg, &tg_len, NULL)) {
                 uint8_t dec = 2;
                 if ((tg & 0x1f) == 0x1f) {
                     dec++;

@@ -16,7 +16,7 @@
  */
 
 #include "openpgp.h"
-#include "asn1.h"
+#include "tlv.h"
 
 int parse_trium(uint16_t fid, uint8_t num, size_t size);
 int parse_ch_data(const file_t *f, int mode);
@@ -54,7 +54,7 @@ int parse_do(uint16_t *fids, int mode) {
                             res_APDU[res_APDU_size++] = fids[i + 1] >> 8;
                             res_APDU[res_APDU_size++] = fids[i + 1] & 0xff;
                         }
-                        res_APDU_size += format_tlv_len(data_len, res_APDU + res_APDU_size);
+                        res_APDU_size += tlv_format_len(data_len, res_APDU + res_APDU_size);
                     }
                     if (file_has_data(ef)) {
                         memcpy(res_APDU + res_APDU_size, file_get_data(ef), data_len);

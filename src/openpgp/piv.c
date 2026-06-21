@@ -28,7 +28,7 @@
 #include "eac.h"
 #include "crypto_utils.h"
 #include "version.h"
-#include "asn1.h"
+#include "tlv.h"
 #include "mbedtls/aes.h"
 #include "mbedtls/des.h"
 #include "mbedtls/x509_crt.h"
@@ -419,7 +419,7 @@ static int cmd_piv_get_data(void) {
             memmove(res_APDU + res_APDU_size + 1, res_APDU + res_APDU_size, data_len);
         }
         res_APDU[0] = 0x53;
-        res_APDU_size = 1 + format_tlv_len(data_len, res_APDU + 1) + data_len;
+        res_APDU_size = 1 + tlv_format_len(data_len, res_APDU + 1) + data_len;
     }
     else {
         return SW_FILE_NOT_FOUND();
@@ -599,15 +599,15 @@ static int cmd_authenticate(void) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     uint8_t chal_len = (algo == PIV_ALGO_3DES ? sizeof(challenge) / 2 : sizeof(challenge));
-    asn1_ctx_t ctxi, a7c = { 0 };
-    asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
-    if (!asn1_find_tag(&ctxi, 0x7C, &a7c) || asn1_len(&ctxi) == 0) {
+    tlv_ctx_t ctxi, a7c = { 0 };
+    tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+    if (!tlv_find_tag(&ctxi, 0x7C, &a7c) || tlv_len(&ctxi) == 0) {
         return SW_WRONG_DATA();
     }
-    asn1_ctx_t a80 = { 0 }, a81 = { 0 }, a82 = { 0 };
-    asn1_find_tag(&a7c, 0x80, &a80);
-    asn1_find_tag(&a7c, 0x81, &a81);
-    asn1_find_tag(&a7c, 0x82, &a82);
+    tlv_ctx_t a80 = { 0 }, a81 = { 0 }, a82 = { 0 };
+    tlv_find_tag(&a7c, 0x80, &a80);
+    tlv_find_tag(&a7c, 0x81, &a81);
+    tlv_find_tag(&a7c, 0x82, &a82);
     if (a80.data) {
         if (a80.len == 0) {
             memcpy(challenge, random_bytes_get(sizeof(challenge)), sizeof(challenge));
@@ -659,7 +659,7 @@ static int cmd_authenticate(void) {
             if (!has_challenge) {
                 return SW_INCORRECT_PARAMS();
             }
-            if (!asn1_len(&a81)) {
+            if (!tlv_len(&a81)) {
                 return SW_INCORRECT_PARAMS();
             }
             if (key_ref != EF_PIV_KEY_CARDMGM) {
@@ -671,7 +671,7 @@ static int cmd_authenticate(void) {
         }
     }
     if (a81.data) {
-        if (!a81.len) {
+        if (!tlv_len(&a81)) {
             memcpy(challenge, random_bytes_get(sizeof(challenge)), sizeof(challenge));
             res_APDU[res_APDU_size++] = 0x7C;
             res_APDU[res_APDU_size++] = chal_len + 2;
@@ -855,16 +855,16 @@ static int cmd_asym_keygen(void) {
     if (key_ref != EF_PIV_KEY_AUTHENTICATION && key_ref != EF_PIV_KEY_SIGNATURE && key_ref != EF_PIV_KEY_KEYMGM && key_ref != EF_PIV_KEY_CARDAUTH && !(key_ref >= EF_PIV_KEY_RETIRED1 && key_ref <= EF_PIV_KEY_RETIRED20)) {
         return SW_INCORRECT_P1P2();
     }
-    asn1_ctx_t ctxi, aac = {0};
-    asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
-    if (!asn1_find_tag(&ctxi, 0xAC, &aac) || asn1_len(&aac) == 0) {
+    tlv_ctx_t ctxi, aac = {0};
+    tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+    if (!tlv_find_tag(&ctxi, 0xAC, &aac) || tlv_len(&aac) == 0) {
         return SW_WRONG_DATA();
     }
-    asn1_ctx_t a80 = {0}, aaa = {0}, aab = {0};
-    asn1_find_tag(&aac, 0x80, &a80);
-    asn1_find_tag(&aac, 0xAA, &aaa);
-    asn1_find_tag(&aac, 0xAB, &aab);
-    if (asn1_len(&a80) == 0) {
+    tlv_ctx_t a80 = {0}, aaa = {0}, aab = {0};
+    tlv_find_tag(&aac, 0x80, &a80);
+    tlv_find_tag(&aac, 0xAA, &aaa);
+    tlv_find_tag(&aac, 0xAB, &aab);
+    if (tlv_len(&a80) == 0) {
         return SW_WRONG_DATA();
     }
     uint16_t key_cert = 0;
@@ -885,13 +885,13 @@ static int cmd_asym_keygen(void) {
     }
     if (a80.data[0] == PIV_ALGO_RSA1024 || a80.data[0] == PIV_ALGO_RSA2048) {
         printf("KEYPAIR RSA\r\n");
-        asn1_ctx_t a81 = {0};
-        asn1_find_tag(&aac, 0x81, &a81);
+        tlv_ctx_t a81 = {0};
+        tlv_find_tag(&aac, 0x81, &a81);
         mbedtls_rsa_context rsa;
         mbedtls_rsa_init(&rsa);
         int exponent = 65537, nlen = (a80.data[0] == PIV_ALGO_RSA1024 ? 1024 : 2048);
-        if (asn1_len(&a81)) {
-            exponent = (int)asn1_get_uint(&a81);
+        if (tlv_len(&a81)) {
+            exponent = (int)tlv_get_uint(&a81);
         }
         int r = mbedtls_rsa_gen_key(&rsa, random_fill_iterator, NULL, nlen, exponent);
         if (r != 0) {
@@ -939,7 +939,7 @@ static int cmd_asym_keygen(void) {
     if (key_ref == EF_PIV_KEY_SIGNATURE) {
         def_pinpol = PINPOLICY_ALWAYS;
     }
-    uint8_t meta[] = {a80.data[0], asn1_len(&aaa) ? aaa.data[0] : def_pinpol, asn1_len(&aab) ? aab.data[0] : TOUCHPOLICY_ALWAYS, ORIGIN_GENERATED};
+    uint8_t meta[] = {a80.data[0], tlv_len(&aaa) ? aaa.data[0] : def_pinpol, tlv_len(&aab) ? aab.data[0] : TOUCHPOLICY_ALWAYS, ORIGIN_GENERATED};
     meta_add(key_ref, meta, sizeof(meta));
     flash_commit();
     return SW_OK();
@@ -949,9 +949,9 @@ static int cmd_piv_put_data(void) {
     if (P1(apdu) != 0x3F || P2(apdu) != 0xFF) {
         return SW_INCORRECT_P1P2();
     }
-    asn1_ctx_t ctxi, a5c = {0}, a53 = {0};
-    asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
-    if (apdu.data[0] != 0x7E && apdu.data[0] != 0x7F && (!asn1_find_tag(&ctxi, 0x5C, &a5c) || !asn1_find_tag(&ctxi, 0x53, &a53))) {
+    tlv_ctx_t ctxi, a5c = {0}, a53 = {0};
+    tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+    if (apdu.data[0] != 0x7E && apdu.data[0] != 0x7F && (!tlv_find_tag(&ctxi, 0x5C, &a5c) || !tlv_find_tag(&ctxi, 0x53, &a53))) {
         return SW_WRONG_DATA();
     }
     if (a5c.data && a53.data) {
@@ -1276,15 +1276,15 @@ static int cmd_import_asym(void) {
     if (key_ref != EF_PIV_KEY_AUTHENTICATION && key_ref != EF_PIV_KEY_SIGNATURE && key_ref != EF_PIV_KEY_KEYMGM && key_ref != EF_PIV_KEY_CARDAUTH && !(key_ref >= EF_PIV_KEY_RETIRED1 && key_ref <= EF_PIV_KEY_RETIRED20)) {
         return SW_INCORRECT_P1P2();
     }
-    asn1_ctx_t ctxi, aaa = {0}, aab = {0};
-    asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
-    asn1_find_tag(&ctxi, 0xAA, &aaa);
-    asn1_find_tag(&ctxi, 0xAB, &aab);
+    tlv_ctx_t ctxi, aaa = {0}, aab = {0};
+    tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+    tlv_find_tag(&ctxi, 0xAA, &aaa);
+    tlv_find_tag(&ctxi, 0xAB, &aab);
     if (algo == PIV_ALGO_RSA1024 || algo == PIV_ALGO_RSA2048 || algo == PIV_ALGO_RSA3072 || algo == PIV_ALGO_RSA4096) {
-        asn1_ctx_t a1 = { 0 }, a2 = { 0 };
-        asn1_find_tag(&ctxi, 0x01, &a1);
-        asn1_find_tag(&ctxi, 0x02, &a2);
-        if (asn1_len(&a1) <= 0 || asn1_len(&a2) <= 0) {
+        tlv_ctx_t a1 = { 0 }, a2 = { 0 };
+        tlv_find_tag(&ctxi, 0x01, &a1);
+        tlv_find_tag(&ctxi, 0x02, &a2);
+        if (tlv_len(&a1) <= 0 || tlv_len(&a2) <= 0) {
             return SW_WRONG_DATA();
         }
         mbedtls_rsa_context rsa;
@@ -1323,9 +1323,9 @@ static int cmd_import_asym(void) {
         }
     }
     else if (algo == PIV_ALGO_ECCP256 || algo == PIV_ALGO_ECCP384) {
-        asn1_ctx_t a6 = {0};
-        asn1_find_tag(&ctxi, 0x06, &a6);
-        if (asn1_len(&a6) <= 0) {
+        tlv_ctx_t a6 = {0};
+        tlv_find_tag(&ctxi, 0x06, &a6);
+        if (tlv_len(&a6) <= 0) {
             return SW_WRONG_DATA();
         }
         mbedtls_ecp_group_id gid = algo == PIV_ALGO_ECCP256 ? MBEDTLS_ECP_DP_SECP256R1 : MBEDTLS_ECP_DP_SECP384R1;
@@ -1359,7 +1359,7 @@ static int cmd_import_asym(void) {
     if (key_ref == EF_PIV_KEY_SIGNATURE) {
         def_pinpol = PINPOLICY_ALWAYS;
     }
-    uint8_t meta[] = { algo,  asn1_len(&aaa) ? aaa.data[0] : def_pinpol, asn1_len(&aab) ? aab.data[0] : TOUCHPOLICY_ALWAYS, ORIGIN_IMPORTED };
+    uint8_t meta[] = { algo,  tlv_len(&aaa) ? aaa.data[0] : def_pinpol, tlv_len(&aab) ? aab.data[0] : TOUCHPOLICY_ALWAYS, ORIGIN_IMPORTED };
     meta_add(key_ref, meta, sizeof(meta));
     return SW_OK();
 }
