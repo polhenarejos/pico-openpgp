@@ -33,6 +33,7 @@
 #ifdef MBEDTLS_EDDSA_C
 #include "mbedtls/eddsa.h"
 #endif
+#include "mbedtls/constant_time.h"
 
 bool has_pw1 = false;
 bool has_pw2 = false;
@@ -496,7 +497,7 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     if (sizeof(dhash) != file_get_size(pin) - off) { //1 byte for pin len and 1 byte for format
         return SW_CONDITIONS_NOT_SATISFIED();
     }
-    if (memcmp(file_get_data(pin) + off, dhash, sizeof(dhash)) != 0) {
+    if (mbedtls_ct_memcmp(file_get_data(pin) + off, dhash, sizeof(dhash)) != 0) {
         int retries;
         if ((retries = pin_wrong_retry(pin)) < PICOKEYS_OK) {
             return SW_PIN_BLOCKED();

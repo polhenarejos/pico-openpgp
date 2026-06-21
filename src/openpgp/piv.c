@@ -32,6 +32,7 @@
 #include "mbedtls/aes.h"
 #include "mbedtls/des.h"
 #include "mbedtls/x509_crt.h"
+#include "mbedtls/constant_time.h"
 #include "openpgp.h"
 
 #define PIV_ALGO_3DES   0x03
@@ -526,15 +527,15 @@ static int cmd_get_metadata(void) {
         int32_t eq = 0;
         if (key_ref == EF_PIV_PIN) {
             pin_derive_verifier((const uint8_t *)"\x31\x32\x33\x34\x35\x36\xFF\xFF", 8, dhash);
-            eq = memcmp(dhash, file_get_data(ef_key) + 1, file_get_size(ef_key) - 1);
+            eq = mbedtls_ct_memcmp(dhash, file_get_data(ef_key) + 1, file_get_size(ef_key) - 1);
         }
         else if (key_ref == EF_PIV_PUK) {
             pin_derive_verifier((const uint8_t *)"\x31\x32\x33\x34\x35\x36\x37\x38", 8, dhash);
-            eq = memcmp(dhash, file_get_data(ef_key) + 1, file_get_size(ef_key) - 1);
+            eq = mbedtls_ct_memcmp(dhash, file_get_data(ef_key) + 1, file_get_size(ef_key) - 1);
         }
         else if (key_ref == EF_PIV_KEY_CARDMGM) {
             pin_derive_verifier((const uint8_t *)"\x01\x02\x03\x04\x05\x06\x07\x08\x01\x02\x03\x04\x05\x06\x07\x08\x01\x02\x03\x04\x05\x06\x07\x08", 24, dhash);
-            eq = memcmp(dhash, file_get_data(ef_key), file_get_size(ef_key));
+            eq = mbedtls_ct_memcmp(dhash, file_get_data(ef_key), file_get_size(ef_key));
         }
         res_APDU[res_APDU_size++] = 0x5;
         res_APDU[res_APDU_size++] = 1;
@@ -664,7 +665,7 @@ static int cmd_authenticate(void) {
             if (key_ref != EF_PIV_KEY_CARDMGM) {
                 return SW_INCORRECT_P1P2();
             }
-            if (memcmp(a80.data, challenge, a80.len) == 0) {
+            if (mbedtls_ct_memcmp(a80.data, challenge, a80.len) == 0) {
                 has_mgm = true;
             }
         }
@@ -826,7 +827,7 @@ static int cmd_authenticate(void) {
             if (r != 0) {
                 return SW_EXEC_ERROR();
             }
-            if (memcmp(res_APDU, challenge, chal_len) != 0) {
+            if (mbedtls_ct_memcmp(res_APDU, challenge, chal_len) != 0) {
                 return SW_DATA_INVALID();
             }
         }
