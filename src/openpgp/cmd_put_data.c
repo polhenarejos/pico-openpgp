@@ -76,7 +76,7 @@ int cmd_put_data(void) {
                     uint16_t status_len = MIN(file_get_size(ef), sizeof(pw_status));
                     memcpy(pw_status, file_get_data(ef), status_len);
                 }
-                memcpy(pw_status, apdu.data, MIN(apdu.nc, 4));
+                memcpy(pw_status, apdu.data, MIN(apdu.nc, 4u));
                 r = file_put_data(ef, pw_status, sizeof(pw_status));
             }
             else if (fid == EF_RC) {

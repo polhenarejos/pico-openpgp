@@ -1,4 +1,4 @@
-FROM debian:bullseye
+FROM debian:bookworm
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -29,8 +29,9 @@ RUN apt install -y libccid \
     gengetopt \
     libtss2-dev \
     tpm2-tools \
+    swtpm \
     && rm -rf /var/lib/apt/lists/*
-RUN pip3 install pytest pycvc cryptography pyscard
+RUN pip3 install pytest pycvc cryptography pyscard --break-system-packages
 RUN git clone https://github.com/Yubico/yubico-piv-tool
 WORKDIR /yubico-piv-tool
 RUN git checkout tags/yubico-piv-tool-2.5.1
