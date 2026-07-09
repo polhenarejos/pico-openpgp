@@ -142,8 +142,14 @@ int cmd_import_data(void) {
         algo = file_get_data(algo_ef);
         algo_len = file_get_size(algo_ef);
     }
+    if (algo_len == 0 || algo_len > OPENPGP_MAX_ALGORITHM_ATTR_SIZE) {
+        return SW_WRONG_DATA();
+    }
     int r = 0;
     if (algo[0] == ALGO_RSA) {
+        if (algo_len < 3) {
+            return SW_WRONG_DATA();
+        }
         mbedtls_rsa_context rsa;
         if (p[0] == NULL || len[0] == 0 || p[1] == NULL || len[1] == 0 || p[2] == NULL ||
             len[2] == 0) {

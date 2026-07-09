@@ -32,6 +32,32 @@ int parse_algoinfo(const file_t *f, int mode);
 int parse_app_data(const file_t *f, int mode);
 int parse_discrete_do(const file_t *f, int mode);
 
+static uint16_t response_remaining(void) {
+    return res_APDU_size < OPENPGP_MAX_RESPONSE_SIZE ?
+           OPENPGP_MAX_RESPONSE_SIZE - res_APDU_size : 0;
+}
+
+static uint8_t encoded_len_size(uint16_t len) {
+    if (len >= 256) {
+        return 3;
+    }
+    if (len >= 128) {
+        return 2;
+    }
+    return 1;
+}
+
+static uint16_t fit_tlv_value(uint16_t len, uint16_t available, uint8_t tag_size) {
+    if (available <= tag_size + 1) {
+        return 0;
+    }
+    uint16_t fitted = MIN(len, available - tag_size - 1);
+    while (fitted + tag_size + encoded_len_size(fitted) > available) {
+        fitted--;
+    }
+    return fitted;
+}
+
 int parse_do(uint16_t *fids, int mode) {
     int len = 0;
     file_t *ef;
@@ -39,14 +65,27 @@ int parse_do(uint16_t *fids, int mode) {
         if ((ef = file_search_by_fid(fids[i + 1], NULL, SPECIFY_EF))) {
             uint16_t data_len;
             if ((ef->type & FILE_DATA_FUNC) == FILE_DATA_FUNC) {
+                if (mode == 1 && response_remaining() < 16) {
+                    break;
+                }
                 int (*file_data_func)(const file_t *, int) = NULL;
                 memcpy(&file_data_func, &ef->data, sizeof(file_data_func));
+                uint16_t initial_size = res_APDU_size;
                 data_len = file_data_func(ef, mode);
+                if (mode == 1) {
+                    data_len = res_APDU_size - initial_size;
+                }
             }
             else {
                 data_len = file_get_size(ef);
                 if (mode == 1) {
                     if (fids[0] > 1 && res_APDU_size > 0) {
+                        uint8_t tag_size = fids[i + 1] < 0x0100 ? 1 : 2;
+                        uint16_t available = response_remaining();
+                        data_len = fit_tlv_value(data_len, available, tag_size);
+                        if (available < tag_size + encoded_len_size(data_len)) {
+                            break;
+                        }
                         if (fids[i + 1] < 0x0100) {
                             res_APDU[res_APDU_size++] = fids[i + 1] & 0xff;
                         }
@@ -55,6 +94,9 @@ int parse_do(uint16_t *fids, int mode) {
                             res_APDU[res_APDU_size++] = fids[i + 1] & 0xff;
                         }
                         res_APDU_size += tlv_format_len(data_len, res_APDU + res_APDU_size);
+                    }
+                    else {
+                        data_len = MIN(data_len, response_remaining());
                     }
                     if (file_has_data(ef)) {
                         memcpy(res_APDU + res_APDU_size, file_get_data(ef), data_len);
@@ -69,19 +111,24 @@ int parse_do(uint16_t *fids, int mode) {
 }
 
 int parse_trium(uint16_t fid, uint8_t num, size_t size) {
+    uint16_t initial_size = res_APDU_size;
     for (uint8_t i = 0; i < num; i++) {
+        uint16_t output_len = MIN(size, response_remaining());
+        if (output_len == 0) {
+            break;
+        }
         file_t *ef;
         if ((ef = file_search_by_fid(fid + i, NULL, SPECIFY_EF)) && ef->data) {
-            uint16_t data_len = file_get_size(ef);
+            uint16_t data_len = MIN(file_get_size(ef), output_len);
             memcpy(res_APDU + res_APDU_size, file_get_data(ef), data_len);
-            res_APDU_size += data_len;
+            memset(res_APDU + res_APDU_size + data_len, 0, output_len - data_len);
         }
         else {
-            memset(res_APDU + res_APDU_size, 0, size);
-            res_APDU_size += size;
+            memset(res_APDU + res_APDU_size, 0, output_len);
         }
+        res_APDU_size += output_len;
     }
-    return num * size;
+    return res_APDU_size - initial_size;
 }
 
 int parse_ch_data(const file_t *f, int mode) {
@@ -106,13 +153,15 @@ int parse_sec_tpl(const file_t *f, int mode) {
     (void) mode;
     res_APDU[res_APDU_size++] = EF_SEC_TPL & 0xff;
     res_APDU[res_APDU_size++] = 5;
+    res_APDU[res_APDU_size++] = EF_SIG_COUNT & 0xff;
+    res_APDU[res_APDU_size++] = 3;
+    memset(res_APDU + res_APDU_size, 0, 3);
     file_t *ef = file_search_by_fid(EF_SIG_COUNT, NULL, SPECIFY_ANY);
     if (ef && ef->data) {
-        res_APDU[res_APDU_size++] = EF_SIG_COUNT & 0xff;
-        res_APDU[res_APDU_size++] = 3;
-        memcpy(res_APDU + res_APDU_size, file_get_data(ef), 3);
-        res_APDU_size += 3;
+        uint16_t data_len = MIN(file_get_size(ef), 3);
+        memcpy(res_APDU + res_APDU_size, file_get_data(ef), data_len);
     }
+    res_APDU_size += 3;
     return 5 + 2;
 }
 
@@ -193,10 +242,12 @@ int parse_pw_status(const file_t *f, int mode) {
         res_APDU[res_APDU_size++] = 7;
     }
     ef = file_search_by_fid(EF_PW_PRIV, NULL, SPECIFY_ANY);
+    memset(res_APDU + res_APDU_size, 0, 7);
     if (ef && ef->data) {
-        memcpy(res_APDU + res_APDU_size, file_get_data(ef), 7);
-        res_APDU_size += 7;
+        uint16_t data_len = MIN(file_get_size(ef), 7);
+        memcpy(res_APDU + res_APDU_size, file_get_data(ef), data_len);
     }
+    res_APDU_size += 7;
     return res_APDU_size - init_len;
 }
 
@@ -373,8 +424,13 @@ int parse_algoinfo(const file_t *f, int mode) {
             datalen += parse_algo(algorithm_attr_rsa2k, f->fid);
         }
         else {
-            uint16_t len = file_get_size(ef);
+            uint16_t len = MIN(file_get_size(ef), OPENPGP_MAX_ALGORITHM_ATTR_SIZE);
+            len = MIN(len, response_remaining());
             if (res_APDU_size > 0) {
+                if (response_remaining() < 2) {
+                    return datalen;
+                }
+                len = MIN(len, response_remaining() - 2);
                 res_APDU[res_APDU_size++] = f->fid & 0xff;
                 res_APDU[res_APDU_size++] = len & 0xff;
                 datalen += 2;

@@ -23,20 +23,32 @@ int cmd_select_data(void) {
     if (P2(apdu) != 0x4) {
         return SW_WRONG_P1P2();
     }
+    if (apdu.nc < 5u) {
+        return SW_WRONG_LENGTH();
+    }
     if (apdu.data[0] != 0x60) {
         return SW_WRONG_DATA();
     }
-    if (apdu.nc != (uint32_t) apdu.data[1] + 2u || apdu.nc < 5u) {
+    if (apdu.nc != (uint32_t) apdu.data[1] + 2u) {
         return SW_WRONG_LENGTH();
     }
     if (apdu.data[2] != 0x5C) {
         return SW_WRONG_DATA();
     }
     if (apdu.data[3] == 2) {
+        if (apdu.nc < 6u) {
+            return SW_WRONG_LENGTH();
+        }
         fid = (apdu.data[4] << 8) | apdu.data[5];
     }
-    else {
+    else if (apdu.data[3] == 1) {
         fid = apdu.data[4];
+    }
+    else {
+        return SW_WRONG_DATA();
+    }
+    if (fid != EF_CH_CERT || P1(apdu) >= 3) {
+        return SW_REFERENCE_NOT_FOUND();
     }
     if (!(ef = file_search_by_fid(fid, NULL, SPECIFY_EF))) {
         return SW_REFERENCE_NOT_FOUND();
@@ -44,8 +56,7 @@ int cmd_select_data(void) {
     if (!file_authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    fid &= ~0x6000; //Now get private DO
-    fid += P1(apdu);
+    fid = EF_CH_1 + P1(apdu);
     if (!(ef = file_search_by_fid(fid, NULL, SPECIFY_EF))) {
         return SW_REFERENCE_NOT_FOUND();
     }

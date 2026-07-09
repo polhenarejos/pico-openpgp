@@ -42,16 +42,8 @@ extern uint8_t dek[IV_SIZE + 32];
 extern int store_keys(void *key_ctx, int type, uint16_t key_id, bool use_kek);
 extern void make_rsa_response(mbedtls_rsa_context *rsa);
 extern void make_ecdsa_response(mbedtls_ecdsa_context *ecdsa);
-extern int ecdsa_sign(mbedtls_ecdsa_context *ctx,
-                      const uint8_t *data,
-                      size_t data_len,
-                      uint8_t *out,
-                      size_t *out_len);
-extern int rsa_sign(mbedtls_rsa_context *ctx,
-                    const uint8_t *data,
-                    size_t data_len,
-                    uint8_t *out,
-                    size_t *out_len);
+extern int ecdsa_sign(mbedtls_ecdsa_context *ctx, const uint8_t *data, size_t data_len, uint8_t *out, size_t *out_len);
+extern int rsa_sign(mbedtls_rsa_context *ctx, const uint8_t *data, size_t data_len, uint8_t *out, size_t *out_len);
 extern int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey, bool use_dek);
 extern int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey, bool use_dek);
 extern int pin_reset_retries(const file_t *pin, bool force);
@@ -74,11 +66,9 @@ extern int reset_sig_count(void);
 extern uint16_t algo_dec, algo_aut, pk_dec, pk_aut;
 extern bool wait_button_pressed_fid(uint16_t fid);
 extern void scan_files_openpgp(void);
-extern int load_aes_key(uint8_t *aes_key, file_t *fkey);
+extern int load_aes_key(uint8_t *aes_key, size_t *key_size, file_t *fkey);
+extern int load_key_data(file_t *fkey, uint8_t *out, size_t out_size, size_t *out_len, bool use_dek);
 extern int inc_sig_count(void);
-extern int dek_encrypt(uint8_t *data, size_t len);
-extern int dek_decrypt(uint8_t *data, size_t len);
-
 int cmd_select(void);
 int cmd_get_data(void);
 int cmd_get_next_data(void);
@@ -103,5 +93,9 @@ int cmd_get_bulk_data(void);
 #define DEK_FILE_SIZE   (1 + DEK_AAD_SIZE)
 
 #define DEK_FILE_SIZE_OLD (IV_SIZE + 32 + 32 + 32 + 32)
+
+#define OPENPGP_MAX_ALGORITHM_ATTR_SIZE 16
+#define OPENPGP_MAX_OBJECT_SIZE         2048
+#define OPENPGP_MAX_RESPONSE_SIZE       2048
 
 #endif

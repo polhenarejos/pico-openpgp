@@ -252,8 +252,11 @@ file_t file_entries[] = {
     /* 59 */ { .fid = EF_DEK_PW3, .parent = 0, .name = NULL,
                .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_NONE },
+    /* 60 */ { .fid = EF_AES_KEY, .parent = 0, .name = NULL,
+               .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
+               .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_NONE },
     // ** PIV ** //
-    /* 60 */ { .fid = EF_PIV_ADMIN_DATA, .parent = 0, .name = NULL,
+    /* 61 */ { .fid = EF_PIV_ADMIN_DATA, .parent = 0, .name = NULL,
                .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_R_WP },
     /* 61 */ { .fid = EF_PIV_ATTESTATION, .parent = 0, .name = NULL,

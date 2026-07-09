@@ -56,8 +56,14 @@ int cmd_keypair_gen(void) {
         algo = file_get_data(algo_ef);
         algo_len = file_get_size(algo_ef);
     }
+    if (algo_len == 0 || algo_len > OPENPGP_MAX_ALGORITHM_ATTR_SIZE) {
+        return SW_WRONG_DATA();
+    }
     if (P1(apdu) == 0x80) { //generate
         if (algo[0] == ALGO_RSA) {
+            if (algo_len < 3) {
+                return SW_WRONG_DATA();
+            }
             int exponent = 65537, nlen = (algo[1] << 8) | algo[2];
             printf("KEYPAIR RSA %d\r\n", nlen);
             //if (nlen != 2048 && nlen != 4096)
@@ -117,9 +123,10 @@ int cmd_keypair_gen(void) {
             uint8_t key_size = 32;
             memcpy(aes_key, random_bytes_get(key_size), key_size);
             r = store_keys(aes_key, ALGO_AES_256, EF_AES_KEY, true);
-            /* if storing the key fails, we silently continue */
-            //if (r != PICOKEYS_OK)
-            //    return SW_EXEC_ERROR();
+            mbedtls_platform_zeroize(aes_key, sizeof(aes_key));
+            if (r != PICOKEYS_OK) {
+                return SW_EXEC_ERROR();
+            }
         }
         flash_commit();
         return SW_OK();
@@ -129,7 +136,7 @@ int cmd_keypair_gen(void) {
         if (!file_has_data(ef)) {
             return SW_REFERENCE_NOT_FOUND();
         }
-        res_APDU_size = file_get_size(ef);
+        res_APDU_size = MIN(file_get_size(ef), OPENPGP_MAX_RESPONSE_SIZE);
         memcpy(res_APDU, file_get_data(ef), res_APDU_size);
         return SW_OK();
     }

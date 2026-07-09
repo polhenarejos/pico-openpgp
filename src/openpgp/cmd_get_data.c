@@ -24,7 +24,9 @@ int cmd_get_data(void) {
     if (apdu.nc > 0) {
         return SW_WRONG_LENGTH();
     }
+    res_APDU_size = 0;
     uint16_t fid = (P1(apdu) << 8) | P2(apdu);
+    uint16_t requested_fid = fid;
     file_t *ef;
     if (!(ef = file_search_by_fid(fid, NULL, SPECIFY_EF))) {
         return SW_REFERENCE_NOT_FOUND();
@@ -42,18 +44,28 @@ int cmd_get_data(void) {
     else if (!file_authenticate_action(ef, ACL_OP_READ_SEARCH)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    if (currentEF && currentEF->fid == fid) { // previously selected same EF
+    if (fid == EF_CH_CERT) {
+        if (currentEF && currentEF->fid >= EF_CH_1 && currentEF->fid <= EF_CH_3) {
+            ef = currentEF;
+        }
+        else if (!(ef = file_search_by_fid(EF_CH_1, NULL, SPECIFY_EF))) {
+            return SW_REFERENCE_NOT_FOUND();
+        }
+    }
+    else if (currentEF && currentEF->fid == fid) { // previously selected same EF
         ef = currentEF;
     }
     else {
         select_file(ef);
     }
     if (ef->data) {
-        if (fid == EF_PW_STATUS || fid == EF_HIST_BYTES || fid == EF_FULL_AID || fid == EF_SEC_TPL) {
+        if (requested_fid == EF_PW_STATUS || requested_fid == EF_HIST_BYTES ||
+            requested_fid == EF_FULL_AID || requested_fid == EF_SEC_TPL) {
             is_gpg = true;
         }
-        uint16_t fids[] = { 1, fid };
+        uint16_t fids[] = { 1, ef->fid };
         uint16_t data_len = parse_do(fids, 1);
+        data_len = MIN(data_len, res_APDU_size);
         if (!(ef->type & FILE_DATA_FLASH)) {
             uint8_t *p = NULL;
             uint16_t tg = 0;
@@ -86,6 +98,8 @@ int cmd_get_data(void) {
             if (data_len >= 256) {
                 off++;
             }
+            data_len = MIN(data_len, OPENPGP_MAX_RESPONSE_SIZE - off);
+            res_APDU_size = data_len;
             memmove(res_APDU + off, res_APDU, data_len);
             off = 0;
             if (P1(apdu) > 0x0) {

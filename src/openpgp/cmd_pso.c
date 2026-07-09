@@ -27,6 +27,7 @@
 
 int cmd_pso(void) {
     uint16_t algo_fid = 0x0, pk_fid = 0x0;
+    uint16_t uif_fid = 0x0;
     bool is_aes = false;
     if (P1(apdu) == 0x9E && P2(apdu) == 0x9A) {
         if (!has_pw3 && !has_pw1) {
@@ -34,6 +35,7 @@ int cmd_pso(void) {
         }
         algo_fid = EF_ALGO_PRIV1;
         pk_fid = EF_PK_SIG;
+        uif_fid = EF_UIF_SIG;
     }
     else if (P1(apdu) == 0x80 && P2(apdu) == 0x86) {
         if (!has_pw3 && !has_pw2) {
@@ -41,6 +43,15 @@ int cmd_pso(void) {
         }
         algo_fid = algo_dec;
         pk_fid = pk_dec;
+        uif_fid = pk_dec == EF_PK_AUT ? EF_UIF_AUT : EF_UIF_DEC;
+    }
+    else if (P1(apdu) == 0x86 && P2(apdu) == 0x80) {
+        if (!has_pw3 && !has_pw2) {
+            return SW_SECURITY_STATUS_NOT_SATISFIED();
+        }
+        algo_fid = algo_dec;
+        pk_fid = pk_dec;
+        uif_fid = pk_dec == EF_PK_AUT ? EF_UIF_AUT : EF_UIF_DEC;
     }
     else {
         return SW_INCORRECT_P1P2();
@@ -52,32 +63,41 @@ int cmd_pso(void) {
     const uint8_t *algo = algorithm_attr_rsa2k + 1;
     if (algo_ef && algo_ef->data) {
         algo = file_get_data(algo_ef);
-    }
-    if (apdu.data[0] == 0x2) { //AES PSO?
-        if (((apdu.nc - 1) % 16 == 0 && P1(apdu) == 0x80 && P2(apdu) == 0x86) ||
-            (apdu.nc % 16 == 0 && P1(apdu) == 0x86 && P2(apdu) == 0x80)) {
-            pk_fid = EF_AES_KEY;
-            is_aes = true;
+        uint16_t algo_len = file_get_size(algo_ef);
+        if (algo_len == 0 || algo_len > OPENPGP_MAX_ALGORITHM_ATTR_SIZE) {
+            return SW_WRONG_DATA();
         }
+    }
+    bool aes_decipher = apdu.nc > 0 && P1(apdu) == 0x80 && P2(apdu) == 0x86 &&
+                        apdu.data[0] == 0x02 && (apdu.nc - 1) % 16 == 0;
+    bool aes_encipher = apdu.nc > 0 && P1(apdu) == 0x86 && P2(apdu) == 0x80 &&
+                        apdu.nc % 16 == 0;
+    if (aes_decipher || aes_encipher) {
+        pk_fid = EF_AES_KEY;
+        is_aes = true;
+    }
+    else if (P1(apdu) == 0x86 && P2(apdu) == 0x80) {
+        return SW_WRONG_LENGTH();
     }
     file_t *ef = file_search_by_fid(pk_fid, NULL, SPECIFY_EF);
     if (!ef) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    if (wait_button_pressed_fid(pk_fid == EF_PK_SIG ? EF_UIF_SIG : EF_UIF_DEC) == true) {
+    if (wait_button_pressed_fid(uif_fid) == true) {
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     }
     int r = PICOKEYS_OK;
-    size_t key_size = file_get_size(ef);
+    size_t key_size = 0;
     if (is_aes) {
         uint8_t aes_key[32];
-        r = load_aes_key(aes_key, ef);
+        r = load_aes_key(aes_key, &key_size, ef);
         if (r != PICOKEYS_OK) {
             memset(aes_key, 0, sizeof(aes_key));
             return SW_EXEC_ERROR();
         }
+        const uint16_t aes_key_bits = (uint16_t)(key_size * 8);
         if (P1(apdu) == 0x80 && P2(apdu) == 0x86) { //decipher
-            r = aes_decrypt(aes_key, NULL, key_size, PICOKEYS_AES_MODE_CBC, apdu.data + 1, apdu.nc - 1);
+            r = aes_decrypt(aes_key, NULL, aes_key_bits, PICOKEYS_AES_MODE_CBC, apdu.data + 1, apdu.nc - 1);
             memset(aes_key, 0, sizeof(aes_key));
             if (r != PICOKEYS_OK) {
                 return SW_EXEC_ERROR();
@@ -86,7 +106,7 @@ int cmd_pso(void) {
             res_APDU_size = apdu.nc - 1;
         }
         else if (P1(apdu) == 0x86 && P2(apdu) == 0x80) { //encipher
-            r = aes_encrypt(aes_key, NULL, key_size, PICOKEYS_AES_MODE_CBC, apdu.data, apdu.nc);
+            r = aes_encrypt(aes_key, NULL, aes_key_bits, PICOKEYS_AES_MODE_CBC, apdu.data, apdu.nc);
             memset(aes_key, 0, sizeof(aes_key));
             if (r != PICOKEYS_OK) {
                 return SW_EXEC_ERROR();
@@ -105,6 +125,7 @@ int cmd_pso(void) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
+        key_size = mbedtls_rsa_get_len(&ctx);
         if (P1(apdu) == 0x9E && P2(apdu) == 0x9A) {
             size_t olen = 0;
             r = rsa_sign(&ctx, apdu.data, apdu.nc, res_APDU, &olen);
@@ -165,23 +186,42 @@ int cmd_pso(void) {
             }
             //if (len != 2*key_size-1)
             //    return SW_WRONG_LENGTH();
-            memcpy(kdata, file_get_data(ef), key_size);
-            if (dek_decrypt(kdata, key_size) != 0) {
+            if (load_key_data(ef, kdata, sizeof(kdata), &key_size, true) != PICOKEYS_OK ||
+                key_size < 2) {
+                mbedtls_platform_zeroize(kdata, sizeof(kdata));
                 return SW_EXEC_ERROR();
             }
             mbedtls_ecdh_init(&ctx);
             mbedtls_ecp_group_id gid = kdata[0];
             r = mbedtls_ecdh_setup(&ctx, gid);
             if (r != 0) {
+                mbedtls_platform_zeroize(kdata, sizeof(kdata));
                 mbedtls_ecdh_free(&ctx);
                 return SW_DATA_INVALID();
             }
             r = mbedtls_ecp_read_key(gid, (mbedtls_ecdsa_context *)&ctx.ctx.mbed_ecdh, kdata + 1, key_size - 1);
+            mbedtls_platform_zeroize(kdata, sizeof(kdata));
             if (r != 0) {
                 mbedtls_ecdh_free(&ctx);
                 return SW_DATA_INVALID();
             }
-            r = mbedtls_ecdh_read_public(&ctx, data - 1, len + 1);
+            if (mbedtls_ecp_get_type(&ctx.ctx.mbed_ecdh.grp) == MBEDTLS_ECP_TYPE_MONTGOMERY) {
+                size_t montgomery_len = mbedtls_mpi_size(&ctx.ctx.mbed_ecdh.grp.P);
+                const uint8_t *peer = data;
+                if (len == montgomery_len + 1 && data[0] == 0x40) {
+                    peer = data + 1;
+                    len--;
+                }
+                if (len != montgomery_len) {
+                    mbedtls_ecdh_free(&ctx);
+                    return SW_WRONG_LENGTH();
+                }
+                r = mbedtls_ecp_point_read_binary(&ctx.ctx.mbed_ecdh.grp, &ctx.ctx.mbed_ecdh.Qp,
+                                                  peer, len);
+            }
+            else {
+                r = mbedtls_ecdh_read_public(&ctx, data - 1, len + 1);
+            }
             if (r != 0) {
                 mbedtls_ecdh_free(&ctx);
                 return SW_DATA_INVALID();

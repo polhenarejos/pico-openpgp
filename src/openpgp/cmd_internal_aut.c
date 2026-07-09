@@ -32,12 +32,17 @@ int cmd_internal_aut(void) {
     const uint8_t *algo = algorithm_attr_rsa2k + 1;
     if (algo_ef && algo_ef->data) {
         algo = file_get_data(algo_ef);
+        uint16_t algo_len = file_get_size(algo_ef);
+        if (algo_len == 0 || algo_len > OPENPGP_MAX_ALGORITHM_ATTR_SIZE) {
+            return SW_WRONG_DATA();
+        }
     }
     file_t *ef = file_search_by_fid(pk_aut, NULL, SPECIFY_EF);
     if (!ef) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    if (wait_button_pressed_fid(EF_UIF_AUT) == true) {
+    uint16_t uif_fid = pk_aut == EF_PK_DEC ? EF_UIF_DEC : EF_UIF_AUT;
+    if (wait_button_pressed_fid(uif_fid) == true) {
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     }
     int r = PICOKEYS_OK;
