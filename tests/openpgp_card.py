@@ -265,15 +265,15 @@ class OpenPGP_Card(object):
             cmd_data = iso7816_compose(0xca, tagh, tagl, b"")
         else:
             cmd_data = iso7816_compose(0xca, tagh, tagl, b"", le=254)
-        sw = self.__reader.send_cmd(cmd_data)
-        if len(sw) < 2:
-            raise ValueError(sw)
+        response = self.__reader.send_cmd(cmd_data)
+        if len(response) < 2:
+            raise ValueError(response)
+        body = response[:-2]
+        sw = response[-2:]
         if sw[0] == 0x61:
-            return self.cmd_get_response(sw[1])
-        elif (sw[-2] == 0x61):
-            return sw + self.cmd_get_response(sw[-1])
-        elif sw[-2] == 0x90 and sw[-1] == 0x00:
-            return sw[0:-2]
+            return body + self.cmd_get_response(sw[1])
+        elif sw[0] == 0x90 and sw[1] == 0x00:
+            return body
         if sw[0] == 0x6a and sw[1] == 0x88:
             return None
         else:
@@ -396,12 +396,14 @@ class OpenPGP_Card(object):
         sw = self.__reader.send_cmd(cmd_data)
         if len(sw) < 2:
             raise ValueError(sw)
-        if sw[-2] == 0x61:
-            pk = self.cmd_get_response(sw[1])
-        elif sw[-2] == 0x90 and sw[-1] == 0x00:
-            pk = sw
+        body = sw[:-2]
+        status = sw[-2:]
+        if status[0] == 0x61:
+            pk = body + self.cmd_get_response(status[1])
+        elif status[0] == 0x90 and status[1] == 0x00:
+            pk = body
         else:
-            raise ValueError("%02x%02x" % (sw[0], sw[1]))
+            raise ValueError("%02x%02x" % (status[0], status[1]))
         return pk
 
     def cmd_get_public_key(self, keyno):
