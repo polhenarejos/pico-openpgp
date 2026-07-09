@@ -27,6 +27,9 @@ RUN apt install -y libccid \
     libssl-dev \
     check \
     gengetopt \
+    libtss2-dev \
+    tpm2-tools \
+    swtpm \
     && rm -rf /var/lib/apt/lists/*
 RUN pip3 install pytest pycvc cryptography pyscard
 RUN git clone https://github.com/Yubico/yubico-piv-tool
