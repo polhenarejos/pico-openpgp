@@ -88,7 +88,9 @@ int cmd_put_data(void) {
                 dhash[0] = apdu.nc;
                 dhash[1] = 0x1; // Format
                 pin_derive_verifier(apdu.data, apdu.nc, dhash + 2);
-                file_put_data(ef, dhash, sizeof(dhash));
+                if ((r = file_put_data(ef, dhash, sizeof(dhash))) != PICOKEYS_OK) {
+                    return SW_MEMORY_FAILURE();
+                }
 
                 file_t *tf = file_search_by_fid(EF_DEK_RC, NULL, SPECIFY_EF);
                 if (!tf) {
@@ -100,6 +102,9 @@ int cmd_put_data(void) {
                 pin_derive_session(apdu.data, apdu.nc, session_rc);
                 encrypt_with_aad(session_rc, dek, DEK_SIZE, PIN_KDF_DEFAULT_VERSION, def + 1);
                 r = file_put_data(tf, def, sizeof(def));
+                if (r == PICOKEYS_OK) {
+                    r = pin_reset_retries(ef, true);
+                }
             }
             else {
                 r = file_put_data(ef, apdu.data, apdu.nc);
@@ -107,6 +112,13 @@ int cmd_put_data(void) {
             if (r != PICOKEYS_OK) {
                 return SW_MEMORY_FAILURE();
             }
+#ifdef ENABLE_ADMINLESS_MODE
+            if (requested_fid == EF_KDF && apdu.nc > 0 && !(apdu.nc == 3 && memcmp(apdu.data, "\x81\x01\x00", 3) == 0)) {
+                if ((r = openpgp_adminless_begin_kdf_migration()) != PICOKEYS_OK) {
+                    return SW_MEMORY_FAILURE();
+                }
+            }
+#endif
             flash_commit();
         }
         else {

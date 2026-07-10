@@ -18,6 +18,7 @@
 cmake_minimum_required(VERSION 3.13)
 
 option(OPENPGP_TEST_INIT_LEGACY_PIN "Bootstrap legacy PIN/DEK format for migration tests" OFF)
+option(ENABLE_ADMINLESS_MODE "Enable the non-standard Gnuk-compatible admin-less PIN mode" ON)
 
 set(USB_VID 0x2E8A)
 set(USB_PID 0x10FF)
@@ -92,6 +93,9 @@ if(NOT ESP_PLATFORM)
     target_include_directories(pico_openpgp PUBLIC ${INCLUDES})
     if(OPENPGP_TEST_INIT_LEGACY_PIN)
         target_compile_definitions(pico_openpgp PRIVATE OPENPGP_TEST_INIT_LEGACY_PIN=1)
+    endif()
+    if(ENABLE_ADMINLESS_MODE)
+        target_compile_definitions(pico_openpgp PRIVATE ENABLE_ADMINLESS_MODE=1)
     endif()
 
     set(COMMON_COMPILE_OPTIONS

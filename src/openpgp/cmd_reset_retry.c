@@ -25,6 +25,9 @@ int cmd_reset_retry(void) {
     if (P1(apdu) == 0x0 || P1(apdu) == 0x2) {
         int newpin_len = 0;
         file_t *pw = NULL;
+#ifdef ENABLE_ADMINLESS_MODE
+        bool sync_adminless_pw3 = openpgp_adminless_is_active();
+#endif
         has_pw1 = false;
         if (!(pw = file_search_by_fid(EF_PW1, NULL, SPECIFY_EF))) {
             return SW_REFERENCE_NOT_FOUND();
@@ -72,7 +75,14 @@ int cmd_reset_retry(void) {
         dhash[0] = newpin_len;
         dhash[1] = 0x1; // Format
         pin_derive_verifier(apdu.data + (apdu.nc - newpin_len), newpin_len, dhash + 2);
-        file_put_data(pw, dhash, sizeof(dhash));
+        if ((r = file_put_data(pw, dhash, sizeof(dhash))) != PICOKEYS_OK) {
+            return SW_MEMORY_FAILURE();
+        }
+#ifdef ENABLE_ADMINLESS_MODE
+        if (sync_adminless_pw3 && (r = openpgp_adminless_sync_pw3(apdu.data + (apdu.nc - newpin_len), newpin_len, dhash)) != PICOKEYS_OK) {
+            return SW_MEMORY_FAILURE();
+        }
+#endif
         if (pin_reset_retries(pw, true) != PICOKEYS_OK) {
             return SW_MEMORY_FAILURE();
         }

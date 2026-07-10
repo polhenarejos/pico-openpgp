@@ -27,6 +27,11 @@ int cmd_verify(void) {
         }
         if (p2 == 0x81) {
             has_pw1 = false;
+#ifdef ENABLE_ADMINLESS_MODE
+            if (openpgp_adminless_is_active()) {
+                has_pw3 = false;
+            }
+#endif
         }
         else if (p2 == 0x82) {
             has_pw2 = false;
@@ -54,7 +59,23 @@ int cmd_verify(void) {
         return SW_REFERENCE_NOT_FOUND();
     }
     if (apdu.nc > 0) {
-        return check_pin(pw, apdu.data, apdu.nc);
+#ifdef ENABLE_ADMINLESS_MODE
+        if (p2 == 0x81 && openpgp_adminless_is_active()) {
+            has_pw1 = false;
+            has_pw3 = false;
+        }
+        else if (p2 == 0x83 && openpgp_adminless_is_active() && !has_pw1) {
+            has_pw3 = false;
+        }
+#endif
+        uint16_t r = check_pin(pw, apdu.data, apdu.nc);
+#ifdef ENABLE_ADMINLESS_MODE
+        /* Gnuk reports an unavailable PW3 as a security-status failure. */
+        if (p2 == 0x83 && openpgp_adminless_is_active() && r != SW_OK()) {
+            return SW_SECURITY_STATUS_NOT_SATISFIED();
+        }
+#endif
+        return r;
     }
     uint8_t retries = *(file_get_data(pw_status) + 3 + (fid & 0xf));
     if (retries == 0) {

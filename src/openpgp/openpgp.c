@@ -48,6 +48,132 @@ uint8_t dek[DEK_SIZE];
 uint16_t algo_dec = EF_ALGO_PRIV2, algo_aut = EF_ALGO_PRIV3, pk_dec = EF_PK_DEC, pk_aut = EF_PK_AUT;
 extern bool is_gpg;
 
+#ifdef ENABLE_ADMINLESS_MODE
+enum {
+    ADMINLESS_MODE_PENDING = 0,
+    ADMINLESS_MODE_ENABLED = 1,
+    ADMINLESS_MODE_DISABLED = 2,
+    ADMINLESS_MODE_KDF_MIGRATION = 3,
+};
+
+#define ADMINLESS_MODE_OFFSET 6
+#define ADMINLESS_RETRIES_SIZE (ADMINLESS_MODE_OFFSET + 1)
+
+static int adminless_set_mode(uint8_t mode) {
+    file_t *ef = file_search_by_fid(EF_PW_RETRIES, NULL, SPECIFY_EF);
+    if (!ef) {
+        return PICOKEYS_ERR_FILE_NOT_FOUND;
+    }
+    uint8_t retries[16] = { 0x1, 3, 3, 3, 3, 3, ADMINLESS_MODE_DISABLED };
+    uint16_t retries_len = ADMINLESS_RETRIES_SIZE;
+    if (file_has_data(ef)) {
+        retries_len = MAX(file_get_size(ef), retries_len);
+        if (retries_len > sizeof(retries)) {
+            return PICOKEYS_ERR_NO_MEMORY;
+        }
+        memcpy(retries, file_get_data(ef), file_get_size(ef));
+    }
+    retries[ADMINLESS_MODE_OFFSET] = mode;
+    return file_put_data(ef, retries, retries_len);
+}
+
+static bool adminless_mode_is(uint8_t mode) {
+    file_t *ef = file_search_by_fid(EF_PW_RETRIES, NULL, SPECIFY_EF);
+    return ef && file_has_data(ef) && file_get_size(ef) >= ADMINLESS_RETRIES_SIZE && file_get_data(ef)[ADMINLESS_MODE_OFFSET] == mode;
+}
+
+static bool pin_is_factory_default(const file_t *pin, const uint8_t *factory_pin, size_t factory_pin_len) {
+    uint8_t verifier[34];
+
+    if (!pin || !file_has_data(pin)) {
+        return false;
+    }
+    if (file_get_size(pin) == 33) {
+        verifier[0] = factory_pin_len;
+        double_hash_pin(factory_pin, factory_pin_len, verifier + 1);
+        return mbedtls_ct_memcmp(file_get_data(pin), verifier, 33) == 0;
+    }
+    if (file_get_size(pin) == 34) {
+        verifier[0] = factory_pin_len;
+        verifier[1] = 0x1;
+        pin_derive_verifier(factory_pin, factory_pin_len, verifier + 2);
+        return mbedtls_ct_memcmp(file_get_data(pin), verifier, sizeof(verifier)) == 0;
+    }
+    return false;
+}
+
+static bool pw1_and_pw3_are_factory_default(void) {
+    static const uint8_t factory_pw1[] = "123456";
+    static const uint8_t factory_pw3[] = "12345678";
+
+    return pin_is_factory_default(file_search_by_fid(EF_PW1, NULL, SPECIFY_EF), factory_pw1, sizeof(factory_pw1) - 1)
+        && pin_is_factory_default(file_search_by_fid(EF_PW3, NULL, SPECIFY_EF), factory_pw3, sizeof(factory_pw3) - 1);
+}
+
+bool openpgp_adminless_is_pending(void) {
+    return adminless_mode_is(ADMINLESS_MODE_PENDING);
+}
+
+bool openpgp_adminless_is_active(void) {
+    return adminless_mode_is(ADMINLESS_MODE_ENABLED);
+}
+
+int openpgp_adminless_begin_kdf_migration(void) {
+    if (!openpgp_adminless_is_pending()) {
+        return PICOKEYS_OK;
+    }
+    return adminless_set_mode(ADMINLESS_MODE_KDF_MIGRATION);
+}
+
+int openpgp_adminless_sync_pw3(const uint8_t *pin, size_t pin_len, const uint8_t verifier[34]) {
+    file_t *pw3 = file_search_by_fid(EF_PW3, NULL, SPECIFY_EF);
+    file_t *dek_pw3 = file_search_by_fid(EF_DEK_PW3, NULL, SPECIFY_EF);
+    if (!pw3 || !dek_pw3) {
+        return PICOKEYS_ERR_FILE_NOT_FOUND;
+    }
+    int r = file_put_data(pw3, verifier, 34);
+    if (r != PICOKEYS_OK) {
+        return r;
+    }
+    uint8_t encrypted_dek[DEK_FILE_SIZE];
+    encrypted_dek[0] = 0x3;
+    pin_derive_session(pin, pin_len, session_pw3);
+    r = encrypt_with_aad(session_pw3, dek, DEK_SIZE, PIN_KDF_DEFAULT_VERSION, encrypted_dek + 1);
+    if (r != PICOKEYS_OK) {
+        return r;
+    }
+    return file_put_data(dek_pw3, encrypted_dek, sizeof(encrypted_dek));
+}
+
+int openpgp_adminless_enable(void) {
+    file_t *pw_status = file_search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF);
+    if (!pw_status || !file_has_data(pw_status) || file_get_size(pw_status) == 0 || file_get_size(pw_status) > 16) {
+        return PICOKEYS_ERR_FILE_NOT_FOUND;
+    }
+    uint8_t status[16];
+    uint16_t status_len = file_get_size(pw_status);
+    memcpy(status, file_get_data(pw_status), status_len);
+    status[0] = 0x0; // Require PW1 for every signature in admin-less mode.
+    int r = file_put_data(pw_status, status, status_len);
+    if (r != PICOKEYS_OK) {
+        return r;
+    }
+    r = adminless_set_mode(ADMINLESS_MODE_ENABLED);
+    if (r == PICOKEYS_OK && has_pw1) {
+        has_pw3 = true;
+    }
+    return r;
+}
+
+int openpgp_adminless_disable(void) {
+    return adminless_set_mode(ADMINLESS_MODE_DISABLED);
+}
+
+int openpgp_adminless_reset(void) {
+    return adminless_set_mode(ADMINLESS_MODE_PENDING);
+}
+#endif
+
 uint8_t openpgp_aid[] = {
     6,
     0xD2, 0x76, 0x00, 0x01, 0x24, 0x01,
@@ -147,7 +273,6 @@ void scan_files_openpgp(void) {
         pin_derive_session(def3, sizeof(def3), session_pw3);
         encrypt_with_aad(session_pw3, random_dek, DEK_SIZE, PIN_KDF_DEFAULT_VERSION, def + 1);
         mbedtls_platform_zeroize(session_pw3, sizeof(session_pw3));
-        file_put_data(ef_dek_rc, def, sizeof(def));
         file_put_data(ef_dek_pw3, def, sizeof(def));
 #endif
 
@@ -216,12 +341,24 @@ void scan_files_openpgp(void) {
             file_put_data(ef, def, sizeof(def));
         }
     }
+#ifdef ENABLE_ADMINLESS_MODE
+    uint8_t legacy_adminless_mode = ADMINLESS_MODE_DISABLED;
+    bool migrate_legacy_adminless_mode = false;
+#endif
     if ((ef = file_search_by_fid(EF_PW_PRIV, NULL, SPECIFY_ANY))) {
         if (!ef->data) {
             printf("PW status is empty. Initializing to default\r\n");
             const uint8_t def[] = { 0x1, 127, 127, 127, 3, 3, 3 };
             file_put_data(ef, def, sizeof(def));
         }
+#ifdef ENABLE_ADMINLESS_MODE
+        else if (file_get_size(ef) == 8) {
+            /* Migration from the unreleased PW-status-byte implementation. */
+            legacy_adminless_mode = file_get_data(ef)[7];
+            migrate_legacy_adminless_mode = legacy_adminless_mode <= ADMINLESS_MODE_KDF_MIGRATION;
+            file_put_data(ef, file_get_data(ef), 7);
+        }
+#endif
     }
     if ((ef = file_search_by_fid(EF_UIF_SIG, NULL, SPECIFY_ANY))) {
         if (!ef->data) {
@@ -259,10 +396,28 @@ void scan_files_openpgp(void) {
         }
     }
     if ((ef = file_search_by_fid(EF_PW_RETRIES, NULL, SPECIFY_ANY))) {
-        if (!ef->data) {
+        if (!ef->data
+#ifdef ENABLE_ADMINLESS_MODE
+            || reset_dek || file_get_size(ef) < ADMINLESS_RETRIES_SIZE
+#endif
+        ) {
             printf("PW retries is empty. Initializing to default\r\n");
+#ifdef ENABLE_ADMINLESS_MODE
+            uint8_t def[ADMINLESS_RETRIES_SIZE] = { 0x1, 3, 3, 3, 3, 3, ADMINLESS_MODE_DISABLED };
+            if (file_has_data(ef) && !reset_dek) {
+                memcpy(def, file_get_data(ef), MIN(file_get_size(ef), ADMINLESS_MODE_OFFSET));
+            }
+            if (migrate_legacy_adminless_mode) {
+                def[ADMINLESS_MODE_OFFSET] = legacy_adminless_mode;
+            }
+            else if (pw1_and_pw3_are_factory_default()) {
+                def[ADMINLESS_MODE_OFFSET] = ADMINLESS_MODE_PENDING;
+            }
+            file_put_data(ef, def, sizeof(def));
+#else
             const uint8_t def[] = { 0x1, 3, 3, 3 };
             file_put_data(ef, def, sizeof(def));
+#endif
         }
     }
     flash_commit();
@@ -759,6 +914,11 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     if (pin->fid == EF_PW1) {
         if (P2(apdu) == 0x81) {
             has_pw1 = true;
+#ifdef ENABLE_ADMINLESS_MODE
+            if (openpgp_adminless_is_active()) {
+                has_pw3 = true;
+            }
+#endif
         }
         else {
             has_pw2 = true;
@@ -779,6 +939,11 @@ int inc_sig_count(void) {
     }
     if (file_get_data(pw_status)[0] == 0) {
         has_pw1 = false;
+#ifdef ENABLE_ADMINLESS_MODE
+        if (openpgp_adminless_is_active()) {
+            has_pw3 = false;
+        }
+#endif
     }
     file_t *ef = file_search_by_fid(EF_SIG_COUNT, NULL, SPECIFY_ANY);
     if (!ef || !ef->data) {

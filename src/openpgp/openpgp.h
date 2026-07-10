@@ -61,6 +61,15 @@ extern void select_file(file_t *pe);
 extern int parse_do(uint16_t *fids, int mode);
 extern int load_dek(void);
 extern int check_pin(const file_t *pin, const uint8_t *data, size_t len);
+#ifdef ENABLE_ADMINLESS_MODE
+extern bool openpgp_adminless_is_pending(void);
+extern bool openpgp_adminless_is_active(void);
+extern int openpgp_adminless_begin_kdf_migration(void);
+extern int openpgp_adminless_sync_pw3(const uint8_t *pin, size_t pin_len, const uint8_t verifier[34]);
+extern int openpgp_adminless_enable(void);
+extern int openpgp_adminless_disable(void);
+extern int openpgp_adminless_reset(void);
+#endif
 extern mbedtls_ecp_group_id get_ec_group_id_from_attr(const uint8_t *algo, size_t algo_len);
 extern int reset_sig_count(void);
 extern uint16_t algo_dec, algo_aut, pk_dec, pk_aut;
