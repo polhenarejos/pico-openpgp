@@ -245,11 +245,43 @@ def test_openpgp_status_objects(card):
     pw = expect(card, INS_GET_DATA, 0x00, 0xC4, le=0)
     assert len(pw) == 7
     assert pw[0] in (0x00, 0x01)
-    assert pw[1:] == bytes([127, 127, 127, 3, 3, 3])
+    assert pw[1:5] == bytes([127, 127, 127, 3])
+    assert pw[5] in (0, 3)
+    assert pw[6] == 3
     app = expect(card, INS_GET_DATA, 0x00, 0x6E, le=0)
     assert app and app[0] == 0x4F
     assert OPENPGP_AID in app
     assert expect(card, 0xF1, 0x00, 0x00, le=0) == b"\x04\x06\x00"
+
+
+def test_openpgp_fixed_width_status_dos_are_zero_padded(card):
+    verify_pw3(card)
+    card.cmd_put_data(0x00, 0xC7, b"\xAA")
+    card.cmd_put_data(0x00, 0xC8, b"\xBB\xCC")
+    card.cmd_put_data(0x00, 0xC9, b"")
+    fp = card.cmd_get_data(0x00, 0xC5)
+    assert len(fp) == 60
+    assert fp[:20] == b"\xAA" + bytes(19)
+    assert fp[20:40] == b"\xBB\xCC" + bytes(18)
+    assert fp[40:] == bytes(20)
+
+    card.cmd_put_data(0x00, 0xCA, b"\x11")
+    card.cmd_put_data(0x00, 0xCB, b"")
+    card.cmd_put_data(0x00, 0xCC, b"\x22\x33")
+    cafp = card.cmd_get_data(0x00, 0xC6)
+    assert len(cafp) == 60
+    assert cafp[:20] == b"\x11" + bytes(19)
+    assert cafp[20:40] == bytes(20)
+    assert cafp[40:] == b"\x22\x33" + bytes(18)
+
+    card.cmd_put_data(0x00, 0xCE, b"\x01")
+    card.cmd_put_data(0x00, 0xCF, b"")
+    card.cmd_put_data(0x00, 0xD0, b"\x02\x03")
+    ts = card.cmd_get_data(0x00, 0xCD)
+    assert len(ts) == 12
+    assert ts[:4] == b"\x01" + bytes(3)
+    assert ts[4:8] == bytes(4)
+    assert ts[8:] == b"\x02\x03" + bytes(2)
 
 
 def test_openpgp_rejects_invalid_algorithm_attributes(card):
@@ -448,8 +480,19 @@ def test_openpgp_reset_code_and_pw_status(card):
     assert after[4:7] == before[4:7]
     card.cmd_put_data(0x00, 0xC4, bytes([before[0]]))
 
+    card.cmd_put_data_remove(0x00, 0xD3)
+    pw = card.cmd_get_data(0x00, 0xC4)
+    assert pw[5] == 0
+    _, sw = raw(card, INS_RESET_RETRY, 0x00, MODE_PW1, b"12345678" + b"222222")
+    assert sw == b"\x6A\x88"
+    verify_pw1(card)
+
     assert card.setup_reset_code(b"reset123")
     select_openpgp(card)
+    pw = card.cmd_get_data(0x00, 0xC4)
+    assert pw[5] == 3
+    _, sw = raw(card, INS_CHANGE_PIN, 0x00, 0x82, b"reset123" + b"changed1")
+    assert sw == b"\x6A\x88"
     assert card.reset_passwd_by_resetcode(b"reset123", b"111111")
     select_openpgp(card)
     assert card.verify(1, b"111111")
