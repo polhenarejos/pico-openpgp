@@ -61,6 +61,7 @@ extern void select_file(file_t *pe);
 extern int parse_do(uint16_t *fids, int mode);
 extern int load_dek(void);
 extern int check_pin(const file_t *pin, const uint8_t *data, size_t len);
+extern int openpgp_reset_code_deactivate(void);
 #ifdef ENABLE_ADMINLESS_MODE
 extern bool openpgp_adminless_is_pending(void);
 extern bool openpgp_adminless_is_active(void);

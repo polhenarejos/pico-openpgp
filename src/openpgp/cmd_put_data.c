@@ -70,7 +70,7 @@ int cmd_put_data(void) {
         int r = 0;
         if (apdu.nc > 0) {
             if (requested_fid == EF_PW_STATUS) {
-                uint8_t pw_status[7] = { 0x1, 127, 127, 127, 3, 3, 3 };
+                uint8_t pw_status[7] = { 0x1, 127, 127, 127, 3, 0, 3 };
                 if (file_has_data(ef)) {
                     memset(pw_status, 0, sizeof(pw_status));
                     uint16_t status_len = MIN(file_get_size(ef), sizeof(pw_status));
@@ -100,7 +100,9 @@ int cmd_put_data(void) {
                 uint8_t def[DEK_FILE_SIZE];
                 def[0] = 0x3;
                 pin_derive_session(apdu.data, apdu.nc, session_rc);
-                encrypt_with_aad(session_rc, dek, DEK_SIZE, PIN_KDF_DEFAULT_VERSION, def + 1);
+                if ((r = encrypt_with_aad(session_rc, dek, DEK_SIZE, PIN_KDF_DEFAULT_VERSION, def + 1)) != PICOKEYS_OK) {
+                    return SW_EXEC_ERROR();
+                }
                 r = file_put_data(tf, def, sizeof(def));
                 if (r == PICOKEYS_OK) {
                     r = pin_reset_retries(ef, true);
@@ -122,7 +124,8 @@ int cmd_put_data(void) {
             flash_commit();
         }
         else {
-            if (flash_clear_file(ef) != PICOKEYS_OK) {
+            r = fid == EF_RC ? openpgp_reset_code_deactivate() : flash_clear_file(ef);
+            if (r != PICOKEYS_OK) {
                 return SW_MEMORY_FAILURE();
             }
             flash_commit();

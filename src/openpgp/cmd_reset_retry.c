@@ -37,6 +37,9 @@ int cmd_reset_retry(void) {
             if (!(rc = file_search_by_fid(EF_RC, NULL, SPECIFY_EF))) {
                 return SW_REFERENCE_NOT_FOUND();
             }
+            if (!file_has_data(rc) || file_get_data(rc)[0] == 0) {
+                return SW_REFERENCE_NOT_FOUND();
+            }
             uint8_t pin_len = file_get_data(rc)[0];
             if (apdu.nc <= pin_len) {
                 return SW_WRONG_LENGTH();

@@ -174,6 +174,70 @@ int openpgp_adminless_reset(void) {
 }
 #endif
 
+static bool pin_record_matches_value(const file_t *pin, const uint8_t *value, size_t value_len) {
+    uint8_t verifier[34];
+
+    if (!pin || !file_has_data(pin)) {
+        return false;
+    }
+    if (file_get_size(pin) == 33) {
+        verifier[0] = value_len;
+        double_hash_pin(value, value_len, verifier + 1);
+        return mbedtls_ct_memcmp(file_get_data(pin), verifier, 33) == 0;
+    }
+    if (file_get_size(pin) == 34) {
+        verifier[0] = value_len;
+        verifier[1] = 0x1;
+        pin_derive_verifier(value, value_len, verifier + 2);
+        return mbedtls_ct_memcmp(file_get_data(pin), verifier, sizeof(verifier)) == 0;
+    }
+    return false;
+}
+
+static bool reset_code_is_public_default(const file_t *rc) {
+    static const uint8_t default_reset_code[] = "12345678";
+
+    return pin_record_matches_value(rc, default_reset_code, sizeof(default_reset_code) - 1);
+}
+
+static int set_reset_code_retries(uint8_t retries) {
+    file_t *pw_status = file_search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF);
+    if (!pw_status || !file_has_data(pw_status)) {
+        return PICOKEYS_ERR_FILE_NOT_FOUND;
+    }
+    uint16_t status_len = file_get_size(pw_status);
+    if (3 + (EF_RC & 0xf) >= status_len || status_len > 64) {
+        return PICOKEYS_ERR_MEMORY_FATAL;
+    }
+
+    uint8_t status[64];
+    memcpy(status, file_get_data(pw_status), status_len);
+    if (status[3 + (EF_RC & 0xf)] == retries) {
+        return PICOKEYS_OK;
+    }
+    status[3 + (EF_RC & 0xf)] = retries;
+    return file_put_data(pw_status, status, status_len);
+}
+
+int openpgp_reset_code_deactivate(void) {
+    int r = PICOKEYS_OK;
+    file_t *rc = file_search_by_fid(EF_RC, NULL, SPECIFY_EF);
+    file_t *dek_rc = file_search_by_fid(EF_DEK_RC, NULL, SPECIFY_EF);
+
+    if (rc && file_has_data(rc)) {
+        r = flash_clear_file(rc);
+    }
+    if (r == PICOKEYS_OK && dek_rc && file_has_data(dek_rc)) {
+        r = flash_clear_file(dek_rc);
+    }
+    if (r == PICOKEYS_OK) {
+        r = set_reset_code_retries(0);
+    }
+    has_rc = false;
+    mbedtls_platform_zeroize(session_rc, sizeof(session_rc));
+    return r;
+}
+
 uint8_t openpgp_aid[] = {
     6,
     0xD2, 0x76, 0x00, 0x01, 0x24, 0x01,
@@ -296,25 +360,6 @@ void scan_files_openpgp(void) {
             }
         }
     }
-    if ((ef = file_search_by_fid(EF_RC, NULL, SPECIFY_ANY))) {
-        if (!ef->data || reset_dek) {
-            printf("RC is empty. Initializing with default password\r\n");
-
-            const uint8_t def[8] = { 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38 };
-            uint8_t dhash[34];
-            if (bootstrap_legacy) {
-                dhash[0] = sizeof(def);
-                double_hash_pin(def, sizeof(def), dhash + 1);
-                file_put_data(ef, dhash, 33);
-            }
-            else {
-                dhash[0] = sizeof(def);
-                dhash[1] = 0x1; // Format
-                pin_derive_verifier(def, sizeof(def), dhash + 2);
-                file_put_data(ef, dhash, sizeof(dhash));
-            }
-        }
-    }
     if ((ef = file_search_by_fid(EF_PW3, NULL, SPECIFY_ANY))) {
         if (!ef->data || reset_dek) {
             printf("PW3 is empty. Initializing with default password\r\n");
@@ -348,7 +393,7 @@ void scan_files_openpgp(void) {
     if ((ef = file_search_by_fid(EF_PW_PRIV, NULL, SPECIFY_ANY))) {
         if (!ef->data) {
             printf("PW status is empty. Initializing to default\r\n");
-            const uint8_t def[] = { 0x1, 127, 127, 127, 3, 3, 3 };
+            const uint8_t def[] = { 0x1, 127, 127, 127, 3, 0, 3 };
             file_put_data(ef, def, sizeof(def));
         }
 #ifdef ENABLE_ADMINLESS_MODE
@@ -359,6 +404,10 @@ void scan_files_openpgp(void) {
             file_put_data(ef, file_get_data(ef), 7);
         }
 #endif
+    }
+    file_t *rc = file_search_by_fid(EF_RC, NULL, SPECIFY_EF);
+    if (!rc || !file_has_data(rc) || reset_dek || reset_code_is_public_default(rc)) {
+        openpgp_reset_code_deactivate();
     }
     if ((ef = file_search_by_fid(EF_UIF_SIG, NULL, SPECIFY_ANY))) {
         if (!ef->data) {
