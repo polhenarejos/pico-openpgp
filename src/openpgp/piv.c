@@ -724,7 +724,7 @@ static int cmd_authenticate(void) {
     }
     uint8_t *meta = NULL;
     int meta_len = 0;
-    if ((meta_len = meta_find(key_ref, &meta)) <= 0) {
+    if ((meta_len = meta_find(key_ref, &meta)) < 3) {
         return SW_REFERENCE_NOT_FOUND();
     }
     if (meta[1] == PINPOLICY_DEFAULT) {
@@ -1020,6 +1020,9 @@ static int cmd_move_key(void) {
     if ((!IS_KEY(to) && to != 0xFF) || !IS_KEY(from)) {
         return SW_INCORRECT_P1P2();
     }
+    if (to == from) {
+        return SW_INCORRECT_P1P2();
+    }
     if (IS_RETIRED(from) && IS_ACTIVE(to)) {
         return SW_INCORRECT_P1P2();
     }
@@ -1168,7 +1171,7 @@ static int cmd_piv_reset_retry(void) {
 }
 
 static int cmd_set_retries(void) {
-    if (!has_mgm) {
+    if (!has_mgm || !has_pwpiv) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     file_t *ef = file_search_by_fid(EF_PW_RETRIES, NULL, SPECIFY_ANY);
