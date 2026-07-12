@@ -46,6 +46,9 @@ int cmd_put_data(void) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     if (fid == EF_PW_STATUS) {
+        if (apdu.nc > 4) {
+            return SW_WRONG_DATA();
+        }
         fid = EF_PW_PRIV;
         if (apdu.nc == 0) {
             return SW_WRONG_LENGTH();
