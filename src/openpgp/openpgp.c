@@ -896,8 +896,6 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
         pin_data[1] = 0x1; // Format
         pin_derive_verifier(data, len, pin_data + 2);
         file_put_data((file_t *)pin, pin_data, sizeof(pin_data));
-        has_pw1 = has_pw2 = has_pw3 = false;
-
         if (pin->fid == EF_PW1) {
             if (P2(apdu) == 0x81) {
                 has_pw1 = true;
@@ -957,7 +955,6 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
             file_put_data(ef_dek, old_data, sizeof(old_data));
             flash_commit();
         }
-        has_pw1 = has_pw2 = has_pw3 = false;
     }
     isUserAuthenticated = true;
     if (pin->fid == EF_PW1) {
