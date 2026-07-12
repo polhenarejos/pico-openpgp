@@ -78,5 +78,6 @@ int cmd_internal_aut(void) {
         }
         res_APDU_size = olen;
     }
+    signal_private_key_use(uif_fid);
     return SW_OK();
 }

@@ -115,6 +115,7 @@ int cmd_pso(void) {
             memcpy(res_APDU + 1, apdu.data, apdu.nc);
             res_APDU_size = apdu.nc + 1;
         }
+        signal_private_key_use(uif_fid);
         return SW_OK();
     }
     if (algo[0] == ALGO_RSA) {
@@ -236,5 +237,6 @@ int cmd_pso(void) {
             mbedtls_ecdh_free(&ctx);
         }
     }
+    signal_private_key_use(uif_fid);
     return SW_OK();
 }

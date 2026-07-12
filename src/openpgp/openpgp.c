@@ -30,6 +30,7 @@
 #include "mbedtls/md.h"
 #include "usb.h"
 #include "ccid/ccid.h"
+#include "led/led.h"
 #include "otp.h"
 #include "do.h"
 #ifdef MBEDTLS_EDDSA_C
@@ -273,6 +274,17 @@ bool wait_button_pressed_fid(uint16_t fid) {
     (void) fid;
 #endif
     return val == EV_BUTTON_TIMEOUT;
+}
+
+void signal_private_key_use(uint16_t uif_fid) {
+#ifndef ENABLE_EMULATION
+    file_t *ef = file_search_by_fid(uif_fid, NULL, SPECIFY_ANY);
+    if (ef == NULL || ef->data == NULL || file_get_data(ef)[0] == 0) {
+        led_blink_n_times(3, LED_COLOR_GREEN, 100, 100);
+    }
+#else
+    (void)uif_fid;
+#endif
 }
 
 void select_file(file_t *pe) {

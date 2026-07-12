@@ -75,6 +75,7 @@ extern mbedtls_ecp_group_id get_ec_group_id_from_attr(const uint8_t *algo, size_
 extern int reset_sig_count(void);
 extern uint16_t algo_dec, algo_aut, pk_dec, pk_aut;
 extern bool wait_button_pressed_fid(uint16_t fid);
+extern void signal_private_key_use(uint16_t uif_fid);
 extern void scan_files_openpgp(void);
 extern int load_aes_key(uint8_t *aes_key, size_t *key_size, file_t *fkey);
 extern int load_key_data(file_t *fkey, uint8_t *out, size_t out_size, size_t *out_len, bool use_dek);
