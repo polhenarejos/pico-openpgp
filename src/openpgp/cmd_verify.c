@@ -45,7 +45,7 @@ int cmd_verify(void) {
         return SW_WRONG_P1P2();
     }
     uint16_t fid = 0x1000 | p2;
-    if (fid == EF_RC && apdu.nc > 0) {
+    if (fid == EF_RC) {
         fid = EF_PW1;
     }
     file_t *pw, *pw_status;
@@ -77,7 +77,8 @@ int cmd_verify(void) {
 #endif
         return r;
     }
-    uint8_t retries = *(file_get_data(pw_status) + 3 + (fid & 0xf));
+    uint8_t retry_index = p2 == 0x82 ? (EF_PW1 & 0xf) : (fid & 0xf);
+    uint8_t retries = *(file_get_data(pw_status) + 3 + retry_index);
     if (retries == 0) {
         return SW_PIN_BLOCKED();
     }
