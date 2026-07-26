@@ -944,13 +944,13 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
             }
             uint8_t old_data[DEK_FILE_SIZE_OLD], ef_data[DEK_FILE_SIZE];
             file_t *ef_dek_pw = NULL;
-            if (has_pw1 || has_pw2) {
+            if (pin->fid == EF_PW1) {
                 ef_dek_pw = file_search_by_fid(EF_DEK_PW1, NULL, SPECIFY_EF);
             }
-            else if (has_pw3) {
+            else if (pin->fid == EF_PW3) {
                 ef_dek_pw = file_search_by_fid(EF_DEK_PW3, NULL, SPECIFY_EF);
             }
-            else if (has_pwpiv) {
+            else if (pin->fid == EF_PIV_PIN) {
                 ef_dek_pw = file_search_by_fid(EF_DEK_PWPIV, NULL, SPECIFY_EF);
             }
             if (!ef_dek_pw) {
@@ -958,24 +958,30 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
             }
             ef_data[0] = 0x3; // Format
             pin_derive_session(data, len, pin_sp);
-            encrypt_with_aad(pin_sp, dek, DEK_SIZE, PIN_KDF_DEFAULT_VERSION, ef_data + 1);
-            file_put_data(ef_dek_pw, ef_data, sizeof(ef_data));
+            if ((r = encrypt_with_aad(pin_sp, dek, DEK_SIZE, PIN_KDF_DEFAULT_VERSION, ef_data + 1)) != PICOKEYS_OK) {
+                return SW_EXEC_ERROR();
+            }
+            if ((r = file_put_data(ef_dek_pw, ef_data, sizeof(ef_data))) != PICOKEYS_OK) {
+                return SW_MEMORY_FAILURE();
+            }
 
             file_t *ef_dek = file_search_by_fid(EF_DEK, NULL, SPECIFY_EF);
             if (!ef_dek) {
                 return PICOKEYS_ERR_FILE_NOT_FOUND;
             }
             memcpy(old_data, file_get_data(ef_dek), sizeof(old_data));
-            if (has_pw1 || has_pw2) {
+            if (pin->fid == EF_PW1) {
                 memset(old_data + IV_SIZE, 0, 32);
             }
-            else if (has_pw3) {
+            else if (pin->fid == EF_PW3) {
                 memset(old_data + IV_SIZE + 32 + 32, 0, 32);
             }
-            else if (has_pwpiv) {
+            else if (pin->fid == EF_PIV_PIN) {
                 memset(old_data + IV_SIZE + 32 + 32 + 32, 0, 32);
             }
-            file_put_data(ef_dek, old_data, sizeof(old_data));
+            if ((r = file_put_data(ef_dek, old_data, sizeof(old_data))) != PICOKEYS_OK) {
+                return SW_MEMORY_FAILURE();
+            }
             flash_commit();
         }
     }
