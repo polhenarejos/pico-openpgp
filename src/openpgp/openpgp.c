@@ -21,6 +21,7 @@
 #define MBEDTLS_ALLOW_PRIVATE_ACCESS
 #endif
 #include "openpgp.h"
+#include "key_container.h"
 #include "serial.h"
 #include "version.h"
 #include "random.h"
@@ -57,7 +58,7 @@ enum {
     ADMINLESS_MODE_KDF_MIGRATION = 3,
 };
 
-#define ADMINLESS_MODE_OFFSET 6
+#define ADMINLESS_MODE_OFFSET (6u)
 #define ADMINLESS_RETRIES_SIZE (ADMINLESS_MODE_OFFSET + 1)
 
 static int adminless_set_mode(uint8_t mode) {
@@ -292,9 +293,9 @@ void select_file(file_t *pe) {
         currentDF = (file_t *) MF;
         currentEF = NULL;
     }
-    else if (pe->type & FILE_TYPE_INTERNAL_EF) {
+    else if (file_get_type(pe) & FILE_TYPE_INTERNAL_EF) {
         currentEF = pe;
-        currentDF = &file_entries[pe->parent];
+        currentDF = get_parent(pe);
     }
     else {
         currentDF = pe;
@@ -484,7 +485,7 @@ void scan_files_openpgp(void) {
     flash_commit();
 }
 
-static void release_dek(void) {
+void release_dek(void) {
     memset(dek, 0, sizeof(dek));
 }
 
@@ -692,6 +693,16 @@ int load_key_data(file_t *fkey, uint8_t *out, size_t out_size, size_t *out_len, 
     if (!file_has_data(fkey) || !out || !out_len) {
         return PICOKEYS_WRONG_DATA;
     }
+    if (openpgp_key_container_is_marker(fkey)) {
+        uint16_t operation = FILE_OBJECT_OPERATION_USE;
+        if (fkey->fid == EF_PK_SIG) {
+            operation = FILE_OBJECT_OPERATION_SIGN;
+        }
+        else if (fkey->fid == EF_PK_DEC || fkey->fid == EF_AES_KEY) {
+            operation = FILE_OBJECT_OPERATION_DECRYPT;
+        }
+        return openpgp_key_container_read_private(fkey->fid, operation, true, out, out_size, out_len);
+    }
     size_t stored_len = file_get_size(fkey);
     const uint8_t *stored = file_get_data(fkey);
 
@@ -828,7 +839,7 @@ int pin_reset_retries(const file_t *pin, bool force) {
     if (!pw_status || !pw_retries) {
         return PICOKEYS_ERR_FILE_NOT_FOUND;
     }
-    if (3 + (pin->fid & 0xf) >= file_get_size(pw_status) || (pin->fid & 0xf) >= file_get_size(pw_retries)) {
+    if (3u + (pin->fid & 0xfu) >= file_get_size(pw_status) || (pin->fid & 0xfu) >= file_get_size(pw_retries)) {
         return PICOKEYS_ERR_MEMORY_FATAL;
     }
     uint8_t p[64];
@@ -1033,45 +1044,85 @@ int reset_sig_count(void) {
     return PICOKEYS_OK;
 }
 
-int store_keys(void *key_ctx, int type, uint16_t key_id, bool use_kek) {
-    int r, key_size = 0;
-    uint8_t kdata[4096 / 8]; //worst
-
-    //if (!has_pw3)
-    //    return PICOKEYS_NO_LOGIN;
-    //file_t *pw3 = file_search_by_fid(EF_PW3, NULL, SPECIFY_EF);
-    //if (!pw3)
-    //    return PICOKEYS_ERR_FILE_NOT_FOUND;
-    file_t *ef = file_search_by_fid(key_id, NULL, SPECIFY_EF);
-    if (!ef) {
-        return PICOKEYS_ERR_FILE_NOT_FOUND;
+static int serialize_key(void *key_ctx, int type, uint8_t *kdata, size_t capacity, size_t *key_size) {
+    if (!key_ctx || !kdata || !key_size) {
+        return PICOKEYS_ERR_NULL_PARAM;
     }
+
+    *key_size = 0;
     if (type == ALGO_RSA) {
         mbedtls_rsa_context *rsa = (mbedtls_rsa_context *) key_ctx;
-        key_size = mbedtls_mpi_size(&rsa->P) + mbedtls_mpi_size(&rsa->Q);
-        mbedtls_mpi_write_binary(&rsa->P, kdata, key_size / 2);
-        mbedtls_mpi_write_binary(&rsa->Q, kdata + key_size / 2, key_size / 2);
+        *key_size = mbedtls_mpi_size(&rsa->P) + mbedtls_mpi_size(&rsa->Q);
+        if (*key_size > capacity || mbedtls_mpi_write_binary(&rsa->P, kdata, *key_size / 2) != 0 || mbedtls_mpi_write_binary(&rsa->Q, kdata + *key_size / 2, *key_size / 2) != 0) {
+            return PICOKEYS_WRONG_DATA;
+        }
     }
     else if (type == ALGO_ECDSA || type == ALGO_ECDH || type == ALGO_EDDSA) {
         mbedtls_ecp_keypair *ecdsa = (mbedtls_ecp_keypair *) key_ctx;
         size_t olen = 0;
+        if (capacity < 2) {
+            return PICOKEYS_WRONG_DATA;
+        }
         kdata[0] = ecdsa->grp.id & 0xff;
-        mbedtls_ecp_write_key_ext(ecdsa, &olen, kdata + 1, sizeof(kdata) - 1);
-        key_size = olen + 1;
+        if (mbedtls_ecp_write_key_ext(ecdsa, &olen, kdata + 1, capacity - 1) != 0) {
+            return PICOKEYS_WRONG_DATA;
+        }
+        *key_size = olen + 1;
     }
     else if (type & ALGO_AES) {
         if (type == ALGO_AES_128) {
-            key_size = 16;
+            *key_size = 16;
         }
         else if (type == ALGO_AES_192) {
-            key_size = 24;
+            *key_size = 24;
         }
         else if (type == ALGO_AES_256) {
-            key_size = 32;
+            *key_size = 32;
         }
-        memcpy(kdata, key_ctx, key_size);
+        else {
+            return PICOKEYS_WRONG_DATA;
+        }
+        if (*key_size > capacity) {
+            return PICOKEYS_WRONG_DATA;
+        }
+        memcpy(kdata, key_ctx, *key_size);
     }
-    r = use_kek ? store_encrypted_key(ef, kdata, key_size) : file_put_data(ef, kdata, key_size);
+    else {
+        return PICOKEYS_WRONG_DATA;
+    }
+    return PICOKEYS_OK;
+}
+
+int store_keypair(void *key_ctx, int type, uint16_t key_id, const uint8_t *public_data, size_t public_size) {
+    if (!openpgp_key_container_supported(key_id) || key_id == EF_AES_KEY || !public_data || public_size == 0) {
+        return PICOKEYS_WRONG_DATA;
+    }
+
+    uint8_t kdata[4096 / 8];
+    size_t key_size = 0;
+    int r = serialize_key(key_ctx, type, kdata, sizeof(kdata), &key_size);
+    if (r == PICOKEYS_OK) {
+        r = openpgp_key_container_store(key_id, kdata, key_size, public_data, (uint32_t)public_size, false);
+    }
+    mbedtls_platform_zeroize(kdata, sizeof(kdata));
+    return r;
+}
+
+int store_keys(void *key_ctx, int type, uint16_t key_id, bool use_kek) {
+    file_t *ef = file_search_by_fid(key_id, NULL, SPECIFY_EF);
+    if (!ef) {
+        return PICOKEYS_ERR_FILE_NOT_FOUND;
+    }
+
+    uint8_t kdata[4096 / 8];
+    size_t key_size = 0;
+    int r = serialize_key(key_ctx, type, kdata, sizeof(kdata), &key_size);
+    if (r == PICOKEYS_OK && openpgp_key_container_supported(key_id)) {
+        r = openpgp_key_container_store(key_id, kdata, key_size, NULL, 0, !use_kek);
+    }
+    else if (r == PICOKEYS_OK) {
+        r = use_kek ? store_encrypted_key(ef, kdata, key_size) : file_put_data(ef, kdata, key_size);
+    }
     mbedtls_platform_zeroize(kdata, sizeof(kdata));
     if (r != PICOKEYS_OK) {
         return r;

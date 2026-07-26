@@ -64,7 +64,7 @@ int parse_do(uint16_t *fids, int mode) {
     for (int i = 0; i < fids[0]; i++) {
         if ((ef = file_search_by_fid(fids[i + 1], NULL, SPECIFY_EF))) {
             uint16_t data_len;
-            if ((ef->type & FILE_DATA_FUNC) == FILE_DATA_FUNC) {
+            if ((file_get_type(ef) & FILE_DATA_FUNC) == FILE_DATA_FUNC) {
                 if (mode == 1 && response_remaining() < 16) {
                     break;
                 }
@@ -158,7 +158,7 @@ int parse_sec_tpl(const file_t *f, int mode) {
     memset(res_APDU + res_APDU_size, 0, 3);
     file_t *ef = file_search_by_fid(EF_SIG_COUNT, NULL, SPECIFY_ANY);
     if (ef && ef->data) {
-        uint16_t data_len = MIN(file_get_size(ef), 3);
+        uint16_t data_len = MIN(file_get_size(ef), 3u);
         memcpy(res_APDU + res_APDU_size, file_get_data(ef), data_len);
     }
     res_APDU_size += 3;
@@ -244,7 +244,7 @@ int parse_pw_status(const file_t *f, int mode) {
     ef = file_search_by_fid(EF_PW_PRIV, NULL, SPECIFY_ANY);
     memset(res_APDU + res_APDU_size, 0, 7);
     if (ef && ef->data) {
-        uint16_t data_len = MIN(file_get_size(ef), 7);
+        uint16_t data_len = MIN(file_get_size(ef), 7u);
         memcpy(res_APDU + res_APDU_size, file_get_data(ef), data_len);
     }
     res_APDU_size += 7;

@@ -33,6 +33,7 @@
 #include "mbedtls/des.h"
 #include "mbedtls/x509_crt.h"
 #include "mbedtls/constant_time.h"
+#include "key_container.h"
 #include "openpgp.h"
 
 #define PIV_ALGO_3DES   0x03
@@ -60,6 +61,7 @@
 
 #define ORIGIN_GENERATED 0x01
 #define ORIGIN_IMPORTED 0x02
+#define PIV_MANAGEMENT_KEY_DEFAULT_SIZE 24u
 
 #define IS_RETIRED(x) ((x) >= EF_PIV_KEY_RETIRED1 && (x) <= EF_PIV_KEY_RETIRED20)
 #define IS_ACTIVE(x) ((x) >= EF_PIV_KEY_AUTHENTICATION && (x) <= EF_PIV_KEY_CARDAUTH)
@@ -87,6 +89,21 @@ static uint8_t mgm_challenge[16];
 static mgm_challenge_kind_t mgm_challenge_kind = MGM_CHALLENGE_NONE;
 static uint8_t mgm_challenge_algo = 0;
 static bool has_mgm = false;
+static const uint8_t piv_management_key_default[PIV_MANAGEMENT_KEY_DEFAULT_SIZE] = {
+    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08
+};
+
+bool piv_key_operation_authorized(uint16_t operation, bool internal_firmware) {
+    if (internal_firmware) {
+        return true;
+    }
+    if (operation == FILE_OBJECT_OPERATION_UPDATE || operation == FILE_OBJECT_OPERATION_DELETE || operation == FILE_OBJECT_OPERATION_CHANGE_POLICY) {
+        return has_mgm;
+    }
+    return false;
+}
 
 static void clear_mgm_challenge(void) {
     memset(mgm_challenge, 0, sizeof(mgm_challenge));
@@ -228,9 +245,7 @@ static void scan_files_piv(void) {
         mbedtls_platform_zeroize(session_pwpiv, sizeof(session_pwpiv));
         file_put_data(ef, def, sizeof(def));
 
-        uint8_t *key = (uint8_t *)"\x01\x02\x03\x04\x05\x06\x07\x08\x01\x02\x03\x04\x05\x06\x07\x08\x01\x02\x03\x04\x05\x06\x07\x08";
-        file_t *ef_cardmgm = file_search_by_fid(EF_PIV_KEY_CARDMGM, NULL, SPECIFY_ANY);
-        file_put_data(ef_cardmgm, key, 24);
+        openpgp_key_container_store(EF_PIV_KEY_CARDMGM, piv_management_key_default, sizeof(piv_management_key_default), NULL, 0, true);
         uint8_t meta[] = { PIV_ALGO_AES192, PINPOLICY_ALWAYS, TOUCHPOLICY_ALWAYS };
         meta_add(EF_PIV_KEY_CARDMGM, meta, sizeof(meta));
 
@@ -426,7 +441,7 @@ static int cmd_piv_get_data(void) {
     if ((ef = file_search_by_fid((uint16_t)(fid & 0xFFFF), NULL, SPECIFY_EF))) {
         uint16_t data_len = 0;
         res_APDU_size = 2; // Minimum: TAG+LEN
-        if ((ef->type & FILE_DATA_FUNC) == FILE_DATA_FUNC) {
+        if ((file_get_type(ef) & FILE_DATA_FUNC) == FILE_DATA_FUNC) {
             int (*file_data_func)(const file_t *) = NULL;
             memcpy(&file_data_func, &ef->data, sizeof(file_data_func));
             data_len = file_data_func(ef);
@@ -556,15 +571,22 @@ static int cmd_get_metadata(void) {
         int32_t eq = 0;
         if (key_ref == EF_PIV_PIN) {
             pin_derive_verifier((const uint8_t *)"\x31\x32\x33\x34\x35\x36\xFF\xFF", 8, dhash);
-            eq = mbedtls_ct_memcmp(dhash, file_get_data(ef_key) + 1, file_get_size(ef_key) - 1);
+            eq = file_get_size(ef_key) == 34u && file_get_data(ef_key)[1] == 1u ? mbedtls_ct_memcmp(dhash, file_get_data(ef_key) + 2, sizeof(dhash)) : -1;
         }
         else if (key_ref == EF_PIV_PUK) {
             pin_derive_verifier((const uint8_t *)"\x31\x32\x33\x34\x35\x36\x37\x38", 8, dhash);
-            eq = mbedtls_ct_memcmp(dhash, file_get_data(ef_key) + 1, file_get_size(ef_key) - 1);
+            eq = file_get_size(ef_key) == 34u && file_get_data(ef_key)[1] == 1u ? mbedtls_ct_memcmp(dhash, file_get_data(ef_key) + 2, sizeof(dhash)) : -1;
         }
         else if (key_ref == EF_PIV_KEY_CARDMGM) {
-            pin_derive_verifier((const uint8_t *)"\x01\x02\x03\x04\x05\x06\x07\x08\x01\x02\x03\x04\x05\x06\x07\x08\x01\x02\x03\x04\x05\x06\x07\x08", 24, dhash);
-            eq = mbedtls_ct_memcmp(dhash, file_get_data(ef_key), file_get_size(ef_key));
+            uint8_t management_key[32] = { 0 };
+            size_t management_key_size = 0;
+            int r = openpgp_key_container_is_marker(ef_key) ? openpgp_key_container_read_private(EF_PIV_KEY_CARDMGM, FILE_OBJECT_OPERATION_USE, true, management_key, sizeof(management_key), &management_key_size) : PICOKEYS_OK;
+            if (!openpgp_key_container_is_marker(ef_key)) {
+                management_key_size = MIN(file_get_size(ef_key), sizeof(management_key));
+                memcpy(management_key, file_get_data(ef_key), management_key_size);
+            }
+            eq = r == PICOKEYS_OK && management_key_size == sizeof(piv_management_key_default) ? mbedtls_ct_memcmp(piv_management_key_default, management_key, management_key_size) : -1;
+            mbedtls_platform_zeroize(management_key, sizeof(management_key));
         }
         res_APDU[res_APDU_size++] = 0x5;
         res_APDU[res_APDU_size++] = 1;
@@ -587,31 +609,45 @@ static int cmd_get_metadata(void) {
     }
     return SW_OK();
 }
-static int mgm_crypt(uint8_t algo, const file_t *ef_mgm, const uint8_t *input,
-                     uint8_t *output, bool encrypt) {
-    int r;
+static int mgm_crypt(uint8_t algo, const file_t *ef_mgm, const uint8_t *input, uint8_t *output, bool encrypt) {
+    uint8_t management_key[32] = { 0 };
+    size_t key_len = 0;
+    int r = PICOKEYS_OK;
+    if (openpgp_key_container_is_marker(ef_mgm)) {
+        r = openpgp_key_container_read_private(EF_PIV_KEY_CARDMGM, FILE_OBJECT_OPERATION_USE, true, management_key, sizeof(management_key), &key_len);
+    }
+    else if (file_has_data(ef_mgm) && file_get_size(ef_mgm) <= sizeof(management_key)) {
+        key_len = file_get_size(ef_mgm);
+        memcpy(management_key, file_get_data(ef_mgm), key_len);
+    }
+    else {
+        r = PICOKEYS_WRONG_DATA;
+    }
+    if (r != PICOKEYS_OK) {
+        return r;
+    }
+
     if (algo == PIV_ALGO_3DES) {
         mbedtls_des3_context ctx;
         mbedtls_des3_init(&ctx);
-        r = encrypt ? mbedtls_des3_set3key_enc(&ctx, file_get_data(ef_mgm)) :
-                      mbedtls_des3_set3key_dec(&ctx, file_get_data(ef_mgm));
+        r = key_len == 24 ? (encrypt ? mbedtls_des3_set3key_enc(&ctx, management_key) : mbedtls_des3_set3key_dec(&ctx, management_key)) : PICOKEYS_WRONG_DATA;
         if (r == 0) {
             r = mbedtls_des3_crypt_ecb(&ctx, input, output);
         }
         mbedtls_des3_free(&ctx);
+        mbedtls_platform_zeroize(management_key, sizeof(management_key));
         return r;
     }
 
     mbedtls_aes_context ctx;
     mbedtls_aes_init(&ctx);
-    uint16_t key_len = file_get_size(ef_mgm);
-    r = encrypt ? mbedtls_aes_setkey_enc(&ctx, file_get_data(ef_mgm), key_len * 8) :
-                  mbedtls_aes_setkey_dec(&ctx, file_get_data(ef_mgm), key_len * 8);
+    r = encrypt ? mbedtls_aes_setkey_enc(&ctx, management_key, (unsigned int)(key_len * 8u)) : mbedtls_aes_setkey_dec(&ctx, management_key, (unsigned int)(key_len * 8u));
     if (r == 0) {
         r = mbedtls_aes_crypt_ecb(&ctx, encrypt ? MBEDTLS_AES_ENCRYPT : MBEDTLS_AES_DECRYPT,
                                   input, output);
     }
     mbedtls_aes_free(&ctx);
+    mbedtls_platform_zeroize(management_key, sizeof(management_key));
     return r;
 }
 
@@ -717,7 +753,16 @@ static int cmd_authenticate(void) {
         if (!file_has_data(ef_mgm)) {
             return SW_MEMORY_FAILURE();
         }
-        uint16_t mgm_len = file_get_size(ef_mgm);
+        uint8_t management_key[32] = { 0 };
+        size_t mgm_len = 0;
+        int r = openpgp_key_container_is_marker(ef_mgm) ? openpgp_key_container_read_private(EF_PIV_KEY_CARDMGM, FILE_OBJECT_OPERATION_USE, true, management_key, sizeof(management_key), &mgm_len) : PICOKEYS_OK;
+        if (!openpgp_key_container_is_marker(ef_mgm)) {
+            mgm_len = MIN(file_get_size(ef_mgm), sizeof(management_key));
+        }
+        mbedtls_platform_zeroize(management_key, sizeof(management_key));
+        if (r != PICOKEYS_OK) {
+            return SW_MEMORY_FAILURE();
+        }
         if ((algo == PIV_ALGO_AES128 && mgm_len != 16) || (algo == PIV_ALGO_AES192 && mgm_len != 24) || (algo == PIV_ALGO_AES256 && mgm_len != 32) || (algo == PIV_ALGO_3DES && mgm_len != 24)) {
             return SW_INCORRECT_P1P2();
         }
@@ -767,7 +812,7 @@ static int cmd_authenticate(void) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        size_t olen = file_get_size(ef_key);
+        size_t olen = mbedtls_rsa_get_len(&ctx);
         if (algo == PIV_ALGO_RSA1024) {
             memcpy(res_APDU, "\x7C\x81\x00\x82\x81\x00", 6);
             res_APDU_size = 6;
@@ -994,8 +1039,9 @@ static int cmd_set_mgmkey(void) {
     if (apdu.nc != (uint32_t)pinlen + 3u) {
         return SW_WRONG_LENGTH();
     }
-    file_t *ef = file_search_by_fid(key_ref, NULL, SPECIFY_ANY);
-    file_put_data(ef, apdu.data + 3, pinlen);
+    if (openpgp_key_container_store(key_ref, apdu.data + 3, pinlen, NULL, 0, true) != PICOKEYS_OK) {
+        return SW_MEMORY_FAILURE();
+    }
     uint8_t *meta = NULL, new_meta[4];
     int meta_len = 0;
     if ((meta_len = meta_find(key_ref, &meta)) <= 0) {
@@ -1078,8 +1124,26 @@ static int cmd_move_key(void) {
     }
 
     if (to != 0xFF) {
-        uint16_t key_len = MIN(file_get_size(efs), OPENPGP_MAX_OBJECT_SIZE);
-        file_put_data(efd, file_get_data(efs), key_len);
+        uint8_t key_data[4096 / 8] = { 0 };
+        size_t key_len = 0;
+        int r = PICOKEYS_OK;
+        if (openpgp_key_container_is_marker(efs)) {
+            r = openpgp_key_container_read_private(from, FILE_OBJECT_OPERATION_USE, true, key_data, sizeof(key_data), &key_len);
+        }
+        else if (file_has_data(efs) && file_get_size(efs) <= sizeof(key_data)) {
+            key_len = file_get_size(efs);
+            memcpy(key_data, file_get_data(efs), key_len);
+        }
+        else {
+            r = PICOKEYS_WRONG_DATA;
+        }
+        if (r == PICOKEYS_OK) {
+            r = openpgp_key_container_store(to, key_data, key_len, NULL, 0, true);
+        }
+        mbedtls_platform_zeroize(key_data, sizeof(key_data));
+        if (r != PICOKEYS_OK) {
+            return SW_EXEC_ERROR();
+        }
     }
 
     file_t *ef_cert_from = file_search_by_fid(cert_from_fid, NULL, SPECIFY_EF);
@@ -1117,7 +1181,14 @@ static int cmd_move_key(void) {
         }
     }
     meta_delete(from);
-    flash_clear_file(efs);
+    if (openpgp_key_container_is_marker(efs)) {
+        if (openpgp_key_container_delete(from, true) != PICOKEYS_OK) {
+            return SW_EXEC_ERROR();
+        }
+    }
+    else {
+        flash_clear_file(efs);
+    }
     flash_commit();
     return SW_OK();
 }

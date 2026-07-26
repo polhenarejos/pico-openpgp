@@ -186,8 +186,8 @@ int cmd_import_data(void) {
             mbedtls_rsa_free(&rsa);
             return SW_EXEC_ERROR();
         }
-        r = store_keys(&rsa, ALGO_RSA, fid, true);
         make_rsa_response(&rsa);
+        r = store_keypair(&rsa, ALGO_RSA, fid, res_APDU, res_APDU_size);
         mbedtls_rsa_free(&rsa);
         if (r != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
@@ -219,8 +219,8 @@ int cmd_import_data(void) {
             mbedtls_ecp_keypair_free(&ecdsa);
             return SW_EXEC_ERROR();
         }
-        r = store_keys(&ecdsa, ALGO_ECDSA, fid, true);
         make_ecdsa_response(&ecdsa);
+        r = store_keypair(&ecdsa, algo[0], fid, res_APDU, res_APDU_size);
         mbedtls_ecp_keypair_free(&ecdsa);
         if (r != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
@@ -231,14 +231,6 @@ int cmd_import_data(void) {
     }
     if (fid == EF_PK_SIG) {
         reset_sig_count();
-    }
-    file_t *pbef = file_search_by_fid(fid + 3, NULL, SPECIFY_EF);
-    if (!pbef) {
-        return SW_REFERENCE_NOT_FOUND();
-    }
-    r = file_put_data(pbef, res_APDU, res_APDU_size);
-    if (r != PICOKEYS_OK) {
-        return SW_EXEC_ERROR();
     }
     res_APDU_size = 0; //make_*_response sets a response. we need to overwrite
     return SW_OK();

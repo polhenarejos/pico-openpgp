@@ -66,7 +66,7 @@ int cmd_get_data(void) {
         uint16_t fids[] = { 1, ef->fid };
         uint16_t data_len = parse_do(fids, 1);
         data_len = MIN(data_len, res_APDU_size);
-        if (!(ef->type & FILE_DATA_FLASH)) {
+        if (!(file_get_type(ef) & FILE_DATA_FLASH)) {
             uint8_t *p = NULL;
             uint16_t tg = 0;
             uint16_t tg_len = 0;

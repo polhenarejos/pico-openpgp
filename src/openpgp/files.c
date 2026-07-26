@@ -76,7 +76,7 @@ uint8_t exlen_info[] = {
     0x2, 0x2, 0x08, 0x00,
 };
 
-file_t file_entries[] = {
+file_entry_t file_entries[] = {
     /*  0 */ { .fid = 0x3f00, .parent = 0xff, .name = NULL, .type = FILE_TYPE_DF, .data = NULL,
                .ef_structure = 0, .acl = ACL_NONE },                                                                                  // MF
     /*  1 */ { .fid = EF_FULL_AID, .parent = 0, .name = openpgp_aid_full,
@@ -506,6 +506,6 @@ file_t file_entries[] = {
                .ef_structure = 0, .acl = ACL_NONE }                                                                                       //end
 };
 
-const file_t *MF = &file_entries[0];
-const file_t *file_openpgp = &file_entries[sizeof(file_entries) / sizeof(file_t) - 2];
-const file_t *file_last = &file_entries[sizeof(file_entries) / sizeof(file_t) - 1];
+const file_t *MF = &file_entries[0].file;
+const file_t *file_openpgp = &file_entries[sizeof(file_entries) / sizeof(file_entry_t) - 2].file;
+const file_entry_t *file_last = &file_entries[sizeof(file_entries) / sizeof(file_entry_t) - 1];

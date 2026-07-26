@@ -56,6 +56,8 @@ if(NOT ESP_PLATFORM)
 endif()
 set(SOURCES ${SOURCES}
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/openpgp.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/object_provider.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/key_container.c
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/files.c
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/piv.c
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/management.c
@@ -118,6 +120,7 @@ if(NOT ESP_PLATFORM)
     endif()
 
     if(ENABLE_EMULATION)
+        enable_testing()
         if(NOT MSVC)
             target_compile_options(pico_openpgp PUBLIC
                 -fdata-sections
@@ -140,6 +143,23 @@ if(NOT ESP_PLATFORM)
             )
         endif(APPLE)
         target_link_libraries(pico_openpgp PRIVATE picokeys_sdk mbedtls pthread m)
+
+        add_executable(openpgp_key_container_test
+            ${CMAKE_CURRENT_LIST_DIR}/pico-keys-sdk/src/fs/object_container.c
+            ${CMAKE_CURRENT_LIST_DIR}/pico-keys-sdk/src/fs/object_container_store.c
+            ${CMAKE_CURRENT_LIST_DIR}/pico-keys-sdk/src/fs/object_policy.c
+            ${CMAKE_CURRENT_LIST_DIR}/pico-keys-sdk/src/fs/object_store_txn.c
+            ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/key_container.c
+            ${CMAKE_CURRENT_LIST_DIR}/tests/openpgp_key_container_test.c
+        )
+        target_include_directories(openpgp_key_container_test PRIVATE ${INCLUDES})
+        if(MSVC)
+            target_compile_options(openpgp_key_container_test PRIVATE /W4 /WX)
+        else()
+            target_compile_options(openpgp_key_container_test PRIVATE -Wall -Wextra -Werror)
+        endif()
+        target_link_libraries(openpgp_key_container_test PRIVATE mbedtls)
+        add_test(NAME openpgp_key_container_test COMMAND openpgp_key_container_test)
     else()
         pico_add_extra_outputs(${CMAKE_PROJECT_NAME})
     endif()

@@ -69,7 +69,7 @@ int cmd_put_data(void) {
     else if (currentEF && currentEF->fid == fid) { // previously selected same EF
         ef = currentEF;
     }
-    if (ef->type & FILE_DATA_FLASH) {
+    if (file_get_type(ef) & FILE_DATA_FLASH) {
         int r = 0;
         if (apdu.nc > 0) {
             if (requested_fid == EF_PW_STATUS) {

@@ -40,6 +40,7 @@ extern uint8_t session_pw3[32];
 extern uint8_t dek[IV_SIZE + 32];
 
 extern int store_keys(void *key_ctx, int type, uint16_t key_id, bool use_kek);
+extern int store_keypair(void *key_ctx, int type, uint16_t key_id, const uint8_t *public_data, size_t public_size);
 extern void make_rsa_response(mbedtls_rsa_context *rsa);
 extern void make_ecdsa_response(mbedtls_ecdsa_context *ecdsa);
 extern int ecdsa_sign(mbedtls_ecdsa_context *ctx, const uint8_t *data, size_t data_len, uint8_t *out, size_t *out_len);
@@ -60,6 +61,8 @@ extern int pin_reset_retries(const file_t *pin, bool force);
 extern void select_file(file_t *pe);
 extern int parse_do(uint16_t *fids, int mode);
 extern int load_dek(void);
+extern void release_dek(void);
+extern bool piv_key_operation_authorized(uint16_t operation, bool internal_firmware);
 extern int check_pin(const file_t *pin, const uint8_t *data, size_t len);
 extern int openpgp_reset_code_deactivate(void);
 #ifdef ENABLE_ADMINLESS_MODE
@@ -105,8 +108,8 @@ int cmd_get_bulk_data(void);
 
 #define DEK_FILE_SIZE_OLD (IV_SIZE + 32 + 32 + 32 + 32)
 
-#define OPENPGP_MAX_ALGORITHM_ATTR_SIZE 16
-#define OPENPGP_MAX_OBJECT_SIZE         2048
-#define OPENPGP_MAX_RESPONSE_SIZE       2048
+#define OPENPGP_MAX_ALGORITHM_ATTR_SIZE 16u
+#define OPENPGP_MAX_OBJECT_SIZE         2048u
+#define OPENPGP_MAX_RESPONSE_SIZE       2048u
 
 #endif
