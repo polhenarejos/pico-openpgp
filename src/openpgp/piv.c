@@ -790,13 +790,13 @@ static int cmd_authenticate(void) {
         return SW_WRONG_DATA();
     }
     tlv_ctx_t a80 = { 0 }, a81 = { 0 }, a82 = { 0 };
-    tlv_find_tag(&a7c, 0x80, &a80);
-    tlv_find_tag(&a7c, 0x81, &a81);
-    tlv_find_tag(&a7c, 0x82, &a82);
+    bool has_witness = tlv_find_tag(&a7c, 0x80, &a80);
+    bool has_challenge = tlv_find_tag(&a7c, 0x81, &a81);
+    bool has_response = tlv_find_tag(&a7c, 0x82, &a82);
     if (key_ref == EF_PIV_KEY_CARDMGM) {
         return authenticate_mgm(algo, ef_mgm, chal_len, &a80, &a81, &a82);
     }
-    if (a80.data || a82.data || !a81.data || !tlv_len(&a81)) {
+    if (has_witness || !has_challenge || tlv_len(&a81) == 0 || !has_response || tlv_len(&a82) != 0) {
         return SW_INCORRECT_PARAMS();
     }
 
