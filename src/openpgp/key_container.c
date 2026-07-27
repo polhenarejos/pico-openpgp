@@ -112,7 +112,7 @@ static int openpgp_key_policy_hash(void *ctx, uint16_t policy_id, uint8_t hash[F
     if (policy_id != OPENPGP_KEY_CONTAINER_POLICY_ID) {
         return PICOKEYS_WRONG_DATA;
     }
-    return file_object_policy_hash(openpgp_key_internal_policy, sizeof(openpgp_key_internal_policy), hash);
+    return file_object_policy_hash(CONST_BYTE_ARRAY(openpgp_key_internal_policy, sizeof(openpgp_key_internal_policy)), hash);
 }
 
 static uint16_t openpgp_key_layout_manifest_fid(void *ctx, uint32_t container_id, uint8_t slot) {
@@ -181,7 +181,7 @@ static int openpgp_key_marker_write(uint16_t fid) {
     memcpy(marker, openpgp_key_container_marker_magic, sizeof(openpgp_key_container_marker_magic));
     marker[OPENPGP_KEY_MARKER_VERSION_OFFSET] = OPENPGP_KEY_MARKER_VERSION;
     put_uint16_be(fid, marker + OPENPGP_KEY_MARKER_FID_OFFSET);
-    int r = file_put_data(file, marker, sizeof(marker));
+    int r = file_put_data(file, CONST_BYTE_ARRAY(marker, sizeof(marker)));
     if (r != PICOKEYS_OK) {
         return r;
     }
@@ -205,7 +205,7 @@ static int openpgp_key_layout_deactivate(void *ctx, uint32_t container_id) {
     if (!marker) {
         return PICOKEYS_ERR_FILE_NOT_FOUND;
     }
-    return file_put_data(marker, NULL, 0);
+    return file_put_data(marker, CONST_BYTE_ARRAY(NULL, 0));
 }
 
 static const file_object_container_layout_t openpgp_key_container_layout = {
@@ -284,8 +284,7 @@ int openpgp_key_container_store(uint16_t fid, const uint8_t *private_data, uint3
     file_object_container_write_t writes[2] = {
         {
             .object_type = OPENPGP_KEY_OBJECT_PRIVATE,
-            .data = private_data,
-            .data_size = private_size,
+            .data = CONST_BYTE_ARRAY(private_data, private_size),
             .policy_id = OPENPGP_KEY_CONTAINER_POLICY_ID,
             .key_domain = openpgp_key_container_is_piv(fid) ? 1u : 0u,
             .protection = FILE_OBJECT_PROTECTION_AEAD_SECRET,
@@ -293,8 +292,7 @@ int openpgp_key_container_store(uint16_t fid, const uint8_t *private_data, uint3
         },
         {
             .object_type = OPENPGP_KEY_OBJECT_PUBLIC,
-            .data = public_data,
-            .data_size = public_size,
+            .data = CONST_BYTE_ARRAY(public_data, public_size),
             .policy_id = OPENPGP_KEY_CONTAINER_POLICY_ID,
             .key_domain = openpgp_key_container_is_piv(fid) ? 1u : 0u,
             .protection = FILE_OBJECT_PROTECTION_AUTHENTICATED_PUBLIC,
@@ -339,7 +337,7 @@ static int openpgp_key_object_access(void *ctx, const file_object_descriptor_t *
     return readable ? PICOKEYS_OK : PICOKEYS_NO_LOGIN;
 }
 
-int openpgp_key_container_read_private(uint16_t fid, uint16_t operation, bool internal_firmware, uint8_t *data, size_t capacity, size_t *written) {
+int openpgp_key_container_read_private(uint16_t fid, uint16_t operation, bool internal_firmware, byte_buffer_t *data) {
     if (!openpgp_key_container_supported(fid)) {
         return PICOKEYS_WRONG_DATA;
     }
@@ -353,10 +351,10 @@ int openpgp_key_container_read_private(uint16_t fid, uint16_t operation, bool in
         .operation = operation,
         .internal_firmware = internal_firmware
     };
-    return file_object_container_read(&openpgp_key_container_layout, fid, OPENPGP_KEY_OBJECT_PRIVATE, 0, &crypto, NULL, openpgp_key_object_access, &access, data, capacity, written);
+    return file_object_container_read(&openpgp_key_container_layout, fid, OPENPGP_KEY_OBJECT_PRIVATE, 0, &crypto, NULL, openpgp_key_object_access, &access, data);
 }
 
-int openpgp_key_container_read_public(uint16_t fid, uint8_t *data, size_t capacity, size_t *written) {
+int openpgp_key_container_read_public(uint16_t fid, byte_buffer_t *data) {
     if (!openpgp_key_container_supported(fid)) {
         return PICOKEYS_WRONG_DATA;
     }
@@ -369,7 +367,7 @@ int openpgp_key_container_read_public(uint16_t fid, uint8_t *data, size_t capaci
         .fid = fid,
         .operation = FILE_OBJECT_OPERATION_READ
     };
-    return file_object_container_read(&openpgp_key_container_layout, fid, OPENPGP_KEY_OBJECT_PUBLIC, 0, &crypto, NULL, openpgp_key_object_access, &access, data, capacity, written);
+    return file_object_container_read(&openpgp_key_container_layout, fid, OPENPGP_KEY_OBJECT_PUBLIC, 0, &crypto, NULL, openpgp_key_object_access, &access, data);
 }
 
 int openpgp_key_container_public_size(uint16_t fid, uint32_t *object_size) {

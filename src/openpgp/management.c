@@ -58,16 +58,15 @@ static int man_unload(void) {
 bool cap_supported(uint16_t cap) {
     file_t *ef = file_search(EF_DEV_CONF);
     if (file_has_data(ef)) {
-        uint16_t tag = 0x0;
-        uint8_t *tag_data = NULL, *p = NULL;
-        uint16_t tag_len = 0;
+        uint8_t *p = NULL;
+        tlv_item_t item;
         tlv_ctx_t ctxi;
-        tlv_ctx_init(file_get_data(ef), file_get_size(ef), &ctxi);
-        while ((tlv_walk(&ctxi, &p, &tag, &tag_len, &tag_data))) {
-            if (tag == TAG_USB_ENABLED) {
-                uint16_t ecaps = tag_data[0];
-                if (tag_len == 2) {
-                    ecaps = (tag_data[0] << 8) | tag_data[1];
+        tlv_ctx_init(BYTE_ARRAY(file_get_data(ef), file_get_size(ef)), &ctxi);
+        while (tlv_walk(&ctxi, &p, &item)) {
+            if (item.tag == TAG_USB_ENABLED) {
+                uint16_t ecaps = item.value.data[0];
+                if (item.value.len == 2) {
+                    ecaps = (item.value.data[0] << 8) | item.value.data[1];
                 }
                 return ecaps & cap;
             }
@@ -130,7 +129,7 @@ static int cmd_write_config(void) {
         return SW_WRONG_DATA();
     }
     file_t *ef = file_new(EF_DEV_CONF);
-    file_put_data(ef, apdu.data + 1, apdu.nc - 1);
+    file_put_data(ef, CONST_BYTE_ARRAY(apdu.data + 1, apdu.nc - 1));
     flash_commit();
     return SW_OK();
 }

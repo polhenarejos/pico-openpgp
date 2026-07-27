@@ -55,7 +55,7 @@ int cmd_select(void) {
             }
         }
         else if (p1 == 0x04) { //Select by DF name - e.g., [truncated] application identifier
-            if (!(pe = file_search_by_name(apdu.data, apdu.nc))) {
+            if (!(pe = file_search_by_name(CONST_BYTE_ARRAY(apdu.data, apdu.nc)))) {
                 return SW_REFERENCE_NOT_FOUND();
             }
             if (card_terminated) {
@@ -63,12 +63,12 @@ int cmd_select(void) {
             }
         }
         else if (p1 == 0x08) { //Select from the MF - Path without the MF identifier
-            if (!(pe = file_search_by_path(apdu.data, apdu.nc, MF))) {
+            if (!(pe = file_search_by_path(CONST_BYTE_ARRAY(apdu.data, apdu.nc), MF))) {
                 return SW_REFERENCE_NOT_FOUND();
             }
         }
         else if (p1 == 0x09) { //Select from the current DF - Path without the current DF identifier
-            if (!(pe = file_search_by_path(apdu.data, apdu.nc, currentDF))) {
+            if (!(pe = file_search_by_path(CONST_BYTE_ARRAY(apdu.data, apdu.nc), currentDF))) {
                 return SW_REFERENCE_NOT_FOUND();
             }
         }

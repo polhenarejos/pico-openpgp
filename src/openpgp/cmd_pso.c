@@ -97,7 +97,7 @@ int cmd_pso(void) {
         }
         const uint16_t aes_key_bits = (uint16_t)(key_size * 8);
         if (P1(apdu) == 0x80 && P2(apdu) == 0x86) { //decipher
-            r = aes_decrypt(aes_key, NULL, aes_key_bits, PICOKEYS_AES_MODE_CBC, apdu.data + 1, apdu.nc - 1);
+            r = aes_decrypt(CONST_BYTE_ARRAY(aes_key, aes_key_bits / 8), NULL, PICOKEYS_AES_MODE_CBC, BYTE_ARRAY(apdu.data + 1, apdu.nc - 1));
             memset(aes_key, 0, sizeof(aes_key));
             if (r != PICOKEYS_OK) {
                 return SW_EXEC_ERROR();
@@ -106,7 +106,7 @@ int cmd_pso(void) {
             res_APDU_size = apdu.nc - 1;
         }
         else if (P1(apdu) == 0x86 && P2(apdu) == 0x80) { //encipher
-            r = aes_encrypt(aes_key, NULL, aes_key_bits, PICOKEYS_AES_MODE_CBC, apdu.data, apdu.nc);
+            r = aes_encrypt(CONST_BYTE_ARRAY(aes_key, aes_key_bits / 8), NULL, PICOKEYS_AES_MODE_CBC, BYTE_ARRAY(apdu.data, apdu.nc));
             memset(aes_key, 0, sizeof(aes_key));
             if (r != PICOKEYS_OK) {
                 return SW_EXEC_ERROR();
@@ -187,11 +187,12 @@ int cmd_pso(void) {
             }
             //if (len != 2*key_size-1)
             //    return SW_WRONG_LENGTH();
-            if (load_key_data(ef, kdata, sizeof(kdata), &key_size, true) != PICOKEYS_OK ||
-                key_size < 2) {
+            byte_buffer_t key = BYTE_BUFFER(kdata, sizeof(kdata));
+            if (load_key_data(ef, &key, true) != PICOKEYS_OK || key.len < 2) {
                 mbedtls_platform_zeroize(kdata, sizeof(kdata));
                 return SW_EXEC_ERROR();
             }
+            key_size = key.len;
             mbedtls_ecdh_init(&ctx);
             mbedtls_ecp_group_id gid = kdata[0];
             r = mbedtls_ecdh_setup(&ctx, gid);

@@ -50,7 +50,7 @@ int cmd_reset_retry(void) {
             }
             newpin_len = apdu.nc - pin_len;
             has_rc = true;
-            pin_derive_session(apdu.data, pin_len, session_rc);
+            pin_derive_session(CONST_BYTE_ARRAY(apdu.data, pin_len), session_rc);
             has_pw1 = has_pw3 = false;
             isUserAuthenticated = false;
         }
@@ -70,15 +70,15 @@ int cmd_reset_retry(void) {
         }
         uint8_t def[DEK_FILE_SIZE];
         def[0] = 0x03;
-        pin_derive_session(apdu.data + (apdu.nc - newpin_len), newpin_len, session_pw1);
-        encrypt_with_aad(session_pw1, dek, DEK_SIZE, PIN_KDF_DEFAULT_VERSION, def + 1);
-        r = file_put_data(tf, def, sizeof(def));
+        pin_derive_session(CONST_BYTE_ARRAY(apdu.data + (apdu.nc - newpin_len), newpin_len), session_pw1);
+        encrypt_with_aad(session_pw1, CONST_BYTE_ARRAY(dek, DEK_SIZE), PIN_KDF_DEFAULT_VERSION, def + 1);
+        r = file_put_data(tf, CONST_BYTE_ARRAY(def, sizeof(def)));
 
         uint8_t dhash[34];
         dhash[0] = newpin_len;
         dhash[1] = 0x1; // Format
-        pin_derive_verifier(apdu.data + (apdu.nc - newpin_len), newpin_len, dhash + 2);
-        if ((r = file_put_data(pw, dhash, sizeof(dhash))) != PICOKEYS_OK) {
+        pin_derive_verifier(CONST_BYTE_ARRAY(apdu.data + (apdu.nc - newpin_len), newpin_len), dhash + 2);
+        if ((r = file_put_data(pw, CONST_BYTE_ARRAY(dhash, sizeof(dhash)))) != PICOKEYS_OK) {
             return SW_MEMORY_FAILURE();
         }
 #ifdef ENABLE_ADMINLESS_MODE

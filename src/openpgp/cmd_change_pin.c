@@ -30,13 +30,13 @@ static bool pw3_matches_nonfactory_pw1(const uint8_t *pin, size_t pin_len) {
     }
     if (file_get_size(pw1) == 33) {
         verifier[0] = pin_len;
-        double_hash_pin(pin, pin_len, verifier + 1);
+        double_hash_pin(CONST_BYTE_ARRAY(pin, pin_len), verifier + 1);
         return mbedtls_ct_memcmp(file_get_data(pw1), verifier, 33) == 0;
     }
     if (file_get_size(pw1) == 34) {
         verifier[0] = pin_len;
         verifier[1] = 0x1;
-        pin_derive_verifier(pin, pin_len, verifier + 2);
+        pin_derive_verifier(CONST_BYTE_ARRAY(pin, pin_len), verifier + 2);
         return mbedtls_ct_memcmp(file_get_data(pw1), verifier, sizeof(verifier)) == 0;
     }
     return false;
@@ -83,8 +83,8 @@ int cmd_change_pin(void) {
     uint8_t dhash[34];
     dhash[0] = new_pin_len;
     dhash[1] = 0x1; // Format
-    pin_derive_verifier(new_pin, new_pin_len, dhash + 2);
-    if ((r = file_put_data(pw, dhash, sizeof(dhash))) != PICOKEYS_OK) {
+    pin_derive_verifier(CONST_BYTE_ARRAY(new_pin, new_pin_len), dhash + 2);
+    if ((r = file_put_data(pw, CONST_BYTE_ARRAY(dhash, sizeof(dhash)))) != PICOKEYS_OK) {
         return SW_MEMORY_FAILURE();
     }
 
@@ -95,11 +95,11 @@ int cmd_change_pin(void) {
         }
         uint8_t def[DEK_FILE_SIZE];
         def[0] = 0x3;
-        pin_derive_session(new_pin, new_pin_len, session_pw1);
-        if ((r = encrypt_with_aad(session_pw1, dek, DEK_SIZE, PIN_KDF_DEFAULT_VERSION, def + 1)) != PICOKEYS_OK) {
+        pin_derive_session(CONST_BYTE_ARRAY(new_pin, new_pin_len), session_pw1);
+        if ((r = encrypt_with_aad(session_pw1, CONST_BYTE_ARRAY(dek, DEK_SIZE), PIN_KDF_DEFAULT_VERSION, def + 1)) != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
         }
-        r = file_put_data(tf, def, sizeof(def));
+        r = file_put_data(tf, CONST_BYTE_ARRAY(def, sizeof(def)));
 #ifdef ENABLE_ADMINLESS_MODE
         if (r == PICOKEYS_OK && sync_adminless_pw3) {
             r = openpgp_adminless_sync_pw3(new_pin, new_pin_len, dhash);
@@ -119,11 +119,11 @@ int cmd_change_pin(void) {
         }
         uint8_t def[DEK_FILE_SIZE];
         def[0] = 0x3;
-        pin_derive_session(new_pin, new_pin_len, session_pw3);
-        if ((r = encrypt_with_aad(session_pw3, dek, DEK_SIZE, PIN_KDF_DEFAULT_VERSION, def + 1)) != PICOKEYS_OK) {
+        pin_derive_session(CONST_BYTE_ARRAY(new_pin, new_pin_len), session_pw3);
+        if ((r = encrypt_with_aad(session_pw3, CONST_BYTE_ARRAY(dek, DEK_SIZE), PIN_KDF_DEFAULT_VERSION, def + 1)) != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
         }
-        r = file_put_data(tf, def, sizeof(def));
+        r = file_put_data(tf, CONST_BYTE_ARRAY(def, sizeof(def)));
 #ifdef ENABLE_ADMINLESS_MODE
         if (r == PICOKEYS_OK) {
             r = enable_adminless ? openpgp_adminless_enable() : clear_pw3 ? openpgp_adminless_reset() : openpgp_adminless_disable();

@@ -29,8 +29,8 @@ bool openpgp_key_container_is_marker(const file_t *file);
 bool openpgp_key_container_physical_fid(uint16_t fid);
 bool openpgp_key_container_can_create(uint16_t fid);
 int openpgp_key_container_store(uint16_t fid, const uint8_t *private_data, uint32_t private_size, const uint8_t *public_data, uint32_t public_size, bool internal_firmware);
-int openpgp_key_container_read_private(uint16_t fid, uint16_t operation, bool internal_firmware, uint8_t *data, size_t capacity, size_t *written);
-int openpgp_key_container_read_public(uint16_t fid, uint8_t *data, size_t capacity, size_t *written);
+int openpgp_key_container_read_private(uint16_t fid, uint16_t operation, bool internal_firmware, byte_buffer_t *data);
+int openpgp_key_container_read_public(uint16_t fid, byte_buffer_t *data);
 int openpgp_key_container_public_size(uint16_t fid, uint32_t *object_size);
 int openpgp_key_container_delete(uint16_t fid, bool internal_firmware);
 

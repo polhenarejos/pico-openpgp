@@ -80,7 +80,7 @@ int cmd_put_data(void) {
                     memcpy(pw_status, file_get_data(ef), status_len);
                 }
                 memcpy(pw_status, apdu.data, MIN(apdu.nc, 4u));
-                r = file_put_data(ef, pw_status, sizeof(pw_status));
+                r = file_put_data(ef, CONST_BYTE_ARRAY(pw_status, sizeof(pw_status)));
             }
             else if (fid == EF_RC) {
                 has_rc = false;
@@ -90,8 +90,8 @@ int cmd_put_data(void) {
                 uint8_t dhash[34];
                 dhash[0] = apdu.nc;
                 dhash[1] = 0x1; // Format
-                pin_derive_verifier(apdu.data, apdu.nc, dhash + 2);
-                if ((r = file_put_data(ef, dhash, sizeof(dhash))) != PICOKEYS_OK) {
+                pin_derive_verifier(CONST_BYTE_ARRAY(apdu.data, apdu.nc), dhash + 2);
+                if ((r = file_put_data(ef, CONST_BYTE_ARRAY(dhash, sizeof(dhash)))) != PICOKEYS_OK) {
                     return SW_MEMORY_FAILURE();
                 }
 
@@ -102,17 +102,17 @@ int cmd_put_data(void) {
 
                 uint8_t def[DEK_FILE_SIZE];
                 def[0] = 0x3;
-                pin_derive_session(apdu.data, apdu.nc, session_rc);
-                if ((r = encrypt_with_aad(session_rc, dek, DEK_SIZE, PIN_KDF_DEFAULT_VERSION, def + 1)) != PICOKEYS_OK) {
+                pin_derive_session(CONST_BYTE_ARRAY(apdu.data, apdu.nc), session_rc);
+                if ((r = encrypt_with_aad(session_rc, CONST_BYTE_ARRAY(dek, DEK_SIZE), PIN_KDF_DEFAULT_VERSION, def + 1)) != PICOKEYS_OK) {
                     return SW_EXEC_ERROR();
                 }
-                r = file_put_data(tf, def, sizeof(def));
+                r = file_put_data(tf, CONST_BYTE_ARRAY(def, sizeof(def)));
                 if (r == PICOKEYS_OK) {
                     r = pin_reset_retries(ef, true);
                 }
             }
             else {
-                r = file_put_data(ef, apdu.data, apdu.nc);
+                r = file_put_data(ef, CONST_BYTE_ARRAY(apdu.data, apdu.nc));
             }
             if (r != PICOKEYS_OK) {
                 return SW_MEMORY_FAILURE();

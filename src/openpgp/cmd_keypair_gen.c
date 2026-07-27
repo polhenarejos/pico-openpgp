@@ -131,11 +131,11 @@ int cmd_keypair_gen(void) {
             if (openpgp_key_container_public_size(fid, &public_size) != PICOKEYS_OK || public_size > OPENPGP_MAX_RESPONSE_SIZE) {
                 return SW_REFERENCE_NOT_FOUND();
             }
-            size_t written = 0;
-            if (openpgp_key_container_read_public(fid, res_APDU, public_size, &written) != PICOKEYS_OK || written != public_size) {
+            byte_buffer_t output = BYTE_BUFFER(res_APDU, public_size);
+            if (openpgp_key_container_read_public(fid, &output) != PICOKEYS_OK || output.len != public_size) {
                 return SW_EXEC_ERROR();
             }
-            res_APDU_size = (uint16_t)written;
+            res_APDU_size = (uint16_t)output.len;
             return SW_OK();
         }
         file_t *ef = file_search_by_fid(fid + 3, NULL, SPECIFY_EF);

@@ -68,19 +68,18 @@ int cmd_get_data(void) {
         data_len = MIN(data_len, res_APDU_size);
         if (!(file_get_type(ef) & FILE_DATA_FLASH)) {
             uint8_t *p = NULL;
-            uint16_t tg = 0;
-            uint16_t tg_len = 0;
+            tlv_item_t item;
             tlv_ctx_t ctxi;
-            tlv_ctx_init(res_APDU, data_len, &ctxi);
-            if (tlv_walk(&ctxi, &p, &tg, &tg_len, NULL)) {
+            tlv_ctx_init(BYTE_ARRAY(res_APDU, data_len), &ctxi);
+            if (tlv_walk(&ctxi, &p, &item)) {
                 uint8_t dec = 2;
-                if ((tg & 0x1f) == 0x1f) {
+                if ((item.tag & 0x1f) == 0x1f) {
                     dec++;
                 }
                 if ((res_APDU[dec - 1] & 0xF0) == 0x80) {
                     dec += (res_APDU[dec - 1] & 0x0F);
                 }
-                if (tg_len + dec == data_len) {
+                if (item.value.len + dec == data_len) {
                     memmove(res_APDU, res_APDU + dec, data_len - dec);
                     data_len -= dec;
                     res_APDU_size -= dec;

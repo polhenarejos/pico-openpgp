@@ -143,35 +143,35 @@ uint32_t file_get_size(const file_t *file) {
     return test_file ? test_file->size : 0;
 }
 
-int file_read_at(const file_t *file, uint32_t offset, uint8_t *data, size_t len) {
+int file_read_at(const file_t *file, uint32_t offset, byte_array_t data) {
     const test_file_t *test_file = test_file_from_handle(file);
-    if (!test_file || (!data && len > 0) || offset > test_file->size || len > test_file->size - offset) {
+    if (!test_file || (!data.data && data.len > 0) || offset > test_file->size || data.len > test_file->size - offset) {
         return PICOKEYS_ERR_NULL_PARAM;
     }
-    if (len > 0) {
-        memcpy(data, test_file->storage + offset, len);
+    if (data.len > 0) {
+        memcpy(data.data, test_file->storage + offset, data.len);
     }
     return PICOKEYS_OK;
 }
 
-int file_put_data(file_t *file, const uint8_t *data, uint32_t len) {
+int file_put_data(file_t *file, const_byte_array_t data) {
     test_file_t *test_file = test_file_from_handle(file);
-    if (!test_file || (!data && len > 0) || len > sizeof(test_file->storage)) {
+    if (!test_file || (!data.data && data.len > 0) || data.len > sizeof(test_file->storage)) {
         return PICOKEYS_ERR_NO_MEMORY;
     }
-    if (len > 0) {
-        memcpy(test_file->storage, data, len);
+    if (data.len > 0) {
+        memcpy(test_file->storage, data.data, data.len);
     }
     else {
         memset(test_file->storage, 0, sizeof(test_file->storage));
     }
-    test_file->size = len;
-    test_file->file.data = len > 0 ? test_file->storage : NULL;
+    test_file->size = data.len;
+    test_file->file.data = data.len > 0 ? test_file->storage : NULL;
     return PICOKEYS_OK;
 }
 
 int file_delete_no_commit(file_t *file) {
-    return file_put_data(file, NULL, 0);
+    return file_put_data(file, CONST_BYTE_ARRAY(NULL, 0));
 }
 
 static void test_power_loss_point(void) {
@@ -203,14 +203,14 @@ static int test_auth_start(void *ctx) {
     return PICOKEYS_OK;
 }
 
-static int test_auth_update(void *ctx, const uint8_t *data, size_t len) {
+static int test_auth_update(void *ctx, const_byte_array_t data) {
     test_auth_context_t *auth = (test_auth_context_t *)ctx;
-    if (!auth->active || (!data && len > 0)) {
+    if (!auth->active || (!data.data && data.len > 0)) {
         return PICOKEYS_EXEC_ERROR;
     }
-    for (size_t i = 0; i < len; i++) {
+    for (size_t i = 0; i < data.len; i++) {
         for (size_t word = 0; word < 4; word++) {
-            auth->state[word] ^= data[i] + (uint8_t)word;
+            auth->state[word] ^= data.data[i] + (uint8_t)word;
             auth->state[word] *= 0x01000193u + (uint32_t)(word * 2u);
             auth->state[word] = (auth->state[word] << 5) | (auth->state[word] >> 27);
         }
@@ -245,16 +245,16 @@ static const file_object_authenticator_t test_auth = {
 static int test_record_tag(const uint8_t nonce[FILE_OBJECT_RECORD_NONCE_SIZE], const uint8_t aad[FILE_OBJECT_RECORD_AAD_SIZE], const uint8_t *stored, size_t len, uint8_t tag[FILE_OBJECT_AUTH_TAG_SIZE]) {
     int r = test_auth_start(&test_auth_context);
     if (r == PICOKEYS_OK) {
-        r = test_auth_update(&test_auth_context, &test_protector_context.key, sizeof(test_protector_context.key));
+        r = test_auth_update(&test_auth_context, CONST_BYTE_ARRAY(&test_protector_context.key, sizeof(test_protector_context.key)));
     }
     if (r == PICOKEYS_OK) {
-        r = test_auth_update(&test_auth_context, nonce, FILE_OBJECT_RECORD_NONCE_SIZE);
+        r = test_auth_update(&test_auth_context, CONST_BYTE_ARRAY(nonce, FILE_OBJECT_RECORD_NONCE_SIZE));
     }
     if (r == PICOKEYS_OK) {
-        r = test_auth_update(&test_auth_context, aad, FILE_OBJECT_RECORD_AAD_SIZE);
+        r = test_auth_update(&test_auth_context, CONST_BYTE_ARRAY(aad, FILE_OBJECT_RECORD_AAD_SIZE));
     }
     if (r == PICOKEYS_OK) {
-        r = test_auth_update(&test_auth_context, stored, len);
+        r = test_auth_update(&test_auth_context, CONST_BYTE_ARRAY(stored, len));
     }
     if (r == PICOKEYS_OK) {
         r = test_auth_finish(&test_auth_context, tag);
@@ -262,25 +262,38 @@ static int test_record_tag(const uint8_t nonce[FILE_OBJECT_RECORD_NONCE_SIZE], c
     return r;
 }
 
-static int test_record_seal(void *ctx, const file_object_record_identity_t *identity, const uint8_t nonce[FILE_OBJECT_RECORD_NONCE_SIZE], const uint8_t aad[FILE_OBJECT_RECORD_AAD_SIZE], const uint8_t *plaintext, size_t len, uint8_t *stored, uint8_t tag[FILE_OBJECT_AUTH_TAG_SIZE]) {
+static int test_record_seal(void *ctx, const file_object_record_identity_t *identity, const uint8_t nonce[FILE_OBJECT_RECORD_NONCE_SIZE], const uint8_t aad[FILE_OBJECT_RECORD_AAD_SIZE], const_byte_array_t plaintext, byte_buffer_t *stored, uint8_t tag[FILE_OBJECT_AUTH_TAG_SIZE]) {
     const test_protector_context_t *protector = (const test_protector_context_t *)ctx;
-    for (size_t i = 0; i < len; i++) {
-        stored[i] = identity->protection == FILE_OBJECT_PROTECTION_AEAD_SECRET ? plaintext[i] ^ protector->key ^ nonce[i % FILE_OBJECT_RECORD_NONCE_SIZE] : plaintext[i];
+    if (!stored || stored->len > stored->capacity || stored->capacity - stored->len < plaintext.len) {
+        return PICOKEYS_WRONG_LENGTH;
     }
-    return test_record_tag(nonce, aad, stored, len, tag);
+    uint8_t *output = stored->data ? stored->data + stored->len : NULL;
+    for (size_t i = 0; i < plaintext.len; i++) {
+        output[i] = identity->protection == FILE_OBJECT_PROTECTION_AEAD_SECRET ? plaintext.data[i] ^ protector->key ^ nonce[i % FILE_OBJECT_RECORD_NONCE_SIZE] : plaintext.data[i];
+    }
+    int r = test_record_tag(nonce, aad, output, plaintext.len, tag);
+    if (r == PICOKEYS_OK) {
+        stored->len += plaintext.len;
+    }
+    return r;
 }
 
-static int test_record_unseal(void *ctx, const file_object_record_identity_t *identity, const uint8_t nonce[FILE_OBJECT_RECORD_NONCE_SIZE], const uint8_t aad[FILE_OBJECT_RECORD_AAD_SIZE], const uint8_t *stored, size_t len, const uint8_t tag[FILE_OBJECT_AUTH_TAG_SIZE], uint8_t *plaintext) {
+static int test_record_unseal(void *ctx, const file_object_record_identity_t *identity, const uint8_t nonce[FILE_OBJECT_RECORD_NONCE_SIZE], const uint8_t aad[FILE_OBJECT_RECORD_AAD_SIZE], const_byte_array_t stored, const uint8_t tag[FILE_OBJECT_AUTH_TAG_SIZE], byte_buffer_t *plaintext) {
     const test_protector_context_t *protector = (const test_protector_context_t *)ctx;
+    if (!plaintext || plaintext->len > plaintext->capacity || plaintext->capacity - plaintext->len < stored.len) {
+        return PICOKEYS_WRONG_LENGTH;
+    }
     uint8_t calculated[FILE_OBJECT_AUTH_TAG_SIZE];
-    int r = test_record_tag(nonce, aad, stored, len, calculated);
+    int r = test_record_tag(nonce, aad, stored.data, stored.len, calculated);
     if (r == PICOKEYS_OK && memcmp(calculated, tag, sizeof(calculated)) != 0) {
         r = PICOKEYS_WRONG_SIGNATURE;
     }
     if (r == PICOKEYS_OK) {
-        for (size_t i = 0; i < len; i++) {
-            plaintext[i] = identity->protection == FILE_OBJECT_PROTECTION_AEAD_SECRET ? stored[i] ^ protector->key ^ nonce[i % FILE_OBJECT_RECORD_NONCE_SIZE] : stored[i];
+        uint8_t *output = plaintext->data ? plaintext->data + plaintext->len : NULL;
+        for (size_t i = 0; i < stored.len; i++) {
+            output[i] = identity->protection == FILE_OBJECT_PROTECTION_AEAD_SECRET ? stored.data[i] ^ protector->key ^ nonce[i % FILE_OBJECT_RECORD_NONCE_SIZE] : stored.data[i];
         }
+        plaintext->len += stored.len;
     }
     memset(calculated, 0, sizeof(calculated));
     return r;
@@ -333,19 +346,19 @@ static void test_reset(void) {
 
 static void test_read_pair(uint16_t fid, const uint8_t *private_data, size_t private_size, const uint8_t *public_data, size_t public_size) {
     uint8_t output[128] = { 0 };
-    size_t written = 0;
+    byte_buffer_t data = BYTE_BUFFER(output, sizeof(output));
     uint16_t operation = fid == EF_PK_SIG ? FILE_OBJECT_OPERATION_SIGN : FILE_OBJECT_OPERATION_USE;
 
     assert(private_size <= sizeof(output));
-    assert(openpgp_key_container_read_private(fid, operation, false, output, sizeof(output), &written) == PICOKEYS_OK);
-    assert(written == private_size);
+    assert(openpgp_key_container_read_private(fid, operation, false, &data) == PICOKEYS_OK);
+    assert(data.len == private_size);
     assert(memcmp(output, private_data, private_size) == 0);
 
     memset(output, 0, sizeof(output));
-    written = 0;
+    data.len = 0;
     assert(public_size <= sizeof(output));
-    assert(openpgp_key_container_read_public(fid, output, sizeof(output), &written) == PICOKEYS_OK);
-    assert(written == public_size);
+    assert(openpgp_key_container_read_public(fid, &data) == PICOKEYS_OK);
+    assert(data.len == public_size);
     assert(memcmp(output, public_data, public_size) == 0);
 }
 
@@ -355,7 +368,7 @@ static void test_lifecycle_and_authorization(void) {
     static const uint8_t private_second[] = { 5, 6, 7 };
     static const uint8_t public_second[] = { 0x7f, 0x49, 4, 5 };
     uint8_t output[16];
-    size_t written = 0;
+    byte_buffer_t data = BYTE_BUFFER(output, sizeof(output));
 
     test_reset();
     has_pw3 = false;
@@ -366,10 +379,11 @@ static void test_lifecycle_and_authorization(void) {
     test_read_pair(EF_PK_SIG, private_first, sizeof(private_first), public_first, sizeof(public_first));
 
     has_pw3 = false;
-    assert(openpgp_key_container_read_private(EF_PK_SIG, FILE_OBJECT_OPERATION_SIGN, false, output, sizeof(output), &written) == PICOKEYS_NO_LOGIN);
-    assert(openpgp_key_container_read_public(EF_PK_SIG, output, sizeof(output), &written) == PICOKEYS_OK);
+    assert(openpgp_key_container_read_private(EF_PK_SIG, FILE_OBJECT_OPERATION_SIGN, false, &data) == PICOKEYS_NO_LOGIN);
+    assert(openpgp_key_container_read_public(EF_PK_SIG, &data) == PICOKEYS_OK);
+    data.len = 0;
     has_pw1 = true;
-    assert(openpgp_key_container_read_private(EF_PK_SIG, FILE_OBJECT_OPERATION_SIGN, false, output, sizeof(output), &written) == PICOKEYS_OK);
+    assert(openpgp_key_container_read_private(EF_PK_SIG, FILE_OBJECT_OPERATION_SIGN, false, &data) == PICOKEYS_OK);
     has_pw1 = false;
     has_pw3 = true;
 
@@ -380,7 +394,8 @@ static void test_lifecycle_and_authorization(void) {
 
     assert(openpgp_key_container_delete(EF_PK_SIG, false) == PICOKEYS_OK);
     assert(!file_has_data(file_search(EF_PK_SIG)));
-    assert(openpgp_key_container_read_private(EF_PK_SIG, FILE_OBJECT_OPERATION_SIGN, false, output, sizeof(output), &written) == PICOKEYS_ERR_FILE_NOT_FOUND);
+    data.len = 0;
+    assert(openpgp_key_container_read_private(EF_PK_SIG, FILE_OBJECT_OPERATION_SIGN, false, &data) == PICOKEYS_ERR_FILE_NOT_FOUND);
 }
 
 static void test_corruption_falls_back_to_previous_generation(void) {
@@ -401,12 +416,12 @@ static void test_corruption_falls_back_to_previous_generation(void) {
 
     uint8_t private_output[sizeof(private_first)] = { 0 };
     uint8_t public_output[sizeof(public_second)] = { 0 };
-    size_t private_written = 0;
-    size_t public_written = 0;
-    assert(openpgp_key_container_read_private(EF_PK_DEC, FILE_OBJECT_OPERATION_USE, false, private_output, sizeof(private_output), &private_written) == PICOKEYS_OK);
-    assert(openpgp_key_container_read_public(EF_PK_DEC, public_output, sizeof(public_output), &public_written) == PICOKEYS_OK);
-    assert(private_written == sizeof(private_first));
-    assert(public_written == sizeof(public_second));
+    byte_buffer_t private_data = BYTE_BUFFER(private_output, sizeof(private_output));
+    byte_buffer_t public_data = BYTE_BUFFER(public_output, sizeof(public_output));
+    assert(openpgp_key_container_read_private(EF_PK_DEC, FILE_OBJECT_OPERATION_USE, false, &private_data) == PICOKEYS_OK);
+    assert(openpgp_key_container_read_public(EF_PK_DEC, &public_data) == PICOKEYS_OK);
+    assert(private_data.len == sizeof(private_first));
+    assert(public_data.len == sizeof(public_second));
     assert(memcmp(private_output, private_first, sizeof(private_first)) == 0);
     assert(memcmp(public_output, public_second, sizeof(public_second)) == 0);
 }
@@ -417,8 +432,8 @@ static void test_collision_does_not_replace_legacy_key(void) {
     static const uint8_t private_data[] = { 1, 2 };
 
     test_reset();
-    assert(file_put_data(file_search(EF_PK_SIG), legacy, sizeof(legacy)) == PICOKEYS_OK);
-    assert(file_put_data(file_new(0xd0d1u), collision, sizeof(collision)) == PICOKEYS_OK);
+    assert(file_put_data(file_search(EF_PK_SIG), CONST_BYTE_ARRAY(legacy, sizeof(legacy))) == PICOKEYS_OK);
+    assert(file_put_data(file_new(0xd0d1u), CONST_BYTE_ARRAY(collision, sizeof(collision))) == PICOKEYS_OK);
     test_persist();
 
     assert(!openpgp_key_container_can_create(EF_PK_SIG));
@@ -431,16 +446,16 @@ static void test_collision_does_not_replace_legacy_key(void) {
 static void test_piv_internal_boundary(void) {
     static const uint8_t private_data[] = { 0x51, 0x52, 0x53, 0x54 };
     uint8_t output[sizeof(private_data)] = { 0 };
-    size_t written = 0;
+    byte_buffer_t data = BYTE_BUFFER(output, sizeof(output));
 
     test_reset();
     has_pw3 = false;
     assert(openpgp_key_container_store(EF_PIV_KEY_AUTHENTICATION, private_data, sizeof(private_data), NULL, 0, false) == PICOKEYS_NO_LOGIN);
     assert(openpgp_key_container_store(EF_PIV_KEY_AUTHENTICATION, private_data, sizeof(private_data), NULL, 0, true) == PICOKEYS_OK);
     assert(openpgp_key_container_is_marker(file_search(EF_PIV_KEY_AUTHENTICATION)));
-    assert(openpgp_key_container_read_private(EF_PIV_KEY_AUTHENTICATION, FILE_OBJECT_OPERATION_USE, false, output, sizeof(output), &written) == PICOKEYS_NO_LOGIN);
-    assert(openpgp_key_container_read_private(EF_PIV_KEY_AUTHENTICATION, FILE_OBJECT_OPERATION_USE, true, output, sizeof(output), &written) == PICOKEYS_OK);
-    assert(written == sizeof(private_data));
+    assert(openpgp_key_container_read_private(EF_PIV_KEY_AUTHENTICATION, FILE_OBJECT_OPERATION_USE, false, &data) == PICOKEYS_NO_LOGIN);
+    assert(openpgp_key_container_read_private(EF_PIV_KEY_AUTHENTICATION, FILE_OBJECT_OPERATION_USE, true, &data) == PICOKEYS_OK);
+    assert(data.len == sizeof(private_data));
     assert(memcmp(output, private_data, sizeof(private_data)) == 0);
     assert(openpgp_key_container_delete(EF_PIV_KEY_AUTHENTICATION, false) == PICOKEYS_NO_LOGIN);
     assert(openpgp_key_container_delete(EF_PIV_KEY_AUTHENTICATION, true) == PICOKEYS_OK);
@@ -453,7 +468,7 @@ static void test_power_loss_create(void) {
 
     for (size_t event = 1; event <= 3; event++) {
         test_reset();
-        assert(file_put_data(file_search(EF_PK_AUT), legacy, sizeof(legacy)) == PICOKEYS_OK);
+        assert(file_put_data(file_search(EF_PK_AUT), CONST_BYTE_ARRAY(legacy, sizeof(legacy))) == PICOKEYS_OK);
         test_persist();
         test_power_loss_event = 0;
         test_power_loss_at = event;
@@ -494,10 +509,10 @@ static void test_power_loss_update(void) {
 
         uint8_t private_output[sizeof(private_first)] = { 0 };
         uint8_t public_output[sizeof(public_first)] = { 0 };
-        size_t private_written = 0;
-        size_t public_written = 0;
-        assert(openpgp_key_container_read_private(EF_PK_SIG, FILE_OBJECT_OPERATION_SIGN, false, private_output, sizeof(private_output), &private_written) == PICOKEYS_OK);
-        assert(openpgp_key_container_read_public(EF_PK_SIG, public_output, sizeof(public_output), &public_written) == PICOKEYS_OK);
+        byte_buffer_t private_data = BYTE_BUFFER(private_output, sizeof(private_output));
+        byte_buffer_t public_data = BYTE_BUFFER(public_output, sizeof(public_output));
+        assert(openpgp_key_container_read_private(EF_PK_SIG, FILE_OBJECT_OPERATION_SIGN, false, &private_data) == PICOKEYS_OK);
+        assert(openpgp_key_container_read_public(EF_PK_SIG, &public_data) == PICOKEYS_OK);
         bool old_pair = memcmp(private_output, private_first, sizeof(private_first)) == 0 && memcmp(public_output, public_first, sizeof(public_first)) == 0;
         bool new_pair = memcmp(private_output, private_second, sizeof(private_second)) == 0 && memcmp(public_output, public_second, sizeof(public_second)) == 0;
         assert(old_pair || new_pair);

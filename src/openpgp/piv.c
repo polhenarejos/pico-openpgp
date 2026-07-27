@@ -127,7 +127,7 @@ static int x509_create_cert(void *pk_ctx, uint8_t algo, uint8_t slot, bool attes
     mbedtls_x509write_crt_set_version(&ctx, MBEDTLS_X509_CRT_VERSION_3);
     mbedtls_x509write_crt_set_validity(&ctx, "20240325000000", "20741231235959");
     uint8_t serial[20];
-    random_fill_buffer(serial, sizeof(serial));
+    random_fill_buffer(BYTE_ARRAY(serial, sizeof(serial)));
     mbedtls_x509write_crt_set_serial_raw(&ctx, serial, sizeof(serial));
     mbedtls_pk_context skey, ikey;
     mbedtls_ecdsa_context actx; // attestation key
@@ -156,10 +156,9 @@ static int x509_create_cert(void *pk_ctx, uint8_t algo, uint8_t slot, bool attes
         mbedtls_x509write_crt_set_extension(&ctx, "\x2B\x06\x01\x04\x01\x82\xC4\x0A\x03\x03", 10, 0, ver, sizeof(ver));
         uint32_t device_serial = get_serial();
         mbedtls_x509write_crt_set_extension(&ctx, "\x2B\x06\x01\x04\x01\x82\xC4\x0A\x03\x07", 10, 0, (const uint8_t *)&device_serial, sizeof(device_serial));
-        int meta_len = 0;
-        uint8_t *meta;
-        if ((meta_len = meta_find(slot, &meta)) >= 0) {
-            mbedtls_x509write_crt_set_extension(&ctx, "\x2B\x06\x01\x04\x01\x82\xC4\x0A\x03\x08", 10, 0, &meta[1], 2);
+        byte_array_t metadata = meta_find(slot);
+        if (metadata.len >= 3) {
+            mbedtls_x509write_crt_set_extension(&ctx, "\x2B\x06\x01\x04\x01\x82\xC4\x0A\x03\x08", 10, 0, metadata.data + 1, 2);
         }
         uint8_t v = 1;
         mbedtls_x509write_crt_set_extension(&ctx, "\x2B\x06\x01\x04\x01\x82\xC4\x0A\x03\x09", 10, 0, &v, sizeof(v));
@@ -208,28 +207,28 @@ static void scan_files_piv(void) {
         if (file_get_size(ef) == 0) {
             printf("PW status is empty. Initializing to default\r\n");
             const uint8_t def[] = { 0x1, 127, 127, 127, 3, 3, 3, 3, 3 };
-            file_put_data(ef, def, sizeof(def));
+            file_put_data(ef, CONST_BYTE_ARRAY(def, sizeof(def)));
         }
         else if (file_get_size(ef) == 7) {
             printf("PW status is older. Initializing to default\r\n");
             uint8_t def[9] = { 0 };
             memcpy(def, file_get_data(ef), 7);
             def[7] = def[8] = 3; // PIV retries
-            file_put_data(ef, def, sizeof(def));
+            file_put_data(ef, CONST_BYTE_ARRAY(def, sizeof(def)));
         }
     }
     if ((ef = file_search_by_fid(EF_PW_RETRIES, NULL, SPECIFY_ANY))) {
         if (file_get_size(ef) == 0) {
             printf("PW retries is empty. Initializing to default\r\n");
             const uint8_t def[] = { 0x1, 3, 3, 3, 3, 3 };
-            file_put_data(ef, def, sizeof(def));
+            file_put_data(ef, CONST_BYTE_ARRAY(def, sizeof(def)));
         }
         else if (file_get_size(ef) == 4) {
             printf("PW retries is older. Initializing to default\r\n");
             uint8_t def[6] = { 0 };
             memcpy(def, file_get_data(ef), 4);
             def[4] = def[5] = 3; // PIV retries
-            file_put_data(ef, def, sizeof(def));
+            file_put_data(ef, CONST_BYTE_ARRAY(def, sizeof(def)));
         }
     }
     bool reset_dek = false;
@@ -241,14 +240,14 @@ static void scan_files_piv(void) {
         uint8_t def[DEK_FILE_SIZE];
         def[0] = 0x3; // Format
 
-        pin_derive_session(defpin, sizeof(defpin), session_pwpiv);
-        encrypt_with_aad(session_pwpiv, random_dek, DEK_SIZE, PIN_KDF_DEFAULT_VERSION, def + 1);
+        pin_derive_session(CONST_BYTE_ARRAY(defpin, sizeof(defpin)), session_pwpiv);
+        encrypt_with_aad(session_pwpiv, CONST_BYTE_ARRAY(random_dek, DEK_SIZE), PIN_KDF_DEFAULT_VERSION, def + 1);
         mbedtls_platform_zeroize(session_pwpiv, sizeof(session_pwpiv));
-        file_put_data(ef, def, sizeof(def));
+        file_put_data(ef, CONST_BYTE_ARRAY(def, sizeof(def)));
 
         openpgp_key_container_store(EF_PIV_KEY_CARDMGM, piv_management_key_default, sizeof(piv_management_key_default), NULL, 0, true);
         uint8_t meta[] = { PIV_ALGO_AES192, PINPOLICY_ALWAYS, TOUCHPOLICY_ALWAYS };
-        meta_add(EF_PIV_KEY_CARDMGM, meta, sizeof(meta));
+        meta_add(EF_PIV_KEY_CARDMGM, CONST_BYTE_ARRAY(meta, sizeof(meta)));
 
         reset_dek = true;
     }
@@ -259,8 +258,8 @@ static void scan_files_piv(void) {
             uint8_t dhash[34];
             dhash[0] = sizeof(def);
             dhash[1] = 0x1; // Format
-            pin_derive_verifier(def, sizeof(def), dhash + 2);
-            file_put_data(ef, dhash, sizeof(dhash));
+            pin_derive_verifier(CONST_BYTE_ARRAY(def, sizeof(def)), dhash + 2);
+            file_put_data(ef, CONST_BYTE_ARRAY(dhash, sizeof(dhash)));
         }
     }
     if ((ef = file_search_by_fid(EF_PIV_PUK, NULL, SPECIFY_ANY))) {
@@ -270,8 +269,8 @@ static void scan_files_piv(void) {
             uint8_t dhash[34];
             dhash[0] = sizeof(def);
             dhash[1] = 0x1; // Format
-            pin_derive_verifier(def, sizeof(def), dhash + 2);
-            file_put_data(ef, dhash, sizeof(dhash));
+            pin_derive_verifier(CONST_BYTE_ARRAY(def, sizeof(def)), dhash + 2);
+            file_put_data(ef, CONST_BYTE_ARRAY(dhash, sizeof(dhash)));
         }
     }
     if ((ef = file_search_by_fid(EF_PIV_KEY_ATTESTATION, NULL, SPECIFY_ANY))) {
@@ -284,7 +283,7 @@ static void scan_files_piv(void) {
             uint8_t cert[2048];
             r = x509_create_cert(&ecdsa, PIV_ALGO_ECCP384, EF_PIV_KEY_ATTESTATION, false, cert, sizeof(cert));
             ef = file_search_by_fid(EF_PIV_ATTESTATION, NULL, SPECIFY_ANY);
-            file_put_data(ef, cert + sizeof(cert) - r, r);
+            file_put_data(ef, CONST_BYTE_ARRAY(cert + sizeof(cert) - r, r));
             mbedtls_ecdsa_free(&ecdsa);
         }
     }
@@ -403,7 +402,7 @@ static int cmd_piv_verify(void) {
         uint16_t ret = check_pin(pw, apdu.data, apdu.nc);
         if (ret == 0x9000) {
             has_pwpiv = true;
-            hash_multi(apdu.data, apdu.nc, session_pwpiv);
+            hash_multi(CONST_BYTE_ARRAY(apdu.data, apdu.nc), session_pwpiv);
         }
         return ret; //SW already set
     }
@@ -476,7 +475,6 @@ static int cmd_get_metadata(void) {
     if (P1(apdu) != 0x00) {
         return SW_INCORRECT_P1P2();
     }
-    uint8_t *meta = NULL;
     uint16_t key_ref = P2(apdu);
     if (key_ref == 0x80) {
         key_ref = EF_PIV_PIN;
@@ -484,13 +482,14 @@ static int cmd_get_metadata(void) {
     else if (key_ref == 0x81) {
         key_ref = EF_PIV_PUK;
     }
+    byte_array_t metadata = meta_find(key_ref);
+    uint8_t *meta = metadata.data;
     file_t *ef_key = file_search_by_fid(key_ref, NULL, SPECIFY_EF);
     if (!file_has_data(ef_key)) {
         return SW_REFERENCE_NOT_FOUND();
     }
     if (key_ref != EF_PIV_PIN && key_ref != EF_PIV_PUK) {
-        int meta_len = 0;
-        if ((meta_len = meta_find(key_ref, &meta)) <= 0) {
+        if (!meta) {
             return SW_REFERENCE_NOT_FOUND();
         }
         res_APDU[res_APDU_size++] = 0x1;
@@ -571,17 +570,18 @@ static int cmd_get_metadata(void) {
         uint8_t dhash[32];
         int32_t eq = 0;
         if (key_ref == EF_PIV_PIN) {
-            pin_derive_verifier((const uint8_t *)"\x31\x32\x33\x34\x35\x36\xFF\xFF", 8, dhash);
+            pin_derive_verifier(CONST_BYTE_ARRAY((const uint8_t *)"\x31\x32\x33\x34\x35\x36\xFF\xFF", 8), dhash);
             eq = file_get_size(ef_key) == 34u && file_get_data(ef_key)[1] == 1u ? mbedtls_ct_memcmp(dhash, file_get_data(ef_key) + 2, sizeof(dhash)) : -1;
         }
         else if (key_ref == EF_PIV_PUK) {
-            pin_derive_verifier((const uint8_t *)"\x31\x32\x33\x34\x35\x36\x37\x38", 8, dhash);
+            pin_derive_verifier(CONST_BYTE_ARRAY((const uint8_t *)"\x31\x32\x33\x34\x35\x36\x37\x38", 8), dhash);
             eq = file_get_size(ef_key) == 34u && file_get_data(ef_key)[1] == 1u ? mbedtls_ct_memcmp(dhash, file_get_data(ef_key) + 2, sizeof(dhash)) : -1;
         }
         else if (key_ref == EF_PIV_KEY_CARDMGM) {
             uint8_t management_key[32] = { 0 };
-            size_t management_key_size = 0;
-            int r = openpgp_key_container_is_marker(ef_key) ? openpgp_key_container_read_private(EF_PIV_KEY_CARDMGM, FILE_OBJECT_OPERATION_USE, true, management_key, sizeof(management_key), &management_key_size) : PICOKEYS_OK;
+            byte_buffer_t management_key_data = BYTE_BUFFER(management_key, sizeof(management_key));
+            int r = openpgp_key_container_is_marker(ef_key) ? openpgp_key_container_read_private(EF_PIV_KEY_CARDMGM, FILE_OBJECT_OPERATION_USE, true, &management_key_data) : PICOKEYS_OK;
+            size_t management_key_size = management_key_data.len;
             if (!openpgp_key_container_is_marker(ef_key)) {
                 management_key_size = MIN(file_get_size(ef_key), sizeof(management_key));
                 memcpy(management_key, file_get_data(ef_key), management_key_size);
@@ -615,7 +615,9 @@ static int mgm_crypt(uint8_t algo, const file_t *ef_mgm, const uint8_t *input, u
     size_t key_len = 0;
     int r = PICOKEYS_OK;
     if (openpgp_key_container_is_marker(ef_mgm)) {
-        r = openpgp_key_container_read_private(EF_PIV_KEY_CARDMGM, FILE_OBJECT_OPERATION_USE, true, management_key, sizeof(management_key), &key_len);
+        byte_buffer_t key = BYTE_BUFFER(management_key, sizeof(management_key));
+        r = openpgp_key_container_read_private(EF_PIV_KEY_CARDMGM, FILE_OBJECT_OPERATION_USE, true, &key);
+        key_len = key.len;
     }
     else if (file_has_data(ef_mgm) && file_get_size(ef_mgm) <= sizeof(management_key)) {
         key_len = file_get_size(ef_mgm);
@@ -755,8 +757,9 @@ static int cmd_authenticate(void) {
             return SW_MEMORY_FAILURE();
         }
         uint8_t management_key[32] = { 0 };
-        size_t mgm_len = 0;
-        int r = openpgp_key_container_is_marker(ef_mgm) ? openpgp_key_container_read_private(EF_PIV_KEY_CARDMGM, FILE_OBJECT_OPERATION_USE, true, management_key, sizeof(management_key), &mgm_len) : PICOKEYS_OK;
+        byte_buffer_t management_key_data = BYTE_BUFFER(management_key, sizeof(management_key));
+        int r = openpgp_key_container_is_marker(ef_mgm) ? openpgp_key_container_read_private(EF_PIV_KEY_CARDMGM, FILE_OBJECT_OPERATION_USE, true, &management_key_data) : PICOKEYS_OK;
+        size_t mgm_len = management_key_data.len;
         if (!openpgp_key_container_is_marker(ef_mgm)) {
             mgm_len = MIN(file_get_size(ef_mgm), sizeof(management_key));
         }
@@ -768,9 +771,9 @@ static int cmd_authenticate(void) {
             return SW_INCORRECT_P1P2();
         }
     }
-    uint8_t *meta = NULL;
-    int meta_len = 0;
-    if ((meta_len = meta_find(key_ref, &meta)) < 3) {
+    byte_array_t metadata = meta_find(key_ref);
+    uint8_t *meta = metadata.data;
+    if (metadata.len < 3) {
         return SW_REFERENCE_NOT_FOUND();
     }
     if (meta[1] == PINPOLICY_DEFAULT) {
@@ -786,7 +789,7 @@ static int cmd_authenticate(void) {
     }
     uint8_t chal_len = algo == PIV_ALGO_3DES ? sizeof(mgm_challenge) / 2 : sizeof(mgm_challenge);
     tlv_ctx_t ctxi, a7c = { 0 };
-    tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+    tlv_ctx_init(BYTE_ARRAY(apdu.data, apdu.nc), &ctxi);
     if (!tlv_find_tag(&ctxi, 0x7C, &a7c) || tlv_len(&a7c) == 0) {
         return SW_WRONG_DATA();
     }
@@ -886,7 +889,7 @@ static int cmd_asym_keygen(void) {
         return SW_INCORRECT_P1P2();
     }
     tlv_ctx_t ctxi, aac = {0};
-    tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+    tlv_ctx_init(BYTE_ARRAY(apdu.data, apdu.nc), &ctxi);
     if (!tlv_find_tag(&ctxi, 0xAC, &aac) || tlv_len(&aac) == 0) {
         return SW_WRONG_DATA();
     }
@@ -932,7 +935,7 @@ static int cmd_asym_keygen(void) {
         uint8_t cert[2048];
         r = x509_create_cert(&rsa, a80.data[0], key_ref, false, cert, sizeof(cert));
         file_t *ef = file_search_by_fid(key_cert, NULL, SPECIFY_ANY);
-        file_put_data(ef, cert + sizeof(cert) - r, r);
+        file_put_data(ef, CONST_BYTE_ARRAY(cert + sizeof(cert) - r, r));
         r = store_keys(&rsa, ALGO_RSA, key_ref == 0x93 ? EF_PIV_KEY_RETIRED18 : key_ref, false);
         mbedtls_rsa_free(&rsa);
         if (r != PICOKEYS_OK) {
@@ -953,7 +956,7 @@ static int cmd_asym_keygen(void) {
         uint8_t cert[2048];
         r = x509_create_cert(&ecdsa, a80.data[0], key_ref, false, cert, sizeof(cert));
         file_t *ef = file_search_by_fid(key_cert, NULL, SPECIFY_ANY);
-        file_put_data(ef, cert + sizeof(cert) - r, r);
+        file_put_data(ef, CONST_BYTE_ARRAY(cert + sizeof(cert) - r, r));
         r = store_keys(&ecdsa, ALGO_ECDSA, key_ref == 0x93 ? EF_PIV_KEY_RETIRED18 : key_ref, false);
         mbedtls_ecdsa_free(&ecdsa);
         if (r != PICOKEYS_OK) {
@@ -970,7 +973,7 @@ static int cmd_asym_keygen(void) {
         def_pinpol = PINPOLICY_ALWAYS;
     }
     uint8_t meta[] = {a80.data[0], tlv_len(&aaa) ? aaa.data[0] : def_pinpol, tlv_len(&aab) ? aab.data[0] : TOUCHPOLICY_ALWAYS, ORIGIN_GENERATED};
-    if (meta_add(key_ref, meta, sizeof(meta)) != PICOKEYS_OK || !flash_commit_sync(PIV_FLASH_COMMIT_TIMEOUT_MS)) {
+    if (meta_add(key_ref, CONST_BYTE_ARRAY(meta, sizeof(meta))) != PICOKEYS_OK || !flash_commit_sync(PIV_FLASH_COMMIT_TIMEOUT_MS)) {
         return SW_MEMORY_FAILURE();
     }
     return SW_OK();
@@ -987,7 +990,7 @@ static int cmd_piv_put_data(void) {
         return SW_WRONG_LENGTH();
     }
     tlv_ctx_t ctxi, a5c = {0}, a53 = {0};
-    tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+    tlv_ctx_init(BYTE_ARRAY(apdu.data, apdu.nc), &ctxi);
     if (apdu.data[0] != 0x7E && apdu.data[0] != 0x7F && (!tlv_find_tag(&ctxi, 0x5C, &a5c) || !tlv_find_tag(&ctxi, 0x53, &a53))) {
         return SW_WRONG_DATA();
     }
@@ -1004,7 +1007,7 @@ static int cmd_piv_put_data(void) {
             return SW_WRONG_LENGTH();
         }
         if (a53.len > 0) {
-            file_put_data(ef, a53.data, a53.len);
+            file_put_data(ef, CONST_BYTE_ARRAY(a53.data, a53.len));
         }
         else {
             flash_clear_file(ef);
@@ -1044,15 +1047,16 @@ static int cmd_set_mgmkey(void) {
     if (openpgp_key_container_store(key_ref, apdu.data + 3, pinlen, NULL, 0, true) != PICOKEYS_OK) {
         return SW_MEMORY_FAILURE();
     }
-    uint8_t *meta = NULL, new_meta[4];
-    int meta_len = 0;
-    if ((meta_len = meta_find(key_ref, &meta)) <= 0) {
+    byte_array_t metadata = meta_find(key_ref);
+    uint8_t *meta = metadata.data;
+    uint8_t new_meta[4];
+    if (!meta) {
         return SW_REFERENCE_NOT_FOUND();
     }
     memcpy(new_meta, meta, 4);
     new_meta[0] = algo;
     new_meta[2] = touch;
-    if (meta_add(key_ref, new_meta, sizeof(new_meta)) != PICOKEYS_OK || !flash_commit_sync(PIV_FLASH_COMMIT_TIMEOUT_MS)) {
+    if (meta_add(key_ref, CONST_BYTE_ARRAY(new_meta, sizeof(new_meta))) != PICOKEYS_OK || !flash_commit_sync(PIV_FLASH_COMMIT_TIMEOUT_MS)) {
         return SW_MEMORY_FAILURE();
     }
     return SW_OK();
@@ -1128,20 +1132,20 @@ static int cmd_move_key(void) {
 
     if (to != 0xFF) {
         uint8_t key_data[4096 / 8] = { 0 };
-        size_t key_len = 0;
+        byte_buffer_t key = BYTE_BUFFER(key_data, sizeof(key_data));
         int r = PICOKEYS_OK;
         if (openpgp_key_container_is_marker(efs)) {
-            r = openpgp_key_container_read_private(from, FILE_OBJECT_OPERATION_USE, true, key_data, sizeof(key_data), &key_len);
+            r = openpgp_key_container_read_private(from, FILE_OBJECT_OPERATION_USE, true, &key);
         }
         else if (file_has_data(efs) && file_get_size(efs) <= sizeof(key_data)) {
-            key_len = file_get_size(efs);
-            memcpy(key_data, file_get_data(efs), key_len);
+            key.len = file_get_size(efs);
+            memcpy(key_data, file_get_data(efs), key.len);
         }
         else {
             r = PICOKEYS_WRONG_DATA;
         }
         if (r == PICOKEYS_OK) {
-            r = openpgp_key_container_store(to, key_data, key_len, NULL, 0, true);
+            r = openpgp_key_container_store(to, key_data, key.len, NULL, 0, true);
         }
         mbedtls_platform_zeroize(key_data, sizeof(key_data));
         if (r != PICOKEYS_OK) {
@@ -1157,7 +1161,7 @@ static int cmd_move_key(void) {
         }
         if (file_has_data(ef_cert_from)) {
             uint16_t cert_len = MIN(file_get_size(ef_cert_from), OPENPGP_MAX_OBJECT_SIZE);
-            file_put_data(ef_cert_to, file_get_data(ef_cert_from), cert_len);
+            file_put_data(ef_cert_to, CONST_BYTE_ARRAY(file_get_data(ef_cert_from), cert_len));
         }
         else {
             flash_clear_file(ef_cert_to);
@@ -1167,8 +1171,9 @@ static int cmd_move_key(void) {
         flash_clear_file(ef_cert_from);
     }
 
-    uint8_t *meta_src = NULL;
-    int meta_len = meta_find(from, &meta_src);
+    byte_array_t metadata = meta_find(from);
+    uint8_t *meta_src = metadata.data;
+    size_t meta_len = metadata.len;
     if (to != 0xFF) {
         if (meta_len > 0 && meta_src != NULL) {
             uint8_t *meta_copy = (uint8_t *)calloc(1, (size_t)meta_len);
@@ -1176,7 +1181,7 @@ static int cmd_move_key(void) {
                 return SW_MEMORY_FAILURE();
             }
             memcpy(meta_copy, meta_src, (size_t)meta_len);
-            meta_add(to, meta_copy, (uint16_t)meta_len);
+            meta_add(to, CONST_BYTE_ARRAY(meta_copy, meta_len));
             free(meta_copy);
         }
         else {
@@ -1214,8 +1219,8 @@ static int cmd_piv_change_pin(void) {
     uint8_t dhash[34];
     dhash[0] = pin_len;
     dhash[1] = 0x1; // Format
-    pin_derive_verifier(apdu.data + pin_data[0], pin_len, dhash + 2);
-    file_put_data(ef, dhash, sizeof(dhash));
+    pin_derive_verifier(CONST_BYTE_ARRAY(apdu.data + pin_data[0], pin_len), dhash + 2);
+    file_put_data(ef, CONST_BYTE_ARRAY(dhash, sizeof(dhash)));
     flash_commit();
     return SW_OK();
 }
@@ -1236,9 +1241,9 @@ static int cmd_piv_reset_retry(void) {
     uint8_t dhash[34];
     dhash[0] = pin_len;
     dhash[1] = 0x1; // Format
-    pin_derive_verifier(apdu.data + puk_data[0], pin_len, dhash + 2);
+    pin_derive_verifier(CONST_BYTE_ARRAY(apdu.data + puk_data[0], pin_len), dhash + 2);
     ef = file_search_by_fid(EF_PIV_PIN, NULL, SPECIFY_ANY);
-    file_put_data(ef, dhash, sizeof(dhash));
+    file_put_data(ef, CONST_BYTE_ARRAY(dhash, sizeof(dhash)));
     pin_reset_retries(ef, true);
     flash_commit();
     return SW_OK();
@@ -1263,7 +1268,7 @@ static int cmd_set_retries(void) {
     memcpy(tmp, file_get_data(ef), retries_len);
     tmp[4] = P1(apdu);
     tmp[5] = P2(apdu);
-    file_put_data(ef, tmp, retries_len);
+    file_put_data(ef, CONST_BYTE_ARRAY(tmp, retries_len));
     free(tmp);
 
     ef = file_search_by_fid(EF_PIV_PIN, NULL, SPECIFY_ANY);
@@ -1272,16 +1277,16 @@ static int cmd_set_retries(void) {
     uint8_t dhash[34];
     dhash[0] = sizeof(def_pin);
     dhash[1] = 0x1; // Format
-    pin_derive_verifier(def_pin, sizeof(def_pin), dhash + 2);
-    file_put_data(ef, dhash, sizeof(dhash));
+    pin_derive_verifier(CONST_BYTE_ARRAY(def_pin, sizeof(def_pin)), dhash + 2);
+    file_put_data(ef, CONST_BYTE_ARRAY(dhash, sizeof(dhash)));
     pin_reset_retries(ef, true);
 
     ef = file_search_by_fid(EF_PIV_PUK, NULL, SPECIFY_ANY);
     const uint8_t def_puk[8] = {0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38};
     dhash[0] = sizeof(def_puk);
     dhash[1] = 0x1; // Format
-    pin_derive_verifier(def_puk, sizeof(def_puk), dhash + 2);
-    file_put_data(ef, dhash, sizeof(dhash));
+    pin_derive_verifier(CONST_BYTE_ARRAY(def_puk, sizeof(def_puk)), dhash + 2);
+    file_put_data(ef, CONST_BYTE_ARRAY(dhash, sizeof(dhash)));
     pin_reset_retries(ef, true);
 
     flash_commit();
@@ -1316,12 +1321,12 @@ static int cmd_attestation(void) {
         return SW_REFERENCE_NOT_FOUND();
     }
     file_t *ef_key = NULL;
-    int meta_len = 0;
-    uint8_t *meta = NULL;
+    byte_array_t metadata = meta_find(key_ref);
+    uint8_t *meta = metadata.data;
     if (!(ef_key = file_search_by_fid(key_ref == 0x93 ? EF_PIV_KEY_RETIRED18 : key_ref, NULL, SPECIFY_EF)) || !file_has_data(ef_key)) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    if ((meta_len = meta_find(key_ref, &meta)) <= 0) {
+    if (!meta) {
         return SW_REFERENCE_NOT_FOUND();
     }
     if (meta[3] != ORIGIN_GENERATED) {
@@ -1371,7 +1376,7 @@ static int cmd_import_asym(void) {
         return SW_INCORRECT_P1P2();
     }
     tlv_ctx_t ctxi, aaa = {0}, aab = {0};
-    tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+    tlv_ctx_init(BYTE_ARRAY(apdu.data, apdu.nc), &ctxi);
     tlv_find_tag(&ctxi, 0xAA, &aaa);
     tlv_find_tag(&ctxi, 0xAB, &aab);
     if (algo == PIV_ALGO_RSA1024 || algo == PIV_ALGO_RSA2048 || algo == PIV_ALGO_RSA3072 || algo == PIV_ALGO_RSA4096) {
@@ -1454,7 +1459,7 @@ static int cmd_import_asym(void) {
         def_pinpol = PINPOLICY_ALWAYS;
     }
     uint8_t meta[] = { algo,  tlv_len(&aaa) ? aaa.data[0] : def_pinpol, tlv_len(&aab) ? aab.data[0] : TOUCHPOLICY_ALWAYS, ORIGIN_IMPORTED };
-    if (meta_add(key_ref, meta, sizeof(meta)) != PICOKEYS_OK || !flash_commit_sync(PIV_FLASH_COMMIT_TIMEOUT_MS)) {
+    if (meta_add(key_ref, CONST_BYTE_ARRAY(meta, sizeof(meta))) != PICOKEYS_OK || !flash_commit_sync(PIV_FLASH_COMMIT_TIMEOUT_MS)) {
         return SW_MEMORY_FAILURE();
     }
     return SW_OK();

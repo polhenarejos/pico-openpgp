@@ -76,7 +76,7 @@ static int adminless_set_mode(uint8_t mode) {
         memcpy(retries, file_get_data(ef), file_get_size(ef));
     }
     retries[ADMINLESS_MODE_OFFSET] = mode;
-    return file_put_data(ef, retries, retries_len);
+    return file_put_data(ef, CONST_BYTE_ARRAY(retries, retries_len));
 }
 
 static bool adminless_mode_is(uint8_t mode) {
@@ -92,13 +92,13 @@ static bool pin_is_factory_default(const file_t *pin, const uint8_t *factory_pin
     }
     if (file_get_size(pin) == 33) {
         verifier[0] = factory_pin_len;
-        double_hash_pin(factory_pin, factory_pin_len, verifier + 1);
+        double_hash_pin(CONST_BYTE_ARRAY(factory_pin, factory_pin_len), verifier + 1);
         return mbedtls_ct_memcmp(file_get_data(pin), verifier, 33) == 0;
     }
     if (file_get_size(pin) == 34) {
         verifier[0] = factory_pin_len;
         verifier[1] = 0x1;
-        pin_derive_verifier(factory_pin, factory_pin_len, verifier + 2);
+        pin_derive_verifier(CONST_BYTE_ARRAY(factory_pin, factory_pin_len), verifier + 2);
         return mbedtls_ct_memcmp(file_get_data(pin), verifier, sizeof(verifier)) == 0;
     }
     return false;
@@ -133,18 +133,18 @@ int openpgp_adminless_sync_pw3(const uint8_t *pin, size_t pin_len, const uint8_t
     if (!pw3 || !dek_pw3) {
         return PICOKEYS_ERR_FILE_NOT_FOUND;
     }
-    int r = file_put_data(pw3, verifier, 34);
+    int r = file_put_data(pw3, CONST_BYTE_ARRAY(verifier, 34));
     if (r != PICOKEYS_OK) {
         return r;
     }
     uint8_t encrypted_dek[DEK_FILE_SIZE];
     encrypted_dek[0] = 0x3;
-    pin_derive_session(pin, pin_len, session_pw3);
-    r = encrypt_with_aad(session_pw3, dek, DEK_SIZE, PIN_KDF_DEFAULT_VERSION, encrypted_dek + 1);
+    pin_derive_session(CONST_BYTE_ARRAY(pin, pin_len), session_pw3);
+    r = encrypt_with_aad(session_pw3, CONST_BYTE_ARRAY(dek, DEK_SIZE), PIN_KDF_DEFAULT_VERSION, encrypted_dek + 1);
     if (r != PICOKEYS_OK) {
         return r;
     }
-    return file_put_data(dek_pw3, encrypted_dek, sizeof(encrypted_dek));
+    return file_put_data(dek_pw3, CONST_BYTE_ARRAY(encrypted_dek, sizeof(encrypted_dek)));
 }
 
 int openpgp_adminless_enable(void) {
@@ -156,7 +156,7 @@ int openpgp_adminless_enable(void) {
     uint16_t status_len = file_get_size(pw_status);
     memcpy(status, file_get_data(pw_status), status_len);
     status[0] = 0x0; // Require PW1 for every signature in admin-less mode.
-    int r = file_put_data(pw_status, status, status_len);
+    int r = file_put_data(pw_status, CONST_BYTE_ARRAY(status, status_len));
     if (r != PICOKEYS_OK) {
         return r;
     }
@@ -184,13 +184,13 @@ static bool pin_record_matches_value(const file_t *pin, const uint8_t *value, si
     }
     if (file_get_size(pin) == 33) {
         verifier[0] = value_len;
-        double_hash_pin(value, value_len, verifier + 1);
+        double_hash_pin(CONST_BYTE_ARRAY(value, value_len), verifier + 1);
         return mbedtls_ct_memcmp(file_get_data(pin), verifier, 33) == 0;
     }
     if (file_get_size(pin) == 34) {
         verifier[0] = value_len;
         verifier[1] = 0x1;
-        pin_derive_verifier(value, value_len, verifier + 2);
+        pin_derive_verifier(CONST_BYTE_ARRAY(value, value_len), verifier + 2);
         return mbedtls_ct_memcmp(file_get_data(pin), verifier, sizeof(verifier)) == 0;
     }
     return false;
@@ -218,7 +218,7 @@ static int set_reset_code_retries(uint8_t retries) {
         return PICOKEYS_OK;
     }
     status[3 + (EF_RC & 0xf)] = retries;
-    return file_put_data(pw_status, status, status_len);
+    return file_put_data(pw_status, CONST_BYTE_ARRAY(status, status_len));
 }
 
 int openpgp_reset_code_deactivate(void) {
@@ -328,29 +328,29 @@ void scan_files_openpgp(void) {
         memcpy(def, random_dek, IV_SIZE + 32);
         memcpy(def + IV_SIZE + 32, random_dek + IV_SIZE, 32);
         memcpy(def + IV_SIZE + 32 + 32, random_dek + IV_SIZE, 32);
-        hash_multi(def1, sizeof(def1), session_pw1);
-        aes_encrypt_cfb_256(session_pw1, def, def + IV_SIZE, 32);
+        hash_multi(CONST_BYTE_ARRAY(def1, sizeof(def1)), session_pw1);
+        aes_encrypt_cfb_256(session_pw1, def, BYTE_ARRAY(def + IV_SIZE, 32));
         memset(session_pw1, 0, sizeof(session_pw1));
 
-        hash_multi(def3, sizeof(def3), session_pw3);
-        aes_encrypt_cfb_256(session_pw3, def, def + IV_SIZE + 32, 32);
-        aes_encrypt_cfb_256(session_pw3, def, def + IV_SIZE + 32 + 32, 32);
+        hash_multi(CONST_BYTE_ARRAY(def3, sizeof(def3)), session_pw3);
+        aes_encrypt_cfb_256(session_pw3, def, BYTE_ARRAY(def + IV_SIZE + 32, 32));
+        aes_encrypt_cfb_256(session_pw3, def, BYTE_ARRAY(def + IV_SIZE + 32 + 32, 32));
         memset(session_pw3, 0, sizeof(session_pw3));
-        file_put_data(ef_dek, def, sizeof(def));
+        file_put_data(ef_dek, CONST_BYTE_ARRAY(def, sizeof(def)));
         bootstrap_legacy = true;
 #else
         uint8_t def[DEK_FILE_SIZE];
         def[0] = 0x3; // Format
 
-        pin_derive_session(def1, sizeof(def1), session_pw1);
-        encrypt_with_aad(session_pw1, random_dek, DEK_SIZE, PIN_KDF_DEFAULT_VERSION, def + 1);
+        pin_derive_session(CONST_BYTE_ARRAY(def1, sizeof(def1)), session_pw1);
+        encrypt_with_aad(session_pw1, CONST_BYTE_ARRAY(random_dek, DEK_SIZE), PIN_KDF_DEFAULT_VERSION, def + 1);
         mbedtls_platform_zeroize(session_pw1, sizeof(session_pw1));
-        file_put_data(ef_dek_pw1, def, sizeof(def));
+        file_put_data(ef_dek_pw1, CONST_BYTE_ARRAY(def, sizeof(def)));
 
-        pin_derive_session(def3, sizeof(def3), session_pw3);
-        encrypt_with_aad(session_pw3, random_dek, DEK_SIZE, PIN_KDF_DEFAULT_VERSION, def + 1);
+        pin_derive_session(CONST_BYTE_ARRAY(def3, sizeof(def3)), session_pw3);
+        encrypt_with_aad(session_pw3, CONST_BYTE_ARRAY(random_dek, DEK_SIZE), PIN_KDF_DEFAULT_VERSION, def + 1);
         mbedtls_platform_zeroize(session_pw3, sizeof(session_pw3));
-        file_put_data(ef_dek_pw3, def, sizeof(def));
+        file_put_data(ef_dek_pw3, CONST_BYTE_ARRAY(def, sizeof(def)));
 #endif
 
         reset_dek = true;
@@ -362,14 +362,14 @@ void scan_files_openpgp(void) {
             uint8_t dhash[34];
             if (bootstrap_legacy) {
                 dhash[0] = sizeof(def);
-                double_hash_pin(def, sizeof(def), dhash + 1);
-                file_put_data(ef, dhash, 33);
+                double_hash_pin(CONST_BYTE_ARRAY(def, sizeof(def)), dhash + 1);
+                file_put_data(ef, CONST_BYTE_ARRAY(dhash, 33));
             }
             else {
                 dhash[0] = sizeof(def);
                 dhash[1] = 0x1; // Format
-                pin_derive_verifier(def, sizeof(def), dhash + 2);
-                file_put_data(ef, dhash, sizeof(dhash));
+                pin_derive_verifier(CONST_BYTE_ARRAY(def, sizeof(def)), dhash + 2);
+                file_put_data(ef, CONST_BYTE_ARRAY(dhash, sizeof(dhash)));
             }
         }
     }
@@ -381,14 +381,14 @@ void scan_files_openpgp(void) {
             uint8_t dhash[34];
             if (bootstrap_legacy) {
                 dhash[0] = sizeof(def);
-                double_hash_pin(def, sizeof(def), dhash + 1);
-                file_put_data(ef, dhash, 33);
+                double_hash_pin(CONST_BYTE_ARRAY(def, sizeof(def)), dhash + 1);
+                file_put_data(ef, CONST_BYTE_ARRAY(dhash, 33));
             }
             else {
                 dhash[0] = sizeof(def);
                 dhash[1] = 0x1; // Format
-                pin_derive_verifier(def, sizeof(def), dhash + 2);
-                file_put_data(ef, dhash, sizeof(dhash));
+                pin_derive_verifier(CONST_BYTE_ARRAY(def, sizeof(def)), dhash + 2);
+                file_put_data(ef, CONST_BYTE_ARRAY(dhash, sizeof(dhash)));
             }
         }
     }
@@ -396,7 +396,7 @@ void scan_files_openpgp(void) {
         if (!ef->data) {
             printf("SigCount is empty. Initializing to zero\r\n");
             const uint8_t def[3] = { 0 };
-            file_put_data(ef, def, sizeof(def));
+            file_put_data(ef, CONST_BYTE_ARRAY(def, sizeof(def)));
         }
     }
 #ifdef ENABLE_ADMINLESS_MODE
@@ -407,14 +407,14 @@ void scan_files_openpgp(void) {
         if (!ef->data) {
             printf("PW status is empty. Initializing to default\r\n");
             const uint8_t def[] = { 0x1, 127, 127, 127, 3, 0, 3 };
-            file_put_data(ef, def, sizeof(def));
+            file_put_data(ef, CONST_BYTE_ARRAY(def, sizeof(def)));
         }
 #ifdef ENABLE_ADMINLESS_MODE
         else if (file_get_size(ef) == 8) {
             /* Migration from the unreleased PW-status-byte implementation. */
             legacy_adminless_mode = file_get_data(ef)[7];
             migrate_legacy_adminless_mode = legacy_adminless_mode <= ADMINLESS_MODE_KDF_MIGRATION;
-            file_put_data(ef, file_get_data(ef), 7);
+            file_put_data(ef, CONST_BYTE_ARRAY(file_get_data(ef), 7));
         }
 #endif
     }
@@ -426,35 +426,35 @@ void scan_files_openpgp(void) {
         if (!ef->data) {
             printf("UIF SIG is empty. Initializing to default\r\n");
             const uint8_t def[] = { 0x0, 0x20 };
-            file_put_data(ef, def, sizeof(def));
+            file_put_data(ef, CONST_BYTE_ARRAY(def, sizeof(def)));
         }
     }
     if ((ef = file_search_by_fid(EF_UIF_DEC, NULL, SPECIFY_ANY))) {
         if (!ef->data) {
             printf("UIF DEC is empty. Initializing to default\r\n");
             const uint8_t def[] = { 0x0, 0x20 };
-            file_put_data(ef, def, sizeof(def));
+            file_put_data(ef, CONST_BYTE_ARRAY(def, sizeof(def)));
         }
     }
     if ((ef = file_search_by_fid(EF_UIF_AUT, NULL, SPECIFY_ANY))) {
         if (!ef->data) {
             printf("UIF AUT is empty. Initializing to default\r\n");
             const uint8_t def[] = { 0x0, 0x20 };
-            file_put_data(ef, def, sizeof(def));
+            file_put_data(ef, CONST_BYTE_ARRAY(def, sizeof(def)));
         }
     }
     if ((ef = file_search_by_fid(EF_KDF, NULL, SPECIFY_ANY))) {
         if (!ef->data) {
             printf("KDF is empty. Initializing to default\r\n");
             const uint8_t def[] = { 0x81, 0x1, 0x0 };
-            file_put_data(ef, def, sizeof(def));
+            file_put_data(ef, CONST_BYTE_ARRAY(def, sizeof(def)));
         }
     }
     if ((ef = file_search_by_fid(EF_SEX, NULL, SPECIFY_ANY))) {
         if (!ef->data) {
             printf("Sex is empty. Initializing to default\r\n");
             const uint8_t def[] = { 0x30 };
-            file_put_data(ef, def, sizeof(def));
+            file_put_data(ef, CONST_BYTE_ARRAY(def, sizeof(def)));
         }
     }
     if ((ef = file_search_by_fid(EF_PW_RETRIES, NULL, SPECIFY_ANY))) {
@@ -475,10 +475,10 @@ void scan_files_openpgp(void) {
             else if (pw1_and_pw3_are_factory_default()) {
                 def[ADMINLESS_MODE_OFFSET] = ADMINLESS_MODE_PENDING;
             }
-            file_put_data(ef, def, sizeof(def));
+            file_put_data(ef, CONST_BYTE_ARRAY(def, sizeof(def)));
 #else
             const uint8_t def[] = { 0x1, 3, 3, 3 };
-            file_put_data(ef, def, sizeof(def));
+            file_put_data(ef, CONST_BYTE_ARRAY(def, sizeof(def)));
 #endif
         }
     }
@@ -502,7 +502,7 @@ int load_dek(void) {
         if (file_has_data(ef_dek_pw1)) {
             uint8_t *ef_data = file_get_data(ef_dek_pw1);
             if (ef_data[0] == 0x3) { // Format
-                r = decrypt_with_aad(session_pw1, ef_data + 1, DEK_AAD_SIZE, PIN_KDF_DEFAULT_VERSION, dek);
+                r = decrypt_with_aad(session_pw1, CONST_BYTE_ARRAY(ef_data + 1, DEK_AAD_SIZE), PIN_KDF_DEFAULT_VERSION, dek);
             }
             else {
                 return PICOKEYS_ERR_NULL_PARAM;
@@ -515,7 +515,7 @@ int load_dek(void) {
             }
 
             memcpy(dek, file_get_data(tf), IV_SIZE + 32);
-            r = aes_decrypt_cfb_256(session_pw1, dek, dek + IV_SIZE, 32);
+            r = aes_decrypt_cfb_256(session_pw1, dek, BYTE_ARRAY(dek + IV_SIZE, 32));
         }
     }
     else if (has_rc) {
@@ -523,7 +523,7 @@ int load_dek(void) {
         if (file_has_data(ef_dek_rc)) {
             uint8_t *ef_data = file_get_data(ef_dek_rc);
             if (ef_data[0] == 0x3) { // Format
-                r = decrypt_with_aad(session_rc, ef_data + 1, DEK_AAD_SIZE, PIN_KDF_DEFAULT_VERSION, dek);
+                r = decrypt_with_aad(session_rc, CONST_BYTE_ARRAY(ef_data + 1, DEK_AAD_SIZE), PIN_KDF_DEFAULT_VERSION, dek);
             }
             else {
                 return PICOKEYS_ERR_NULL_PARAM;
@@ -537,7 +537,7 @@ int load_dek(void) {
 
             memcpy(dek, file_get_data(tf), IV_SIZE);
             memcpy(dek + IV_SIZE, file_get_data(tf) + IV_SIZE + 32, 32);
-            r = aes_decrypt_cfb_256(session_rc, dek, dek + IV_SIZE, 32);
+            r = aes_decrypt_cfb_256(session_rc, dek, BYTE_ARRAY(dek + IV_SIZE, 32));
         }
     }
     else if (has_pw3) {
@@ -545,7 +545,7 @@ int load_dek(void) {
         if (file_has_data(ef_dek_pw3)) {
             uint8_t *ef_data = file_get_data(ef_dek_pw3);
             if (ef_data[0] == 0x3) { // Format
-                r = decrypt_with_aad(session_pw3, ef_data + 1, DEK_AAD_SIZE, PIN_KDF_DEFAULT_VERSION, dek);
+                r = decrypt_with_aad(session_pw3, CONST_BYTE_ARRAY(ef_data + 1, DEK_AAD_SIZE), PIN_KDF_DEFAULT_VERSION, dek);
             }
             else {
                 return PICOKEYS_ERR_NULL_PARAM;
@@ -559,7 +559,7 @@ int load_dek(void) {
 
             memcpy(dek, file_get_data(tf), IV_SIZE);
             memcpy(dek + IV_SIZE, file_get_data(tf) + IV_SIZE + 32 + 32, 32);
-            r = aes_decrypt_cfb_256(session_pw3, dek, dek + IV_SIZE, 32);
+            r = aes_decrypt_cfb_256(session_pw3, dek, BYTE_ARRAY(dek + IV_SIZE, 32));
         }
     }
     else if (has_pwpiv) {
@@ -567,7 +567,7 @@ int load_dek(void) {
         if (file_has_data(ef_dek_pwpiv)) {
             uint8_t *ef_data = file_get_data(ef_dek_pwpiv);
             if (ef_data[0] == 0x3) { // Format
-                r = decrypt_with_aad(session_pwpiv, ef_data + 1, DEK_AAD_SIZE, PIN_KDF_DEFAULT_VERSION, dek);
+                r = decrypt_with_aad(session_pwpiv, CONST_BYTE_ARRAY(ef_data + 1, DEK_AAD_SIZE), PIN_KDF_DEFAULT_VERSION, dek);
             }
             else {
                 return PICOKEYS_ERR_NULL_PARAM;
@@ -581,7 +581,7 @@ int load_dek(void) {
 
             memcpy(dek, file_get_data(tf), IV_SIZE);
             memcpy(dek + IV_SIZE, file_get_data(tf) + IV_SIZE + 32 + 32 + 32, 32);
-            r = aes_decrypt_cfb_256(session_pwpiv, dek, dek + IV_SIZE, 32);
+            r = aes_decrypt_cfb_256(session_pwpiv, dek, BYTE_ARRAY(dek + IV_SIZE, 32));
         }
     }
     if (r != 0) {
@@ -596,7 +596,7 @@ static int dek_decrypt_legacy(uint8_t *data, size_t len) {
     if ((r = load_dek()) != PICOKEYS_OK) {
         return r;
     }
-    r = aes_decrypt_cfb_256(dek + IV_SIZE, dek, data, len);
+    r = aes_decrypt_cfb_256(dek + IV_SIZE, dek, BYTE_ARRAY(data, len));
     release_dek();
     return r;
 }
@@ -683,14 +683,14 @@ static int store_encrypted_key(file_t *ef, const uint8_t *plaintext, size_t plai
         return PICOKEYS_EXEC_ERROR;
     }
 
-    r = file_put_data(ef, record, (uint16_t)record_len);
+    r = file_put_data(ef, CONST_BYTE_ARRAY(record, record_len));
     mbedtls_platform_zeroize(record, record_len);
     free(record);
     return r;
 }
 
-int load_key_data(file_t *fkey, uint8_t *out, size_t out_size, size_t *out_len, bool use_dek) {
-    if (!file_has_data(fkey) || !out || !out_len) {
+int load_key_data(file_t *fkey, byte_buffer_t *out, bool use_dek) {
+    if (!file_has_data(fkey) || !out || out->len > out->capacity || (!out->data && out->capacity > 0)) {
         return PICOKEYS_WRONG_DATA;
     }
     if (openpgp_key_container_is_marker(fkey)) {
@@ -701,17 +701,19 @@ int load_key_data(file_t *fkey, uint8_t *out, size_t out_size, size_t *out_len, 
         else if (fkey->fid == EF_PK_DEC || fkey->fid == EF_AES_KEY) {
             operation = FILE_OBJECT_OPERATION_DECRYPT;
         }
-        return openpgp_key_container_read_private(fkey->fid, operation, true, out, out_size, out_len);
+        return openpgp_key_container_read_private(fkey->fid, operation, true, out);
     }
     size_t stored_len = file_get_size(fkey);
     const uint8_t *stored = file_get_data(fkey);
+    size_t available = out->capacity - out->len;
+    uint8_t *output = out->data ? out->data + out->len : NULL;
 
     if (!use_dek) {
-        if (stored_len > out_size) {
+        if (stored_len > available) {
             return PICOKEYS_WRONG_DATA;
         }
-        memcpy(out, stored, stored_len);
-        *out_len = stored_len;
+        memcpy(output, stored, stored_len);
+        out->len += stored_len;
         return PICOKEYS_OK;
     }
 
@@ -721,7 +723,7 @@ int load_key_data(file_t *fkey, uint8_t *out, size_t out_size, size_t *out_len, 
             return PICOKEYS_WRONG_DATA;
         }
         size_t plaintext_len = stored_len - ENCRYPTED_KEY_OVERHEAD;
-        if (plaintext_len > out_size) {
+        if (plaintext_len > available) {
             return PICOKEYS_WRONG_DATA;
         }
         const uint8_t *nonce = stored + ENCRYPTED_KEY_MAGIC_SIZE;
@@ -738,34 +740,34 @@ int load_key_data(file_t *fkey, uint8_t *out, size_t out_size, size_t *out_len, 
         mbedtls_gcm_init(&gcm);
         r = mbedtls_gcm_setkey(&gcm, MBEDTLS_CIPHER_ID_AES, dek + IV_SIZE, 256);
         if (r == 0) {
-            r = mbedtls_gcm_auth_decrypt(&gcm, plaintext_len, nonce, ENCRYPTED_KEY_NONCE_SIZE, aad, sizeof(aad), tag, ENCRYPTED_KEY_TAG_SIZE, ciphertext, out);
+            r = mbedtls_gcm_auth_decrypt(&gcm, plaintext_len, nonce, ENCRYPTED_KEY_NONCE_SIZE, aad, sizeof(aad), tag, ENCRYPTED_KEY_TAG_SIZE, ciphertext, output);
         }
         mbedtls_gcm_free(&gcm);
         release_dek();
         if (r != 0) {
-            mbedtls_platform_zeroize(out, out_size);
+            mbedtls_platform_zeroize(output, available);
             return PICOKEYS_WRONG_DATA;
         }
-        *out_len = plaintext_len;
+        out->len += plaintext_len;
         return PICOKEYS_OK;
     }
 
-    if (stored_len > out_size) {
+    if (stored_len > available) {
         return PICOKEYS_WRONG_DATA;
     }
-    memcpy(out, stored, stored_len);
-    int r = dek_decrypt_legacy(out, stored_len);
+    memcpy(output, stored, stored_len);
+    int r = dek_decrypt_legacy(output, stored_len);
     if (r != 0) {
-        mbedtls_platform_zeroize(out, out_size);
+        mbedtls_platform_zeroize(output, available);
         return PICOKEYS_EXEC_ERROR;
     }
-    r = store_encrypted_key(fkey, out, stored_len);
+    r = store_encrypted_key(fkey, output, stored_len);
     if (r != PICOKEYS_OK) {
-        mbedtls_platform_zeroize(out, out_size);
+        mbedtls_platform_zeroize(output, available);
         return r;
     }
     flash_commit();
-    *out_len = stored_len;
+    out->len += stored_len;
     return PICOKEYS_OK;
 }
 
@@ -850,7 +852,7 @@ int pin_reset_retries(const file_t *pin, bool force) {
     }
     uint8_t max_retries = file_get_data(pw_retries)[(pin->fid & 0xf)];
     p[3 + (pin->fid & 0xf)] = max_retries;
-    int r = file_put_data(pw_status, p, file_get_size(pw_status));
+    int r = file_put_data(pw_status, CONST_BYTE_ARRAY(p, file_get_size(pw_status)));
     flash_commit();
     return r;
 }
@@ -867,7 +869,7 @@ static int pin_wrong_retry(const file_t *pin) {
     memcpy(p, file_get_data(pw_status), file_get_size(pw_status));
     if (p[3 + (pin->fid & 0xf)] > 0) {
         p[3 + (pin->fid & 0xf)] -= 1;
-        int r = file_put_data(pw_status, p, file_get_size(pw_status));
+        int r = file_put_data(pw_status, CONST_BYTE_ARRAY(p, file_get_size(pw_status)));
         if (r != PICOKEYS_OK) {
             return r;
         }
@@ -890,10 +892,10 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     uint8_t dhash[32], off = 2;
     if (file_get_size(pin) == 33) {
         off = 1;
-        double_hash_pin(data, len, dhash);
+        double_hash_pin(CONST_BYTE_ARRAY(data, len), dhash);
     }
     else {
-        pin_derive_verifier(data, len, dhash);
+        pin_derive_verifier(CONST_BYTE_ARRAY(data, len), dhash);
     }
     if (sizeof(dhash) != file_get_size(pin) - off) { //1 byte for pin len and 1 byte for format
         return SW_CONDITIONS_NOT_SATISFIED();
@@ -917,8 +919,8 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
         uint8_t pin_data[34], *pin_sp = NULL;
         pin_data[0] = len;
         pin_data[1] = 0x1; // Format
-        pin_derive_verifier(data, len, pin_data + 2);
-        file_put_data((file_t *)pin, pin_data, sizeof(pin_data));
+        pin_derive_verifier(CONST_BYTE_ARRAY(data, len), pin_data + 2);
+        file_put_data((file_t *)pin, CONST_BYTE_ARRAY(pin_data, sizeof(pin_data)));
         if (pin->fid == EF_PW1) {
             if (P2(apdu) == 0x81) {
                 has_pw1 = true;
@@ -937,7 +939,7 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
             pin_sp = session_pwpiv;
         }
         if (pin_sp) {
-            hash_multi(data, len, pin_sp);
+            hash_multi(CONST_BYTE_ARRAY(data, len), pin_sp);
             r = load_dek();
             if (r != PICOKEYS_OK) {
                 return SW_EXEC_ERROR();
@@ -957,11 +959,11 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
                 return PICOKEYS_ERR_FILE_NOT_FOUND;
             }
             ef_data[0] = 0x3; // Format
-            pin_derive_session(data, len, pin_sp);
-            if ((r = encrypt_with_aad(pin_sp, dek, DEK_SIZE, PIN_KDF_DEFAULT_VERSION, ef_data + 1)) != PICOKEYS_OK) {
+            pin_derive_session(CONST_BYTE_ARRAY(data, len), pin_sp);
+            if ((r = encrypt_with_aad(pin_sp, CONST_BYTE_ARRAY(dek, DEK_SIZE), PIN_KDF_DEFAULT_VERSION, ef_data + 1)) != PICOKEYS_OK) {
                 return SW_EXEC_ERROR();
             }
-            if ((r = file_put_data(ef_dek_pw, ef_data, sizeof(ef_data))) != PICOKEYS_OK) {
+            if ((r = file_put_data(ef_dek_pw, CONST_BYTE_ARRAY(ef_data, sizeof(ef_data)))) != PICOKEYS_OK) {
                 return SW_MEMORY_FAILURE();
             }
 
@@ -979,7 +981,7 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
             else if (pin->fid == EF_PIV_PIN) {
                 memset(old_data + IV_SIZE + 32 + 32 + 32, 0, 32);
             }
-            if ((r = file_put_data(ef_dek, old_data, sizeof(old_data))) != PICOKEYS_OK) {
+            if ((r = file_put_data(ef_dek, CONST_BYTE_ARRAY(old_data, sizeof(old_data)))) != PICOKEYS_OK) {
                 return SW_MEMORY_FAILURE();
             }
             flash_commit();
@@ -998,11 +1000,11 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
         else {
             has_pw2 = true;
         }
-        pin_derive_session(data, len, session_pw1);
+        pin_derive_session(CONST_BYTE_ARRAY(data, len), session_pw1);
     }
     else if (pin->fid == EF_PW3) {
         has_pw3 = true;
-        pin_derive_session(data, len, session_pw3);
+        pin_derive_session(CONST_BYTE_ARRAY(data, len), session_pw3);
     }
     return SW_OK();
 }
@@ -1028,7 +1030,7 @@ int inc_sig_count(void) {
     uint32_t counter = (p[0] << 16) | (p[1] << 8) | p[2];
     counter++;
     uint8_t q[3] = { (counter >> 16) & 0xff, (counter >> 8) & 0xff, counter & 0xff };
-    int r = file_put_data(ef, q, sizeof(q));
+    int r = file_put_data(ef, CONST_BYTE_ARRAY(q, sizeof(q)));
     if (r != PICOKEYS_OK) {
         return PICOKEYS_EXEC_ERROR;
     }
@@ -1042,7 +1044,7 @@ int reset_sig_count(void) {
         return PICOKEYS_ERR_FILE_NOT_FOUND;
     }
     uint8_t q[3] = { 0 };
-    int r = file_put_data(ef, q, sizeof(q));
+    int r = file_put_data(ef, CONST_BYTE_ARRAY(q, sizeof(q)));
     if (r != PICOKEYS_OK) {
         return PICOKEYS_EXEC_ERROR;
     }
@@ -1127,7 +1129,7 @@ int store_keys(void *key_ctx, int type, uint16_t key_id, bool use_kek) {
         r = openpgp_key_container_store(key_id, kdata, key_size, NULL, 0, !use_kek);
     }
     else if (r == PICOKEYS_OK) {
-        r = use_kek ? store_encrypted_key(ef, kdata, key_size) : file_put_data(ef, kdata, key_size);
+        r = use_kek ? store_encrypted_key(ef, kdata, key_size) : file_put_data(ef, CONST_BYTE_ARRAY(kdata, key_size));
     }
     mbedtls_platform_zeroize(kdata, sizeof(kdata));
     if (r != PICOKEYS_OK) {
@@ -1138,9 +1140,10 @@ int store_keys(void *key_ctx, int type, uint16_t key_id, bool use_kek) {
 }
 
 int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey, bool use_dek) {
-    size_t key_size = 0;
     uint8_t kdata[4096 / 8];
-    int r = load_key_data(fkey, kdata, sizeof(kdata), &key_size, use_dek);
+    byte_buffer_t key = BYTE_BUFFER(kdata, sizeof(kdata));
+    int r = load_key_data(fkey, &key, use_dek);
+    size_t key_size = key.len;
     if (r != PICOKEYS_OK || key_size == 0 || key_size % 2 != 0) {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
         return r == PICOKEYS_OK ? PICOKEYS_WRONG_DATA : r;
@@ -1180,9 +1183,10 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey, bool use_dek) {
 }
 
 int load_private_key_ecdsa(mbedtls_ecp_keypair *ctx, file_t *fkey, bool use_dek) {
-    size_t key_size = 0;
     uint8_t kdata[67]; //Worst case, 521 bit + 1byte
-    int r = load_key_data(fkey, kdata, sizeof(kdata), &key_size, use_dek);
+    byte_buffer_t key = BYTE_BUFFER(kdata, sizeof(kdata));
+    int r = load_key_data(fkey, &key, use_dek);
+    size_t key_size = key.len;
     if (r != PICOKEYS_OK || key_size < 2) {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
         return r == PICOKEYS_OK ? PICOKEYS_WRONG_DATA : r;
@@ -1212,7 +1216,9 @@ int load_private_key_ecdsa(mbedtls_ecp_keypair *ctx, file_t *fkey, bool use_dek)
 }
 
 int load_aes_key(uint8_t *aes_key, size_t *key_size, file_t *fkey) {
-    int r = load_key_data(fkey, aes_key, 32, key_size, true);
+    byte_buffer_t key = BYTE_BUFFER(aes_key, 32);
+    int r = load_key_data(fkey, &key, true);
+    *key_size = key.len;
     if (r != PICOKEYS_OK || (*key_size != 16 && *key_size != 24 && *key_size != 32)) {
         mbedtls_platform_zeroize(aes_key, 32);
         return r == PICOKEYS_OK ? PICOKEYS_WRONG_DATA : r;
