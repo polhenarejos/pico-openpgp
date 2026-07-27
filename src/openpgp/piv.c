@@ -62,6 +62,7 @@
 #define ORIGIN_GENERATED 0x01
 #define ORIGIN_IMPORTED 0x02
 #define PIV_MANAGEMENT_KEY_DEFAULT_SIZE 24u
+#define PIV_FLASH_COMMIT_TIMEOUT_MS 5000u
 
 #define IS_RETIRED(x) ((x) >= EF_PIV_KEY_RETIRED1 && (x) <= EF_PIV_KEY_RETIRED20)
 #define IS_ACTIVE(x) ((x) >= EF_PIV_KEY_AUTHENTICATION && (x) <= EF_PIV_KEY_CARDAUTH)
@@ -969,8 +970,9 @@ static int cmd_asym_keygen(void) {
         def_pinpol = PINPOLICY_ALWAYS;
     }
     uint8_t meta[] = {a80.data[0], tlv_len(&aaa) ? aaa.data[0] : def_pinpol, tlv_len(&aab) ? aab.data[0] : TOUCHPOLICY_ALWAYS, ORIGIN_GENERATED};
-    meta_add(key_ref, meta, sizeof(meta));
-    flash_commit();
+    if (meta_add(key_ref, meta, sizeof(meta)) != PICOKEYS_OK || !flash_commit_sync(PIV_FLASH_COMMIT_TIMEOUT_MS)) {
+        return SW_MEMORY_FAILURE();
+    }
     return SW_OK();
 }
 
@@ -1050,8 +1052,9 @@ static int cmd_set_mgmkey(void) {
     memcpy(new_meta, meta, 4);
     new_meta[0] = algo;
     new_meta[2] = touch;
-    meta_add(key_ref, new_meta, sizeof(new_meta));
-    flash_commit();
+    if (meta_add(key_ref, new_meta, sizeof(new_meta)) != PICOKEYS_OK || !flash_commit_sync(PIV_FLASH_COMMIT_TIMEOUT_MS)) {
+        return SW_MEMORY_FAILURE();
+    }
     return SW_OK();
 }
 
@@ -1451,7 +1454,9 @@ static int cmd_import_asym(void) {
         def_pinpol = PINPOLICY_ALWAYS;
     }
     uint8_t meta[] = { algo,  tlv_len(&aaa) ? aaa.data[0] : def_pinpol, tlv_len(&aab) ? aab.data[0] : TOUCHPOLICY_ALWAYS, ORIGIN_IMPORTED };
-    meta_add(key_ref, meta, sizeof(meta));
+    if (meta_add(key_ref, meta, sizeof(meta)) != PICOKEYS_OK || !flash_commit_sync(PIV_FLASH_COMMIT_TIMEOUT_MS)) {
+        return SW_MEMORY_FAILURE();
+    }
     return SW_OK();
 }
 
