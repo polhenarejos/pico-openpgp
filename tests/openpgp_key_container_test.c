@@ -465,10 +465,14 @@ static void test_power_loss_create(void) {
     static const uint8_t legacy[] = { 0x91, 0x92, 0x93 };
     static const uint8_t private_data[] = { 1, 3, 5, 7 };
     static const uint8_t public_data[] = { 2, 4, 6, 8 };
+    static const const_byte_array_t legacy_data = {
+        .data = legacy,
+        .len = sizeof(legacy)
+    };
 
     for (size_t event = 1; event <= 3; event++) {
         test_reset();
-        assert(file_put_data(file_search(EF_PK_AUT), CONST_BYTE_ARRAY(legacy, sizeof(legacy))) == PICOKEYS_OK);
+        assert(file_put_data(file_search(EF_PK_AUT), legacy_data) == PICOKEYS_OK);
         test_persist();
         test_power_loss_event = 0;
         test_power_loss_at = event;
