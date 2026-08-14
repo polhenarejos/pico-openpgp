@@ -19,6 +19,16 @@
 #include "random.h"
 
 int cmd_challenge(void) {
+    if (P1(apdu) != 0 || P2(apdu) != 0) {
+        return SW_WRONG_P1P2();
+    }
+    if (apdu.nc > 0 && apdu.ne == 0) {
+        return SW_INCORRECT_PARAMS();
+    }
+    if (apdu.ne == 0 || apdu.ne > OPENPGP_MAX_CHALLENGE_SIZE) {
+        return SW_WRONG_LENGTH();
+    }
+
     uint8_t *rb = (uint8_t *) random_bytes_get(apdu.ne);
     if (!rb) {
         return SW_WRONG_LENGTH();

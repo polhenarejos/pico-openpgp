@@ -86,6 +86,8 @@
 #define EF_EXLEN_INFO   0x7f66 //C
 #define EF_GFM          0x7f74 //C
 
+#define OPENPGP_MAX_CHALLENGE_SIZE 1024u
+
 // PIV
 
 #define EF_PIV_PIN  0x1184

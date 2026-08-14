@@ -59,7 +59,7 @@ uint8_t extended_capabilities[] = {
                      * KDF-DO available
                      */
     0,        /* Secure Messaging Algorithm: N/A (TDES=0, AES=1) */
-    0x00, 128,      /* Max size of GET CHALLENGE */
+    (uint8_t)(OPENPGP_MAX_CHALLENGE_SIZE >> 8), (uint8_t)OPENPGP_MAX_CHALLENGE_SIZE, /* Max size of GET CHALLENGE */
     0x08, 0x00,   /* max. length of cardholder certificate (2KiB) */
     0x08, 0x00,   /* max. length of private DO (2KiB) */
     0x00, 0x1
