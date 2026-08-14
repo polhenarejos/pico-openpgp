@@ -877,9 +877,6 @@ static int cmd_authenticate(void) {
         if (algo != PIV_ALGO_AES128 && algo != PIV_ALGO_AES192 && algo != PIV_ALGO_AES256 && algo != PIV_ALGO_3DES) {
             return SW_INCORRECT_PARAMS();
         }
-        if (meta[0] != algo) {
-            return SW_INCORRECT_PARAMS();
-        }
         uint8_t management_key[32] = { 0 };
         byte_buffer_t management_key_data = BYTE_BUFFER(management_key, sizeof(management_key));
         int r = openpgp_key_container_is_marker(ef_mgm) ? openpgp_key_container_read_private(EF_PIV_KEY_CARDMGM, FILE_OBJECT_OPERATION_USE, true, &management_key_data) : PICOKEYS_OK;
@@ -919,6 +916,9 @@ static int cmd_authenticate(void) {
         return SW_INCORRECT_PARAMS();
     }
     bool challenge_response = (operation_tag == 0x80 || operation_tag == 0x82) && operation.len > 0;
+    if (key_ref == EF_PIV_KEY_CARDMGM && meta[0] != algo && !(pending_mgm_challenge && challenge_response)) {
+        return SW_INCORRECT_PARAMS();
+    }
     size_t slot_rsa_modulus_size = piv_rsa_modulus_size(meta[0]);
     bool rsa_family_match = slot_rsa_modulus_size > 0 && piv_rsa_modulus_size(algo) > 0 && operation_tag == 0x81 && operation.len == slot_rsa_modulus_size;
     if (algo != meta[0] && !rsa_family_match && !(pending_mgm_challenge && challenge_response)) {
