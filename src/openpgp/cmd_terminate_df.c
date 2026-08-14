@@ -17,6 +17,11 @@
 
 #include "openpgp.h"
 
+static bool pw3_verifier_unusable(void) {
+    file_t *pw3 = file_search_by_fid(EF_PW3, NULL, SPECIFY_EF);
+    return !pw3 || !file_has_data(pw3) || file_get_size(pw3) < 3 || file_get_data(pw3)[0] == 0;
+}
+
 int cmd_terminate_df(void) {
     if (P1(apdu) != 0x0 || P2(apdu) != 0x0) {
         return SW_INCORRECT_P1P2();
@@ -25,8 +30,14 @@ int cmd_terminate_df(void) {
     if (!(retries = file_search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF))) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    if (!has_pw3 && *(file_get_data(retries) + 6) > 0) {
-        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    bool pw3_unusable = pw3_verifier_unusable();
+    if (!has_pw3 && !pw3_unusable) {
+        if (file_get_size(retries) <= 6) {
+            return SW_MEMORY_FAILURE();
+        }
+        if (file_get_data(retries)[6] > 0) {
+            return SW_SECURITY_STATUS_NOT_SATISFIED();
+        }
     }
     if (apdu.nc != 0) {
         return SW_WRONG_LENGTH();

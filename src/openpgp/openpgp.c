@@ -1046,9 +1046,22 @@ static void clear_pin_access_status(const file_t *pin) {
     }
 }
 
+static bool pin_retry_blocked(const file_t *pin) {
+    file_t *pw_status = file_search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF);
+    if (!pin || !pw_status || !file_has_data(pw_status)) {
+        return false;
+    }
+    uint16_t status_len = MIN(file_get_size(pw_status), 64u);
+    uint16_t retry_idx = 3u + (pin->fid & 0xfu);
+    return retry_idx < status_len && file_get_data(pw_status)[retry_idx] == 0;
+}
+
 int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     if (!file_has_data(pin)) {
         return SW_REFERENCE_NOT_FOUND();
+    }
+    if (pin_retry_blocked(pin)) {
+        return SW_PIN_BLOCKED();
     }
     if (offered_pin_len_impossible(pin, len)) {
         return SW_WRONG_DATA();
