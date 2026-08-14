@@ -29,7 +29,14 @@ int cmd_get_data(void) {
     uint16_t requested_fid = fid;
     file_t *ef;
     if (!(ef = file_search_by_fid(fid, NULL, SPECIFY_EF))) {
-        return SW_REFERENCE_NOT_FOUND();
+        return SW_WRONG_P1P2();
+    }
+
+    if (fid == EF_RESET_CODE ||
+        ((file_get_type(ef) & FILE_TYPE_INTERNAL_EF) &&
+         fid != EF_PRIV_DO_1 && fid != EF_PRIV_DO_2 &&
+         fid != EF_PRIV_DO_3 && fid != EF_PRIV_DO_4)) {
+        return SW_WRONG_P1P2();
     }
     if (fid == EF_PRIV_DO_3) {
         if (!has_pw2) {
