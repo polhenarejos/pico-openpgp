@@ -119,7 +119,7 @@ def test_piv_ec_import_requires_the_field_length(managed_piv):
     try:
         for key_type in (KEY_TYPE.ECCP256, KEY_TYPE.ECCP384):
             body = Tlv(0x06, b"\x01")
-            assert_apdu_error(lambda: managed_piv.protocol.send_apdu(0, 0xFE, key_type, slot, body), SW.WRONG_DATA)
+            assert_apdu_error(lambda: managed_piv.protocol.send_apdu(0, 0xFE, key_type, slot, body), SW.DATA_INVALID)
     finally:
         delete_key(managed_piv, slot)
 

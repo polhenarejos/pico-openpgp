@@ -159,6 +159,7 @@ static int x509_create_cert(void *pk_ctx, uint8_t algo, uint8_t slot, bool attes
     mbedtls_x509write_crt_set_validity(&ctx, "20240325000000", "20741231235959");
     uint8_t serial[20];
     random_fill_buffer(BYTE_ARRAY(serial, sizeof(serial)));
+    serial[0] &= 0x7F;
     mbedtls_x509write_crt_set_serial_raw(&ctx, serial, sizeof(serial));
     mbedtls_pk_context skey, ikey;
     mbedtls_ecdsa_context actx; // attestation key
@@ -1144,6 +1145,7 @@ static int cmd_set_mgmkey(void) {
     }
     memcpy(new_meta, meta, 4);
     new_meta[0] = algo;
+    new_meta[1] = MGM_PIN_POLICY;
     new_meta[2] = touch;
     if (meta_add(key_ref, CONST_BYTE_ARRAY(new_meta, sizeof(new_meta))) != PICOKEYS_OK || !flash_commit_sync(PIV_FLASH_COMMIT_TIMEOUT_MS)) {
         return SW_MEMORY_FAILURE();
@@ -1509,7 +1511,7 @@ static int cmd_import_asym(void) {
         tlv_find_tag(&ctxi, 0x06, &a6);
         size_t scalar_size = algo == PIV_ALGO_ECCP256 ? 32 : 48;
         if (tlv_len(&a6) != scalar_size) {
-            return SW_WRONG_DATA();
+            return SW_DATA_INVALID();
         }
         mbedtls_ecp_group_id gid = algo == PIV_ALGO_ECCP256 ? MBEDTLS_ECP_DP_SECP256R1 : MBEDTLS_ECP_DP_SECP384R1;
         mbedtls_ecdsa_context ecdsa;
