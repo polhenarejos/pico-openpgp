@@ -92,10 +92,6 @@ int cmd_change_pin(void) {
     dhash[0] = new_pin_len;
     dhash[1] = 0x1; // Format
     pin_derive_verifier(CONST_BYTE_ARRAY(new_pin, new_pin_len), dhash + 2);
-    if ((r = file_put_data(pw, CONST_BYTE_ARRAY(dhash, sizeof(dhash)))) != PICOKEYS_OK) {
-        return SW_MEMORY_FAILURE();
-    }
-
     if (P2(apdu) == 0x81) {
         file_t *tf = file_search_by_fid(EF_DEK_PW1, NULL, SPECIFY_EF);
         if (!tf) {
@@ -107,7 +103,16 @@ int cmd_change_pin(void) {
         if ((r = encrypt_with_aad(session_pw1, CONST_BYTE_ARRAY(dek, DEK_SIZE), PIN_KDF_DEFAULT_VERSION, def + 1)) != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
         }
-        r = file_put_data(tf, CONST_BYTE_ARRAY(def, sizeof(def)));
+        if ((r = pin_txn_stage(EF_PW1, dhash, session_pw1)) != PICOKEYS_OK) {
+            return SW_EXEC_ERROR();
+        }
+        r = file_put_data(pw, CONST_BYTE_ARRAY(dhash, sizeof(dhash)));
+        if (r == PICOKEYS_OK) {
+            r = file_put_data(tf, CONST_BYTE_ARRAY(def, sizeof(def)));
+        }
+        if (r == PICOKEYS_OK) {
+            r = pin_txn_delete(EF_PW1);
+        }
 #ifdef ENABLE_ADMINLESS_MODE
         if (r == PICOKEYS_OK && sync_adminless_pw3) {
             r = openpgp_adminless_sync_pw3(new_pin, new_pin_len, dhash);
@@ -131,7 +136,16 @@ int cmd_change_pin(void) {
         if ((r = encrypt_with_aad(session_pw3, CONST_BYTE_ARRAY(dek, DEK_SIZE), PIN_KDF_DEFAULT_VERSION, def + 1)) != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
         }
-        r = file_put_data(tf, CONST_BYTE_ARRAY(def, sizeof(def)));
+        if ((r = pin_txn_stage(EF_PW3, dhash, session_pw3)) != PICOKEYS_OK) {
+            return SW_EXEC_ERROR();
+        }
+        r = file_put_data(pw, CONST_BYTE_ARRAY(dhash, sizeof(dhash)));
+        if (r == PICOKEYS_OK) {
+            r = file_put_data(tf, CONST_BYTE_ARRAY(def, sizeof(def)));
+        }
+        if (r == PICOKEYS_OK) {
+            r = pin_txn_delete(EF_PW3);
+        }
 #ifdef ENABLE_ADMINLESS_MODE
         if (r == PICOKEYS_OK) {
             r = enable_adminless ? openpgp_adminless_enable() : clear_pw3 ? openpgp_adminless_reset() : openpgp_adminless_disable();

@@ -129,10 +129,6 @@ int cmd_put_data(void) {
                 dhash[0] = apdu.nc;
                 dhash[1] = 0x1; // Format
                 pin_derive_verifier(CONST_BYTE_ARRAY(apdu.data, apdu.nc), dhash + 2);
-                if ((r = file_put_data(ef, CONST_BYTE_ARRAY(dhash, sizeof(dhash)))) != PICOKEYS_OK) {
-                    return SW_MEMORY_FAILURE();
-                }
-
                 file_t *tf = file_search_by_fid(EF_DEK_RC, NULL, SPECIFY_EF);
                 if (!tf) {
                     return SW_REFERENCE_NOT_FOUND();
@@ -144,7 +140,16 @@ int cmd_put_data(void) {
                 if ((r = encrypt_with_aad(session_rc, CONST_BYTE_ARRAY(dek, DEK_SIZE), PIN_KDF_DEFAULT_VERSION, def + 1)) != PICOKEYS_OK) {
                     return SW_EXEC_ERROR();
                 }
+                if ((r = pin_txn_stage(EF_RC, dhash, session_rc)) != PICOKEYS_OK) {
+                    return SW_EXEC_ERROR();
+                }
+                if ((r = file_put_data(ef, CONST_BYTE_ARRAY(dhash, sizeof(dhash)))) != PICOKEYS_OK) {
+                    return SW_MEMORY_FAILURE();
+                }
                 r = file_put_data(tf, CONST_BYTE_ARRAY(def, sizeof(def)));
+                if (r == PICOKEYS_OK) {
+                    r = pin_txn_delete(EF_RC);
+                }
                 if (r == PICOKEYS_OK) {
                     r = pin_reset_retries(ef, true);
                 }

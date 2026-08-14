@@ -33,6 +33,8 @@
 #include "ccid/ccid.h"
 #include "led/led.h"
 #include "otp.h"
+#include "object_provider.h"
+#include "object_store.h"
 #include "do.h"
 #ifdef MBEDTLS_EDDSA_C
 #include "mbedtls/eddsa.h"
@@ -532,6 +534,108 @@ void release_dek(void) {
 
 extern bool has_pwpiv;
 extern uint8_t session_pwpiv[32];
+#define PIN_TXN_PAYLOAD_SIZE (2u + 34u + DEK_FILE_SIZE)
+
+static const file_object_txn_layout_t pin_txn_layout_pw1 = {
+    .namespace_id = OPENPGP_OBJECT_NAMESPACE,
+    .object_type = EF_PW1,
+    .object_id = 1,
+    .record_fid = { 0x10a2, 0x10a3 },
+    .commit_fid = { 0x10a4, 0x10a5 }
+};
+static const file_object_txn_layout_t pin_txn_layout_rc = {
+    .namespace_id = OPENPGP_OBJECT_NAMESPACE,
+    .object_type = EF_RC,
+    .object_id = 1,
+    .record_fid = { 0x10a6, 0x10a7 },
+    .commit_fid = { 0x10a8, 0x10a9 }
+};
+static const file_object_txn_layout_t pin_txn_layout_pw3 = {
+    .namespace_id = OPENPGP_OBJECT_NAMESPACE,
+    .object_type = EF_PW3,
+    .object_id = 1,
+    .record_fid = { 0x10aa, 0x10ab },
+    .commit_fid = { 0x10ac, 0x10ad }
+};
+
+static const file_object_txn_layout_t *pin_txn_layout(uint16_t fid) {
+    if (fid == EF_PW1) {
+        return &pin_txn_layout_pw1;
+    }
+    if (fid == EF_RC) {
+        return &pin_txn_layout_rc;
+    }
+    if (fid == EF_PW3) {
+        return &pin_txn_layout_pw3;
+    }
+    return NULL;
+}
+
+int pin_txn_delete(uint16_t fid) {
+    const file_object_txn_layout_t *layout = pin_txn_layout(fid);
+    const file_object_authenticator_t *auth = openpgp_piv_object_manifest_authenticator();
+    if (!layout || !auth) {
+        return PICOKEYS_ERR_FILE_NOT_FOUND;
+    }
+    int r = file_object_txn_delete(layout, auth);
+    return r == PICOKEYS_ERR_FILE_NOT_FOUND ? PICOKEYS_OK : r;
+}
+
+int pin_txn_stage(uint16_t fid, const uint8_t verifier[34], const uint8_t *session) {
+    const file_object_txn_layout_t *layout = pin_txn_layout(fid);
+    const file_object_authenticator_t *auth = openpgp_piv_object_manifest_authenticator();
+    if (!layout || !auth || !verifier || !session) {
+        return PICOKEYS_ERR_FILE_NOT_FOUND;
+    }
+    uint8_t payload[PIN_TXN_PAYLOAD_SIZE];
+    put_uint16_be(fid, payload);
+    memcpy(payload + 2, verifier, 34);
+    payload[36] = 0x3;
+    int r = encrypt_with_aad(session, CONST_BYTE_ARRAY(dek, DEK_SIZE), PIN_KDF_DEFAULT_VERSION, payload + 37);
+    if (r == PICOKEYS_OK) {
+        r = file_object_txn_put(layout, auth, CONST_BYTE_ARRAY(payload, sizeof(payload)));
+    }
+    mbedtls_platform_zeroize(payload, sizeof(payload));
+    return r;
+}
+
+static int pin_txn_recover(const file_t *pin, const uint8_t *data, size_t len) {
+    const file_object_txn_layout_t *layout = pin_txn_layout(pin ? pin->fid : 0);
+    const file_object_authenticator_t *auth = openpgp_piv_object_manifest_authenticator();
+    if (!layout || !auth || !pin || !data) {
+        return PICOKEYS_OK;
+    }
+    file_object_txn_handle_t handle = FILE_OBJECT_TXN_INVALID_HANDLE;
+    int r = file_object_txn_open(layout, auth, &handle);
+    if (r == PICOKEYS_ERR_FILE_NOT_FOUND) {
+        return PICOKEYS_OK;
+    }
+    if (r != PICOKEYS_OK) {
+        return r;
+    }
+    uint8_t payload[PIN_TXN_PAYLOAD_SIZE];
+    r = file_object_txn_read_at(handle, auth, 0, BYTE_ARRAY(payload, sizeof(payload)));
+    file_object_txn_close(handle);
+    if (r != PICOKEYS_OK) {
+        return r;
+    }
+    if (get_uint16_be(payload) != pin->fid || file_get_size(pin) != 34 || memcmp(payload + 2, file_get_data(pin), 34) != 0) {
+        mbedtls_platform_zeroize(payload, sizeof(payload));
+        return pin_txn_delete(pin->fid);
+    }
+    uint8_t session[32];
+    pin_derive_session(CONST_BYTE_ARRAY(data, len), session);
+    r = decrypt_with_aad(session, CONST_BYTE_ARRAY(payload + 37, DEK_AAD_SIZE), PIN_KDF_DEFAULT_VERSION, dek);
+    mbedtls_platform_zeroize(session, sizeof(session));
+    if (r == PICOKEYS_OK) {
+        uint16_t dek_fid = pin->fid == EF_PW1 ? EF_DEK_PW1 : pin->fid == EF_PW3 ? EF_DEK_PW3 : EF_DEK_RC;
+        file_t *ef_dek = file_search_by_fid(dek_fid, NULL, SPECIFY_EF);
+        r = ef_dek ? file_put_data(ef_dek, CONST_BYTE_ARRAY(payload + 36, DEK_FILE_SIZE)) : PICOKEYS_ERR_FILE_NOT_FOUND;
+    }
+    mbedtls_platform_zeroize(payload, sizeof(payload));
+    return r == PICOKEYS_OK ? pin_txn_delete(pin->fid) : r;
+}
+
 int load_dek(void) {
     if (!has_pw1 && !has_pw2 && !has_pw3 && !has_rc && !has_pwpiv) {
         return PICOKEYS_NO_LOGIN;
@@ -1064,6 +1168,11 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     else if (pin->fid == EF_PW3) {
         has_pw3 = true;
         pin_derive_session(CONST_BYTE_ARRAY(data, len), session_pw3);
+    }
+    if (pin->fid == EF_PW1 || pin->fid == EF_PW3 || pin->fid == EF_RC) {
+        if (pin_txn_recover(pin, data, len) != PICOKEYS_OK) {
+            return SW_EXEC_ERROR();
+        }
     }
     return SW_OK();
 }

@@ -77,14 +77,24 @@ int cmd_reset_retry(void) {
         uint8_t def[DEK_FILE_SIZE];
         def[0] = 0x03;
         pin_derive_session(CONST_BYTE_ARRAY(apdu.data + (apdu.nc - newpin_len), newpin_len), session_pw1);
-        encrypt_with_aad(session_pw1, CONST_BYTE_ARRAY(dek, DEK_SIZE), PIN_KDF_DEFAULT_VERSION, def + 1);
-        r = file_put_data(tf, CONST_BYTE_ARRAY(def, sizeof(def)));
+        if ((r = encrypt_with_aad(session_pw1, CONST_BYTE_ARRAY(dek, DEK_SIZE), PIN_KDF_DEFAULT_VERSION, def + 1)) != PICOKEYS_OK) {
+            return SW_EXEC_ERROR();
+        }
 
         uint8_t dhash[34];
         dhash[0] = newpin_len;
         dhash[1] = 0x1; // Format
         pin_derive_verifier(CONST_BYTE_ARRAY(apdu.data + (apdu.nc - newpin_len), newpin_len), dhash + 2);
+        if ((r = pin_txn_stage(EF_PW1, dhash, session_pw1)) != PICOKEYS_OK) {
+            return SW_MEMORY_FAILURE();
+        }
         if ((r = file_put_data(pw, CONST_BYTE_ARRAY(dhash, sizeof(dhash)))) != PICOKEYS_OK) {
+            return SW_MEMORY_FAILURE();
+        }
+        if ((r = file_put_data(tf, CONST_BYTE_ARRAY(def, sizeof(def)))) != PICOKEYS_OK) {
+            return SW_MEMORY_FAILURE();
+        }
+        if ((r = pin_txn_delete(EF_PW1)) != PICOKEYS_OK) {
             return SW_MEMORY_FAILURE();
         }
 #ifdef ENABLE_ADMINLESS_MODE

@@ -83,6 +83,8 @@ extern void signal_private_key_use(uint16_t uif_fid);
 extern void scan_files_openpgp(void);
 extern int load_aes_key(uint8_t *aes_key, size_t *key_size, file_t *fkey);
 extern int load_key_data(file_t *fkey, byte_buffer_t *out, bool use_dek);
+extern int pin_txn_stage(uint16_t fid, const uint8_t verifier[34], const uint8_t *session);
+extern int pin_txn_delete(uint16_t fid);
 extern int inc_sig_count(void);
 int cmd_select(void);
 int cmd_get_data(void);
