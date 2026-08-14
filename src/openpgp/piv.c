@@ -35,6 +35,7 @@
 #include "mbedtls/constant_time.h"
 #include "key_container.h"
 #include "openpgp.h"
+#include "button.h"
 
 #define PIV_ALGO_3DES   0x03
 #define PIV_ALGO_AES128 0x08
@@ -250,7 +251,11 @@ static int x509_create_cert(void *pk_ctx, uint8_t algo, uint8_t slot, bool attes
     }
     mbedtls_x509write_crt_set_subject_key_identifier(&ctx);
     mbedtls_x509write_crt_set_authority_key_identifier(&ctx);
-    mbedtls_x509write_crt_set_key_usage(&ctx, MBEDTLS_X509_KU_DIGITAL_SIGNATURE | MBEDTLS_X509_KU_KEY_CERT_SIGN);
+    uint32_t key_usage = MBEDTLS_X509_KU_DIGITAL_SIGNATURE;
+    if (slot == EF_PIV_KEY_ATTESTATION) {
+        key_usage |= MBEDTLS_X509_KU_KEY_CERT_SIGN;
+    }
+    mbedtls_x509write_crt_set_key_usage(&ctx, key_usage);
     int ret = mbedtls_x509write_crt_der(&ctx, buffer, buffer_size, random_fill_iterator, NULL);
     /* skey cannot be freed, as it is freed later */
     if (attestation) {
@@ -872,6 +877,9 @@ static int cmd_authenticate(void) {
         if (algo != PIV_ALGO_AES128 && algo != PIV_ALGO_AES192 && algo != PIV_ALGO_AES256 && algo != PIV_ALGO_3DES) {
             return SW_INCORRECT_PARAMS();
         }
+        if (meta[0] != algo) {
+            return SW_INCORRECT_PARAMS();
+        }
         uint8_t management_key[32] = { 0 };
         byte_buffer_t management_key_data = BYTE_BUFFER(management_key, sizeof(management_key));
         int r = openpgp_key_container_is_marker(ef_mgm) ? openpgp_key_container_read_private(EF_PIV_KEY_CARDMGM, FILE_OBJECT_OPERATION_USE, true, &management_key_data) : PICOKEYS_OK;
@@ -887,12 +895,18 @@ static int cmd_authenticate(void) {
             return SW_INCORRECT_PARAMS();
         }
     }
-    if (meta[1] == PINPOLICY_DEFAULT) {
-        meta[1] = piv_default_pin_policy(key_ref);
+    uint8_t pin_policy = meta[1];
+    if (pin_policy == PINPOLICY_DEFAULT) {
+        pin_policy = piv_default_pin_policy(key_ref);
     }
-    if ((meta[1] == PINPOLICY_ALWAYS || meta[1] == PINPOLICY_ONCE) && (!has_pwpiv && (key_ref == EF_PIV_KEY_AUTHENTICATION || key_ref == EF_PIV_KEY_SIGNATURE || key_ref == EF_PIV_KEY_KEYMGM || key_ref == EF_PIV_KEY_CARDAUTH || IS_RETIRED(key_ref)))) {
+    if (pin_policy != PINPOLICY_NEVER && !has_pwpiv && (key_ref == EF_PIV_KEY_AUTHENTICATION || key_ref == EF_PIV_KEY_SIGNATURE || key_ref == EF_PIV_KEY_KEYMGM || key_ref == EF_PIV_KEY_CARDAUTH || IS_RETIRED(key_ref))) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
+#ifndef ENABLE_EMULATION
+    if (meta[2] != TOUCHPOLICY_NEVER && button_wait()) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
+#endif
     uint8_t chal_len = algo == PIV_ALGO_3DES ? sizeof(mgm_challenge) / 2 : sizeof(mgm_challenge);
     tlv_ctx_t ctxi, a7c = { 0 };
     tlv_ctx_init(BYTE_ARRAY(apdu.data, apdu.nc), &ctxi);
@@ -1253,6 +1267,9 @@ static int cmd_move_key(void) {
     }
 
     if (to != 0xFF) {
+        if (meta_delete(to) != PICOKEYS_OK) {
+            return SW_MEMORY_FAILURE();
+        }
         uint8_t key_data[4096 / 8] = { 0 };
         byte_buffer_t key = BYTE_BUFFER(key_data, sizeof(key_data));
         int r = PICOKEYS_OK;
@@ -1303,7 +1320,10 @@ static int cmd_move_key(void) {
                 return SW_MEMORY_FAILURE();
             }
             memcpy(meta_copy, meta_src, (size_t)meta_len);
-            meta_add(to, CONST_BYTE_ARRAY(meta_copy, meta_len));
+            if (meta_add(to, CONST_BYTE_ARRAY(meta_copy, meta_len)) != PICOKEYS_OK) {
+                free(meta_copy);
+                return SW_MEMORY_FAILURE();
+            }
             free(meta_copy);
         }
         else {
@@ -1547,6 +1567,10 @@ static int cmd_import_asym(void) {
             mbedtls_rsa_free(&rsa);
             return SW_EXEC_ERROR();
         }
+        if (meta_delete(key_ref) != PICOKEYS_OK) {
+            mbedtls_rsa_free(&rsa);
+            return SW_MEMORY_FAILURE();
+        }
         r = store_keys(&rsa, ALGO_RSA, key_ref == 0x93 ? EF_PIV_KEY_RETIRED18 : key_ref, false);
         mbedtls_rsa_free(&rsa);
         if (r != 0) {
@@ -1577,6 +1601,10 @@ static int cmd_import_asym(void) {
         if (r != 0) {
             mbedtls_ecdsa_free(&ecdsa);
             return SW_EXEC_ERROR();
+        }
+        if (meta_delete(key_ref) != PICOKEYS_OK) {
+            mbedtls_ecdsa_free(&ecdsa);
+            return SW_MEMORY_FAILURE();
         }
         r = store_keys(&ecdsa, ALGO_ECDSA, key_ref == 0x93 ? EF_PIV_KEY_RETIRED18 : key_ref, false);
         mbedtls_ecdsa_free(&ecdsa);
