@@ -129,6 +129,13 @@ def test_piv_reference_changes_require_two_wire_blocks(piv, instruction, p2):
     assert_apdu_error(lambda: piv.protocol.send_apdu(0, instruction, 0, p2, b"12345678"), SW.INCORRECT_PARAMETERS)
 
 
+@pytest.mark.parametrize("body", (b"123456", b"123456789"))
+def test_piv_verify_requires_the_wire_length_without_burning_a_retry(piv, body):
+    piv.verify_pin(DEFAULT_PIN)
+    assert_apdu_error(lambda: piv.protocol.send_apdu(0, 0x20, 0, 0x80, body), SW.INCORRECT_PARAMETERS)
+    assert_apdu_error(lambda: piv.protocol.send_apdu(0, 0x20, 0, 0x80, b""), 0x63C3)
+
+
 def test_piv_card_authentication_key_is_pin_free_by_default(managed_piv):
     slot = SLOT.CARD_AUTH
     try:

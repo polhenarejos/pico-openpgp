@@ -448,6 +448,11 @@ static int cmd_piv_verify(void) {
         mbedtls_platform_zeroize(session_pwpiv, sizeof(session_pwpiv));
         return SW_OK();
     }
+    if (apdu.nc > 0 && apdu.nc != PIV_PIN_WIRE_SIZE) {
+        has_pwpiv = false;
+        mbedtls_platform_zeroize(session_pwpiv, sizeof(session_pwpiv));
+        return SW_INCORRECT_PARAMS();
+    }
     if (apdu.nc > 0) {
         uint16_t ret = check_pin(pw, apdu.data, apdu.nc);
         if (ret == 0x9000) {
