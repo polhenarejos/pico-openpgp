@@ -1219,7 +1219,7 @@ static int cmd_move_key(void) {
 static int cmd_piv_change_pin(void) {
     uint8_t pin_ref = P2(apdu);
     if (P1(apdu) != 0x0 || (pin_ref != 0x80 && pin_ref != 0x81)) {
-        return SW_INCORRECT_P1P2();
+        return SW_REFERENCE_NOT_FOUND();
     }
     file_t *ef = file_search_by_fid(pin_ref == 0x80 ? EF_PIV_PIN : EF_PIV_PUK, NULL, SPECIFY_ANY);
     if (!ef) {
@@ -1242,7 +1242,7 @@ static int cmd_piv_change_pin(void) {
 
 static int cmd_piv_reset_retry(void) {
     if (P1(apdu) != 0x0 || P2(apdu) != 0x80) {
-        return SW_INCORRECT_P1P2();
+        return SW_REFERENCE_NOT_FOUND();
     }
     file_t *ef = file_search_by_fid(EF_PIV_PUK, NULL, SPECIFY_ANY);
     if (!ef) {
