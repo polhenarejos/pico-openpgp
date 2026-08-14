@@ -48,6 +48,8 @@
 #define PIV_ALGO_ECCP384 0x14
 #define PIV_ALGO_X25519 0xE1
 #define PIV_ALGO_PIN    0xFF
+#define PIV_DATA_ADMIN_ID 0x5FFF00u
+#define PIV_DATA_ATTESTATION_ID 0x5FFF01u
 
 #define PINPOLICY_DEFAULT 0
 #define PINPOLICY_NEVER 1
@@ -435,7 +437,7 @@ static int cmd_piv_get_data(void) {
         fid <<= 8;
         fid |= apdu.data[2 + lt];
     }
-    if ((fid & 0xFFFF00) != 0x5FC100 && (fid & 0xFFFF) != EF_PIV_BITGT && (fid & 0xFFFF) != EF_PIV_DISCOVERY && (fid & 0xFFFF) != EF_PIV_ATTESTATION) {
+    if ((fid & 0xFFFF00) != 0x5FC100 && fid != EF_PIV_BITGT && fid != EF_PIV_DISCOVERY && fid != PIV_DATA_ADMIN_ID && fid != PIV_DATA_ATTESTATION_ID) {
         return SW_FILE_NOT_FOUND();
     }
     file_t *ef = NULL;
