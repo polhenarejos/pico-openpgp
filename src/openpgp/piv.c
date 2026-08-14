@@ -72,6 +72,22 @@
 #define IS_ACTIVE(x) ((x) >= EF_PIV_KEY_AUTHENTICATION && (x) <= EF_PIV_KEY_CARDAUTH)
 #define IS_KEY(x) ((IS_ACTIVE((x))) || (IS_RETIRED((x))))
 
+static size_t piv_rsa_modulus_size(uint8_t algo) {
+    if (algo == PIV_ALGO_RSA1024) {
+        return 128;
+    }
+    if (algo == PIV_ALGO_RSA2048) {
+        return 256;
+    }
+    if (algo == PIV_ALGO_RSA3072) {
+        return 384;
+    }
+    if (algo == PIV_ALGO_RSA4096) {
+        return 512;
+    }
+    return 0;
+}
+
 uint8_t piv_aid[] = {
     5,
     0xA0, 0x00, 0x00, 0x03, 0x8,
@@ -848,8 +864,10 @@ static int cmd_authenticate(void) {
         return SW_INCORRECT_PARAMS();
     }
     bool challenge_response = (operation_tag == 0x80 || operation_tag == 0x82) && operation.len > 0;
-    if (algo != meta[0] && !(pending_mgm_challenge && challenge_response)) {
-        return SW_INCORRECT_PARAMS();
+    size_t slot_rsa_modulus_size = piv_rsa_modulus_size(meta[0]);
+    bool rsa_family_match = slot_rsa_modulus_size > 0 && piv_rsa_modulus_size(algo) > 0 && operation_tag == 0x81 && operation.len == slot_rsa_modulus_size;
+    if (algo != meta[0] && !rsa_family_match && !(pending_mgm_challenge && challenge_response)) {
+        return SW_WRONG_DATA();
     }
     if (key_ref == EF_PIV_KEY_CARDMGM) {
         tlv_ctx_t empty = { 0 };
@@ -886,7 +904,7 @@ static int cmd_authenticate(void) {
             return SW_EXEC_ERROR();
         }
         size_t olen = mbedtls_rsa_get_len(&ctx);
-        if (algo == PIV_ALGO_RSA1024) {
+        if (olen < 256) {
             memcpy(res_APDU, "\x7C\x81\x00\x82\x81\x00", 6);
             res_APDU_size = 6;
         }
@@ -896,7 +914,7 @@ static int cmd_authenticate(void) {
         }
         r = mbedtls_rsa_private(&ctx, random_fill_iterator, NULL, operation.data, res_APDU + res_APDU_size);
         mbedtls_rsa_free(&ctx);
-        if (algo == PIV_ALGO_RSA1024) {
+        if (olen < 256) {
             res_APDU[res_APDU_size - 1] = olen;
             res_APDU[res_APDU_size - 4] = olen + 3;
         }

@@ -100,3 +100,15 @@ def test_piv_general_authenticate_uses_the_first_operation_tag(managed_piv):
         assert Tlv.unpack(0x82, Tlv.unpack(0x7C, response))
     finally:
         delete_key(managed_piv, slot)
+
+
+def test_piv_rsa_general_authenticate_accepts_another_rsa_algorithm_id(managed_piv):
+    slot = SLOT.AUTHENTICATION
+    try:
+        managed_piv.generate_key(slot, KEY_TYPE.RSA1024, PIN_POLICY.ONCE, TOUCH_POLICY.NEVER)
+        managed_piv.verify_pin(DEFAULT_PIN)
+        body = Tlv(0x7C, Tlv(0x81, b"\x00" * 127 + b"\x01"))
+        response = managed_piv.protocol.send_apdu(0, 0x87, KEY_TYPE.RSA2048, slot, body)
+        assert response
+    finally:
+        delete_key(managed_piv, slot)
