@@ -188,7 +188,7 @@ static int x509_create_cert(void *pk_ctx, uint8_t algo, uint8_t slot, bool attes
     mbedtls_x509write_crt_set_validity(&ctx, "20240325000000", "20741231235959");
     uint8_t serial[20];
     random_fill_buffer(BYTE_ARRAY(serial, sizeof(serial)));
-    serial[0] &= 0x7F;
+    serial[0] = (serial[0] & 0x7F) | 0x01;
     mbedtls_x509write_crt_set_serial_raw(&ctx, serial, sizeof(serial));
     mbedtls_pk_context skey, ikey;
     mbedtls_ecdsa_context actx; // attestation key
