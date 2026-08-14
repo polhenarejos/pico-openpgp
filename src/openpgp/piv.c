@@ -1097,7 +1097,9 @@ static int cmd_piv_put_data(void) {
             file_put_data(ef, CONST_BYTE_ARRAY(a53.data, a53.len));
         }
         else {
-            flash_clear_file(ef);
+            if (flash_clear_file(ef) != PICOKEYS_OK) {
+                return SW_MEMORY_FAILURE();
+            }
         }
         flash_commit();
     }
