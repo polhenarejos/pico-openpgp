@@ -45,6 +45,15 @@ int cmd_put_data(void) {
          (apdu.data[0] == ALGO_RSA && apdu.nc < 3))) {
         return SW_WRONG_DATA();
     }
+    if (fid == EF_CH_NAME && apdu.nc > 39u) {
+        return SW_WRONG_DATA();
+    }
+    if (fid == EF_LANG_PREF && apdu.nc > 8u) {
+        return SW_WRONG_DATA();
+    }
+    if (fid == EF_SEX && (apdu.nc > 1u || (apdu.nc > 0u && memchr("0129", apdu.data[0], 4) == NULL))) {
+        return SW_WRONG_DATA();
+    }
     if (!(ef = file_search_by_fid(fid, NULL, SPECIFY_EF))) {
         return SW_WRONG_P1P2();
     }
