@@ -17,11 +17,23 @@
 
 #include "openpgp.h"
 
+static bool put_data_authorized(uint16_t fid) {
+    if (fid == EF_PRIV_DO_1 || fid == EF_PRIV_DO_3) {
+        return has_pw2;
+    }
+    return has_pw3;
+}
+
 int cmd_put_data(void) {
     uint16_t fid = (P1(apdu) << 8) | P2(apdu);
     uint16_t requested_fid = fid;
     bool is_algorithm_attr = fid == EF_ALGO_SIG || fid == EF_ALGO_DEC || fid == EF_ALGO_AUT;
     file_t *ef;
+
+    if (!put_data_authorized(requested_fid)) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
+
     if (fid == EF_RESET_CODE) {
         fid = EF_RC;
     }
@@ -34,16 +46,10 @@ int cmd_put_data(void) {
         return SW_WRONG_DATA();
     }
     if (!(ef = file_search_by_fid(fid, NULL, SPECIFY_EF))) {
-        return SW_REFERENCE_NOT_FOUND();
+        return SW_WRONG_P1P2();
     }
     if (!file_authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
-        return SW_SECURITY_STATUS_NOT_SATISFIED();
-    }
-    if ((fid == EF_PRIV_DO_1 || fid == EF_PRIV_DO_3) && !has_pw2) {
-        return SW_SECURITY_STATUS_NOT_SATISFIED();
-    }
-    if (!(fid == EF_PRIV_DO_1 || fid == EF_PRIV_DO_3) && !has_pw3) {
-        return SW_SECURITY_STATUS_NOT_SATISFIED();
+        return SW_WRONG_P1P2();
     }
     if (fid == EF_PW_STATUS) {
         if (apdu.nc > 4) {
