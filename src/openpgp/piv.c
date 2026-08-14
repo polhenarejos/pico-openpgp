@@ -88,6 +88,16 @@ static size_t piv_rsa_modulus_size(uint8_t algo) {
     return 0;
 }
 
+static uint8_t piv_default_pin_policy(uint8_t key_ref) {
+    if (key_ref == EF_PIV_KEY_SIGNATURE) {
+        return PINPOLICY_ALWAYS;
+    }
+    if (key_ref == EF_PIV_KEY_CARDAUTH) {
+        return PINPOLICY_NEVER;
+    }
+    return PINPOLICY_ONCE;
+}
+
 uint8_t piv_aid[] = {
     5,
     0xA0, 0x00, 0x00, 0x03, 0x8,
@@ -842,12 +852,7 @@ static int cmd_authenticate(void) {
         }
     }
     if (meta[1] == PINPOLICY_DEFAULT) {
-        if (key_ref == EF_PIV_KEY_SIGNATURE) {
-            meta[1] = PINPOLICY_ALWAYS;
-        }
-        else {
-            meta[1] = PINPOLICY_ONCE;
-        }
+        meta[1] = piv_default_pin_policy(key_ref);
     }
     if ((meta[1] == PINPOLICY_ALWAYS || meta[1] == PINPOLICY_ONCE) && (!has_pwpiv && (key_ref == EF_PIV_KEY_AUTHENTICATION || key_ref == EF_PIV_KEY_SIGNATURE || key_ref == EF_PIV_KEY_KEYMGM || key_ref == EF_PIV_KEY_CARDAUTH || IS_RETIRED(key_ref)))) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
@@ -1052,10 +1057,7 @@ static int cmd_asym_keygen(void) {
     else {
         return SW_DATA_INVALID();
     }
-    uint8_t def_pinpol = PINPOLICY_ONCE;
-    if (key_ref == EF_PIV_KEY_SIGNATURE) {
-        def_pinpol = PINPOLICY_ALWAYS;
-    }
+    uint8_t def_pinpol = piv_default_pin_policy(key_ref);
     uint8_t meta[] = {a80.data[0], tlv_len(&aaa) ? aaa.data[0] : def_pinpol, tlv_len(&aab) ? aab.data[0] : TOUCHPOLICY_ALWAYS, ORIGIN_GENERATED};
     if (meta_add(key_ref, CONST_BYTE_ARRAY(meta, sizeof(meta))) != PICOKEYS_OK || !flash_commit_sync(PIV_FLASH_COMMIT_TIMEOUT_MS)) {
         return SW_MEMORY_FAILURE();
@@ -1533,10 +1535,7 @@ static int cmd_import_asym(void) {
     else {
         return SW_WRONG_DATA();
     }
-    uint8_t def_pinpol = PINPOLICY_ONCE;
-    if (key_ref == EF_PIV_KEY_SIGNATURE) {
-        def_pinpol = PINPOLICY_ALWAYS;
-    }
+    uint8_t def_pinpol = piv_default_pin_policy(key_ref);
     uint8_t meta[] = { algo,  tlv_len(&aaa) ? aaa.data[0] : def_pinpol, tlv_len(&aab) ? aab.data[0] : TOUCHPOLICY_ALWAYS, ORIGIN_IMPORTED };
     if (meta_add(key_ref, CONST_BYTE_ARRAY(meta, sizeof(meta))) != PICOKEYS_OK || !flash_commit_sync(PIV_FLASH_COMMIT_TIMEOUT_MS)) {
         return SW_MEMORY_FAILURE();

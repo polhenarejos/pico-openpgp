@@ -122,3 +122,14 @@ def test_piv_ec_import_requires_the_field_length(managed_piv):
             assert_apdu_error(lambda: managed_piv.protocol.send_apdu(0, 0xFE, key_type, slot, body), SW.WRONG_DATA)
     finally:
         delete_key(managed_piv, slot)
+
+
+def test_piv_card_authentication_key_is_pin_free_by_default(managed_piv):
+    slot = SLOT.CARD_AUTH
+    try:
+        managed_piv.generate_key(slot, KEY_TYPE.ECCP256, PIN_POLICY.DEFAULT, TOUCH_POLICY.NEVER)
+        request = Tlv(0x7C, Tlv(0x81, b"\x01" * 32))
+        response = managed_piv.protocol.send_apdu(0, 0x87, KEY_TYPE.ECCP256, slot, request)
+        assert response
+    finally:
+        delete_key(managed_piv, slot)
