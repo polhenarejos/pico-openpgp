@@ -1502,7 +1502,8 @@ static int cmd_import_asym(void) {
     else if (algo == PIV_ALGO_ECCP256 || algo == PIV_ALGO_ECCP384) {
         tlv_ctx_t a6 = {0};
         tlv_find_tag(&ctxi, 0x06, &a6);
-        if (tlv_len(&a6) <= 0) {
+        size_t scalar_size = algo == PIV_ALGO_ECCP256 ? 32 : 48;
+        if (tlv_len(&a6) != scalar_size) {
             return SW_WRONG_DATA();
         }
         mbedtls_ecp_group_id gid = algo == PIV_ALGO_ECCP256 ? MBEDTLS_ECP_DP_SECP256R1 : MBEDTLS_ECP_DP_SECP384R1;
