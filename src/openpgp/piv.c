@@ -674,6 +674,7 @@ static int authenticate_mgm(uint8_t algo, file_t *ef_mgm, uint8_t chal_len,
             clear_mgm_challenge();
             return SW_EXEC_ERROR();
         }
+        has_mgm = false;
         res_APDU_size += chal_len;
         return SW_OK();
     }
@@ -689,6 +690,7 @@ static int authenticate_mgm(uint8_t algo, file_t *ef_mgm, uint8_t chal_len,
         res_APDU[res_APDU_size++] = chal_len;
         memcpy(res_APDU + res_APDU_size, mgm_challenge, chal_len);
         res_APDU_size += chal_len;
+        has_mgm = false;
         return SW_OK();
     }
 

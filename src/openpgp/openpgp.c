@@ -923,6 +923,20 @@ static int pin_wrong_retry(const file_t *pin) {
     return PICOKEYS_ERR_BLOCKED;
 }
 
+static void clear_pin_access_status(const file_t *pin) {
+    if (pin->fid == EF_PW1) {
+        if (P2(apdu) == 0x81) {
+            has_pw1 = false;
+        }
+        else {
+            has_pw2 = false;
+        }
+    }
+    else if (pin->fid == EF_PW3) {
+        has_pw3 = false;
+    }
+}
+
 int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     if (!file_has_data(pin)) {
         return SW_REFERENCE_NOT_FOUND();
@@ -945,6 +959,7 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
         return SW_CONDITIONS_NOT_SATISFIED();
     }
     if (mbedtls_ct_memcmp(file_get_data(pin) + off, dhash, sizeof(dhash)) != 0) {
+        clear_pin_access_status(pin);
         int retries;
         if ((retries = pin_wrong_retry(pin)) < PICOKEYS_OK) {
             return SW_PIN_BLOCKED();
