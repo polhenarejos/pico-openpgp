@@ -55,6 +55,7 @@
 #define PINPOLICY_NEVER 1
 #define PINPOLICY_ONCE 2
 #define PINPOLICY_ALWAYS 3
+#define MGM_PIN_POLICY PINPOLICY_DEFAULT
 
 #define TOUCHPOLICY_DEFAULT 0
 #define TOUCHPOLICY_NEVER 1
@@ -249,7 +250,7 @@ static void scan_files_piv(void) {
         file_put_data(ef, CONST_BYTE_ARRAY(def, sizeof(def)));
 
         openpgp_key_container_store(EF_PIV_KEY_CARDMGM, piv_management_key_default, sizeof(piv_management_key_default), NULL, 0, true);
-        uint8_t meta[] = { PIV_ALGO_AES192, PINPOLICY_ALWAYS, TOUCHPOLICY_ALWAYS };
+        uint8_t meta[] = { PIV_ALGO_AES192, MGM_PIN_POLICY, TOUCHPOLICY_ALWAYS };
         meta_add(EF_PIV_KEY_CARDMGM, CONST_BYTE_ARRAY(meta, sizeof(meta)));
 
         reset_dek = true;
