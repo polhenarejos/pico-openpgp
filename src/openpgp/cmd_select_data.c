@@ -47,8 +47,11 @@ int cmd_select_data(void) {
     else {
         return SW_WRONG_DATA();
     }
-    if (fid != EF_CH_CERT || P1(apdu) >= 3) {
+    if (fid != EF_CH_CERT) {
         return SW_REFERENCE_NOT_FOUND();
+    }
+    if (P1(apdu) >= 3) {
+        return SW_WRONG_P1P2();
     }
     if (!(ef = file_search_by_fid(fid, NULL, SPECIFY_EF))) {
         return SW_REFERENCE_NOT_FOUND();
