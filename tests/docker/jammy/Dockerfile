@@ -26,7 +26,7 @@ RUN apt install -y libccid \
     check \
     gengetopt \
     && rm -rf /var/lib/apt/lists/*
-RUN pip3 install pytest pycvc cryptography pyscard
+RUN pip3 install pytest pycvc cryptography pyscard 'yubikey-manager>=5.6,<6'
 RUN git clone https://github.com/Yubico/yubico-piv-tool
 WORKDIR /yubico-piv-tool
 RUN git checkout tags/yubico-piv-tool-2.5.1
