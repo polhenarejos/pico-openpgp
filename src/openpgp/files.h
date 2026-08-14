@@ -70,6 +70,8 @@
 #define EF_TS_SIG       0x00ce //S
 #define EF_TS_DEC       0x00cf //S
 #define EF_TS_AUT       0x00d0 //S
+#define OPENPGP_FINGERPRINT_SIZE 20u
+#define OPENPGP_TIMESTAMP_SIZE 4u
 #define EF_RESET_CODE   0x00d3 //S
 #define EF_AES_KEY      0x00d5 //S
 #define EF_UIF_SIG      0x00d6 //S

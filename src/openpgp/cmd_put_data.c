@@ -24,6 +24,24 @@ static bool put_data_authorized(uint16_t fid) {
     return has_pw3;
 }
 
+static uint16_t fixed_do_max_size(uint16_t fid) {
+    switch (fid) {
+    case EF_FP_SIG:
+    case EF_FP_DEC:
+    case EF_FP_AUT:
+    case EF_FP_CA1:
+    case EF_FP_CA2:
+    case EF_FP_CA3:
+        return OPENPGP_FINGERPRINT_SIZE;
+    case EF_TS_SIG:
+    case EF_TS_DEC:
+    case EF_TS_AUT:
+        return OPENPGP_TIMESTAMP_SIZE;
+    default:
+        return 0;
+    }
+}
+
 int cmd_put_data(void) {
     uint16_t fid = (P1(apdu) << 8) | P2(apdu);
     uint16_t requested_fid = fid;
@@ -32,6 +50,11 @@ int cmd_put_data(void) {
 
     if (!put_data_authorized(requested_fid)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
+
+    uint16_t max_size = fixed_do_max_size(requested_fid);
+    if (max_size != 0 && apdu.nc > max_size) {
+        return SW_WRONG_DATA();
     }
 
     if (fid == EF_RESET_CODE) {
