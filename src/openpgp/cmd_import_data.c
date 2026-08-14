@@ -46,13 +46,15 @@ static bool tag_len(uint8_t **data, const uint8_t *end, uint16_t *len_out) {
 }
 
 int cmd_import_data(void) {
-    file_t *ef = NULL;
     uint16_t fid = 0x0;
     if (P1(apdu) != 0x3F || P2(apdu) != 0xFF) {
         return SW_WRONG_P1P2();
     }
     if (apdu.nc < 5) {
         return SW_WRONG_LENGTH();
+    }
+    if (!has_pw3) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     uint8_t *start = apdu.data;
     uint8_t *apdu_end = apdu.data + apdu.nc;
@@ -83,12 +85,6 @@ int cmd_import_data(void) {
         return SW_WRONG_DATA();
     }
     start++;
-    if (!(ef = file_search_by_fid(fid, NULL, SPECIFY_EF))) {
-        return SW_REFERENCE_NOT_FOUND();
-    }
-    if (!file_authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
-        return SW_SECURITY_STATUS_NOT_SATISFIED();
-    }
     if (start >= outer_end || (size_t)(outer_end - start) < (size_t)*start + 1u) {
         return SW_WRONG_DATA();
     }
