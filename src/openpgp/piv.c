@@ -493,6 +493,9 @@ static int cmd_get_metadata(void) {
     else if (key_ref == 0x81) {
         key_ref = EF_PIV_PUK;
     }
+    else if (key_ref == 0xF9) {
+        key_ref = EF_PIV_KEY_ATTESTATION;
+    }
     uint16_t key_fid = key_ref == 0x93 ? EF_PIV_KEY_RETIRED18 : key_ref;
     byte_array_t metadata = meta_find(key_ref);
     uint8_t *meta = metadata.data;
@@ -501,6 +504,10 @@ static int cmd_get_metadata(void) {
         return SW_REFERENCE_NOT_FOUND();
     }
     if (key_ref != EF_PIV_PIN && key_ref != EF_PIV_PUK) {
+        uint8_t attestation_meta[] = {PIV_ALGO_ECCP384, PINPOLICY_ONCE, TOUCHPOLICY_NEVER, ORIGIN_GENERATED};
+        if (!meta && key_ref == EF_PIV_KEY_ATTESTATION) {
+            meta = attestation_meta;
+        }
         if (!meta) {
             return SW_REFERENCE_NOT_FOUND();
         }
@@ -1127,9 +1134,6 @@ static int cmd_move_key(void) {
         return SW_INCORRECT_P1P2();
     }
     if (to == from) {
-        return SW_INCORRECT_P1P2();
-    }
-    if (IS_RETIRED(from) && IS_ACTIVE(to)) {
         return SW_INCORRECT_P1P2();
     }
     if (from == 0x93) {
