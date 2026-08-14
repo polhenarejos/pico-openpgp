@@ -60,6 +60,9 @@ int cmd_keypair_gen(void) {
     if (algo_len == 0 || algo_len > OPENPGP_MAX_ALGORITHM_ATTR_SIZE) {
         return SW_WRONG_DATA();
     }
+    if (!openpgp_algorithm_attr_supported(algo, algo_len)) {
+        return SW_WRONG_DATA();
+    }
     if (P1(apdu) == 0x80) { //generate
         if (algo[0] == ALGO_RSA) {
             if (algo_len < 3) {

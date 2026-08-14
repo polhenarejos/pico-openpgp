@@ -1441,6 +1441,24 @@ mbedtls_ecp_group_id get_ec_group_id_from_attr(const uint8_t *algo, size_t algo_
     return MBEDTLS_ECP_DP_NONE;
 }
 
+bool openpgp_algorithm_attr_supported(const uint8_t *algo, size_t algo_len) {
+    if (!algo || algo_len < 2 || algo_len > OPENPGP_MAX_ALGORITHM_ATTR_SIZE) {
+        return false;
+    }
+    if (algo[0] == ALGO_RSA) {
+        uint16_t modulus_bits;
+        if (algo_len != 6 || algo[3] != 0 || algo[4] != 0x20 || algo[5] != 0) {
+            return false;
+        }
+        modulus_bits = ((uint16_t)algo[1] << 8) | algo[2];
+        return modulus_bits == 1024 || modulus_bits == 2048 || modulus_bits == 3072 || modulus_bits == 4096;
+    }
+    if (algo[0] == ALGO_ECDH || algo[0] == ALGO_ECDSA || algo[0] == ALGO_EDDSA) {
+        return get_ec_group_id_from_attr(algo + 1, algo_len - 1) != MBEDTLS_ECP_DP_NONE;
+    }
+    return false;
+}
+
 void make_rsa_response(mbedtls_rsa_context *rsa) {
     memcpy(res_APDU, "\x7f\x49\x82\x00\x00", 5);
     res_APDU_size = 5;

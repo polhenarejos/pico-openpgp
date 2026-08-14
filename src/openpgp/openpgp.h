@@ -76,6 +76,7 @@ extern int openpgp_adminless_disable(void);
 extern int openpgp_adminless_reset(void);
 #endif
 extern mbedtls_ecp_group_id get_ec_group_id_from_attr(const uint8_t *algo, size_t algo_len);
+extern bool openpgp_algorithm_attr_supported(const uint8_t *algo, size_t algo_len);
 extern int reset_sig_count(void);
 extern uint16_t algo_dec, algo_aut, pk_dec, pk_aut;
 extern bool wait_button_pressed_fid(uint16_t fid);

@@ -141,6 +141,9 @@ int cmd_import_data(void) {
     if (algo_len == 0 || algo_len > OPENPGP_MAX_ALGORITHM_ATTR_SIZE) {
         return SW_WRONG_DATA();
     }
+    if (!openpgp_algorithm_attr_supported(algo, algo_len)) {
+        return SW_WRONG_DATA();
+    }
     int r = 0;
     if (algo[0] == ALGO_RSA) {
         if (algo_len < 3) {
