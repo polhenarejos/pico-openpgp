@@ -79,9 +79,6 @@ int cmd_verify(void) {
     }
     uint8_t retry_index = p2 == 0x82 ? (EF_PW1 & 0xf) : (fid & 0xf);
     uint8_t retries = *(file_get_data(pw_status) + 3 + retry_index);
-    if (retries == 0) {
-        return SW_PIN_BLOCKED();
-    }
     if ((p2 == 0x81 && has_pw1) || (p2 == 0x82 && has_pw2) || (p2 == 0x83 && has_pw3)) {
         return SW_OK();
     }
