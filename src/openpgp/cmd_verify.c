@@ -39,6 +39,9 @@ int cmd_verify(void) {
         else if (p2 == 0x83) {
             has_pw3 = false;
         }
+        else {
+            return SW_WRONG_P1P2();
+        }
         return SW_OK();
     }
     else if (p1 != 0x0 || (p2 & 0x60) != 0x0) {
