@@ -385,10 +385,10 @@ static int cmd_get_serial(void) {
 static int cmd_piv_verify(void) {
     uint8_t key_ref = P2(apdu);
     if (P1(apdu) != 0x00 && P1(apdu) != 0xFF) {
-        return SW_INCORRECT_P1P2();
+        return SW_INCORRECT_PARAMS();
     }
     if (key_ref != 0x80) {
-        return SW_REFERENCE_NOT_FOUND();
+        return SW_INCORRECT_PARAMS();
     }
     file_t *pw, *pw_status;
     uint16_t fid = EF_PIV_PIN;
@@ -400,6 +400,14 @@ static int cmd_piv_verify(void) {
     }
     if (file_get_data(pw)[0] == 0) { //not initialized
         return SW_REFERENCE_NOT_FOUND();
+    }
+    if (P1(apdu) == 0xFF) {
+        if (apdu.nc != 0) {
+            return SW_INCORRECT_PARAMS();
+        }
+        has_pwpiv = false;
+        mbedtls_platform_zeroize(session_pwpiv, sizeof(session_pwpiv));
+        return SW_OK();
     }
     if (apdu.nc > 0) {
         uint16_t ret = check_pin(pw, apdu.data, apdu.nc);
