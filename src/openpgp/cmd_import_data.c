@@ -182,6 +182,10 @@ int cmd_import_data(void) {
             mbedtls_rsa_free(&rsa);
             return SW_EXEC_ERROR();
         }
+        if ((size_t)mbedtls_rsa_get_len(&rsa) * 8u != (size_t)((algo[1] << 8) | algo[2])) {
+            mbedtls_rsa_free(&rsa);
+            return SW_WRONG_DATA();
+        }
         make_rsa_response(&rsa);
         r = store_keypair(&rsa, ALGO_RSA, fid, res_APDU, res_APDU_size);
         mbedtls_rsa_free(&rsa);
