@@ -804,9 +804,7 @@ static int cmd_authenticate(void) {
     if (metadata.len < 3) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    if (algo != meta[0]) {
-        return SW_INCORRECT_PARAMS();
-    }
+    bool pending_mgm_challenge = key_ref == EF_PIV_KEY_CARDMGM && mgm_challenge_kind != MGM_CHALLENGE_NONE;
     if (key_ref == EF_PIV_KEY_CARDMGM) {
         if (algo != PIV_ALGO_AES128 && algo != PIV_ALGO_AES192 && algo != PIV_ALGO_AES256 && algo != PIV_ALGO_3DES) {
             return SW_INCORRECT_PARAMS();
@@ -846,6 +844,10 @@ static int cmd_authenticate(void) {
     uint16_t operation_tag = 0;
     tlv_ctx_t operation = { 0 };
     if (!piv_first_auth_operation(&a7c, &operation_tag, &operation)) {
+        return SW_INCORRECT_PARAMS();
+    }
+    bool challenge_response = (operation_tag == 0x80 || operation_tag == 0x82) && operation.len > 0;
+    if (algo != meta[0] && !(pending_mgm_challenge && challenge_response)) {
         return SW_INCORRECT_PARAMS();
     }
     if (key_ref == EF_PIV_KEY_CARDMGM) {
