@@ -62,6 +62,7 @@
 #define TOUCHPOLICY_ALWAYS 2
 #define TOUCHPOLICY_CACHED 3
 #define TOUCHPOLICY_AUTO 0xFF
+#define PIV_DEFAULT_TOUCH_POLICY TOUCHPOLICY_NEVER
 
 #define ORIGIN_GENERATED 0x01
 #define ORIGIN_IMPORTED 0x02
@@ -1058,7 +1059,7 @@ static int cmd_asym_keygen(void) {
         return SW_DATA_INVALID();
     }
     uint8_t def_pinpol = piv_default_pin_policy(key_ref);
-    uint8_t meta[] = {a80.data[0], tlv_len(&aaa) ? aaa.data[0] : def_pinpol, tlv_len(&aab) ? aab.data[0] : TOUCHPOLICY_ALWAYS, ORIGIN_GENERATED};
+    uint8_t meta[] = {a80.data[0], tlv_len(&aaa) ? aaa.data[0] : def_pinpol, tlv_len(&aab) ? aab.data[0] : PIV_DEFAULT_TOUCH_POLICY, ORIGIN_GENERATED};
     if (meta_add(key_ref, CONST_BYTE_ARRAY(meta, sizeof(meta))) != PICOKEYS_OK || !flash_commit_sync(PIV_FLASH_COMMIT_TIMEOUT_MS)) {
         return SW_MEMORY_FAILURE();
     }
@@ -1536,7 +1537,7 @@ static int cmd_import_asym(void) {
         return SW_WRONG_DATA();
     }
     uint8_t def_pinpol = piv_default_pin_policy(key_ref);
-    uint8_t meta[] = { algo,  tlv_len(&aaa) ? aaa.data[0] : def_pinpol, tlv_len(&aab) ? aab.data[0] : TOUCHPOLICY_ALWAYS, ORIGIN_IMPORTED };
+    uint8_t meta[] = { algo,  tlv_len(&aaa) ? aaa.data[0] : def_pinpol, tlv_len(&aab) ? aab.data[0] : PIV_DEFAULT_TOUCH_POLICY, ORIGIN_IMPORTED };
     if (meta_add(key_ref, CONST_BYTE_ARRAY(meta, sizeof(meta))) != PICOKEYS_OK || !flash_commit_sync(PIV_FLASH_COMMIT_TIMEOUT_MS)) {
         return SW_MEMORY_FAILURE();
     }

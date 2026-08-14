@@ -133,3 +133,12 @@ def test_piv_card_authentication_key_is_pin_free_by_default(managed_piv):
         assert response
     finally:
         delete_key(managed_piv, slot)
+
+
+def test_piv_generated_key_uses_no_touch_by_default(managed_piv):
+    slot = SLOT.AUTHENTICATION
+    try:
+        managed_piv.generate_key(slot, KEY_TYPE.ECCP256, PIN_POLICY.ONCE, TOUCH_POLICY.DEFAULT)
+        assert managed_piv.get_slot_metadata(slot).touch_policy == TOUCH_POLICY.NEVER
+    finally:
+        delete_key(managed_piv, slot)
