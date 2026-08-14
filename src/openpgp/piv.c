@@ -47,6 +47,7 @@
 #define PIV_ALGO_ECCP256 0x11
 #define PIV_ALGO_ECCP384 0x14
 #define PIV_ALGO_X25519 0xE1
+#define PIV_ALGO_PIN    0xFF
 
 #define PINPOLICY_DEFAULT 0
 #define PINPOLICY_NEVER 1
@@ -589,6 +590,11 @@ static int cmd_get_metadata(void) {
             }
             eq = r == PICOKEYS_OK && management_key_size == sizeof(piv_management_key_default) ? mbedtls_ct_memcmp(piv_management_key_default, management_key, management_key_size) : -1;
             mbedtls_platform_zeroize(management_key, sizeof(management_key));
+        }
+        if (key_ref == EF_PIV_PIN || key_ref == EF_PIV_PUK) {
+            res_APDU[res_APDU_size++] = 0x1;
+            res_APDU[res_APDU_size++] = 0x1;
+            res_APDU[res_APDU_size++] = PIV_ALGO_PIN;
         }
         res_APDU[res_APDU_size++] = 0x5;
         res_APDU[res_APDU_size++] = 1;
