@@ -154,3 +154,15 @@ def test_piv_generated_key_uses_no_touch_by_default(managed_piv):
         assert managed_piv.get_slot_metadata(slot).touch_policy == TOUCH_POLICY.NEVER
     finally:
         delete_key(managed_piv, slot)
+
+
+@pytest.mark.parametrize("policy", (Tlv(0xAA, b"\x00"), Tlv(0xAB, b"\x00"), Tlv(0xAA, b"\xFF")))
+def test_piv_explicit_zero_or_undefined_policy_is_rejected(managed_piv, policy):
+    slot = SLOT.RETIRED1
+    delete_key(managed_piv, slot)
+    try:
+        request = Tlv(0xAC, Tlv(0x80, bytes([KEY_TYPE.ECCP256])) + policy)
+        assert_apdu_error(lambda: managed_piv.protocol.send_apdu(0, 0x47, 0, slot, request), SW.INCORRECT_PARAMETERS)
+        assert_apdu_error(lambda: managed_piv.get_slot_metadata(slot), SW.REFERENCE_DATA_NOT_FOUND)
+    finally:
+        delete_key(managed_piv, slot)

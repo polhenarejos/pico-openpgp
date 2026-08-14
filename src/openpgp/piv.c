@@ -100,6 +100,24 @@ static uint8_t piv_default_pin_policy(uint8_t key_ref) {
     return PINPOLICY_ONCE;
 }
 
+static bool piv_resolve_policies(uint8_t key_ref, bool has_pin, const tlv_ctx_t *pin, bool has_touch, const tlv_ctx_t *touch, uint8_t *pin_policy, uint8_t *touch_policy) {
+    *pin_policy = piv_default_pin_policy(key_ref);
+    *touch_policy = PIV_DEFAULT_TOUCH_POLICY;
+    if (has_pin) {
+        if (tlv_len(pin) != 1 || (pin->data[0] != PINPOLICY_NEVER && pin->data[0] != PINPOLICY_ONCE && pin->data[0] != PINPOLICY_ALWAYS)) {
+            return false;
+        }
+        *pin_policy = pin->data[0];
+    }
+    if (has_touch) {
+        if (tlv_len(touch) != 1 || (touch->data[0] != TOUCHPOLICY_NEVER && touch->data[0] != TOUCHPOLICY_ALWAYS && touch->data[0] != TOUCHPOLICY_CACHED)) {
+            return false;
+        }
+        *touch_policy = touch->data[0];
+    }
+    return true;
+}
+
 static bool piv_reference_pair(const uint8_t **old_ref, const uint8_t **new_ref) {
     if (apdu.nc != 2u * PIV_PIN_WIRE_SIZE) {
         return false;
@@ -1001,10 +1019,14 @@ static int cmd_asym_keygen(void) {
     }
     tlv_ctx_t a80 = {0}, aaa = {0}, aab = {0};
     tlv_find_tag(&aac, 0x80, &a80);
-    tlv_find_tag(&aac, 0xAA, &aaa);
-    tlv_find_tag(&aac, 0xAB, &aab);
+    bool has_aaa = tlv_find_tag(&aac, 0xAA, &aaa);
+    bool has_aab = tlv_find_tag(&aac, 0xAB, &aab);
     if (tlv_len(&a80) == 0) {
         return SW_WRONG_DATA();
+    }
+    uint8_t pin_policy, touch_policy;
+    if (!piv_resolve_policies(key_ref, has_aaa, &aaa, has_aab, &aab, &pin_policy, &touch_policy)) {
+        return SW_INCORRECT_PARAMS();
     }
     uint16_t key_cert = 0;
     if (key_ref == EF_PIV_KEY_AUTHENTICATION) {
@@ -1074,8 +1096,7 @@ static int cmd_asym_keygen(void) {
     else {
         return SW_DATA_INVALID();
     }
-    uint8_t def_pinpol = piv_default_pin_policy(key_ref);
-    uint8_t meta[] = {a80.data[0], tlv_len(&aaa) ? aaa.data[0] : def_pinpol, tlv_len(&aab) ? aab.data[0] : PIV_DEFAULT_TOUCH_POLICY, ORIGIN_GENERATED};
+    uint8_t meta[] = {a80.data[0], pin_policy, touch_policy, ORIGIN_GENERATED};
     if (meta_add(key_ref, CONST_BYTE_ARRAY(meta, sizeof(meta))) != PICOKEYS_OK || !flash_commit_sync(PIV_FLASH_COMMIT_TIMEOUT_MS)) {
         return SW_MEMORY_FAILURE();
     }
@@ -1483,8 +1504,12 @@ static int cmd_import_asym(void) {
     }
     tlv_ctx_t ctxi, aaa = {0}, aab = {0};
     tlv_ctx_init(BYTE_ARRAY(apdu.data, apdu.nc), &ctxi);
-    tlv_find_tag(&ctxi, 0xAA, &aaa);
-    tlv_find_tag(&ctxi, 0xAB, &aab);
+    bool has_aaa = tlv_find_tag(&ctxi, 0xAA, &aaa);
+    bool has_aab = tlv_find_tag(&ctxi, 0xAB, &aab);
+    uint8_t pin_policy, touch_policy;
+    if (!piv_resolve_policies(key_ref, has_aaa, &aaa, has_aab, &aab, &pin_policy, &touch_policy)) {
+        return SW_INCORRECT_PARAMS();
+    }
     if (algo == PIV_ALGO_RSA1024 || algo == PIV_ALGO_RSA2048 || algo == PIV_ALGO_RSA3072 || algo == PIV_ALGO_RSA4096) {
         tlv_ctx_t a1 = { 0 }, a2 = { 0 };
         tlv_find_tag(&ctxi, 0x01, &a1);
@@ -1561,8 +1586,7 @@ static int cmd_import_asym(void) {
     else {
         return SW_WRONG_DATA();
     }
-    uint8_t def_pinpol = piv_default_pin_policy(key_ref);
-    uint8_t meta[] = { algo,  tlv_len(&aaa) ? aaa.data[0] : def_pinpol, tlv_len(&aab) ? aab.data[0] : PIV_DEFAULT_TOUCH_POLICY, ORIGIN_IMPORTED };
+    uint8_t meta[] = { algo, pin_policy, touch_policy, ORIGIN_IMPORTED };
     if (meta_add(key_ref, CONST_BYTE_ARRAY(meta, sizeof(meta))) != PICOKEYS_OK || !flash_commit_sync(PIV_FLASH_COMMIT_TIMEOUT_MS)) {
         return SW_MEMORY_FAILURE();
     }
