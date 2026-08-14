@@ -56,7 +56,7 @@ int cmd_select_data(void) {
     if (!(ef = file_search_by_fid(fid, NULL, SPECIFY_EF))) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    if (!file_authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
+    if (!file_authenticate_action(ef, ACL_OP_READ_SEARCH)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     fid = EF_CH_1 + P1(apdu);
