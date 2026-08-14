@@ -463,7 +463,7 @@ def test_openpgp_mse_decipher_slot_swap(card):
     eph = ec.generate_private_key(ec.SECP256R1())
     peer = eph.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
     z_dec = card.cmd_pso(0x80, 0x86, decipher_apdu_data(peer))
-    expect(card, INS_MSE, 0x41, 0xA4, b"\x83\x01\x03")
+    expect(card, INS_MSE, 0x41, 0xB8, b"\x83\x01\x03")
     z_aut = card.cmd_pso(0x80, 0x86, decipher_apdu_data(peer))
     assert z_dec == dec_priv.exchange(ec.ECDH(), eph.public_key())
     assert z_aut == aut_priv.exchange(ec.ECDH(), eph.public_key())

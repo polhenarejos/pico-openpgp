@@ -27,22 +27,22 @@ int cmd_mse(void) {
     }
     if (P2(apdu) == 0xA4) {
         if (apdu.data[2] == 0x2) {
-            algo_dec = EF_ALGO_PRIV2;
-            pk_dec = EF_PK_DEC;
-        }
-        else if (apdu.data[2] == 0x3) {
-            algo_dec = EF_ALGO_PRIV3;
-            pk_dec = EF_PK_AUT;
-        }
-    }
-    else if (P2(apdu) == 0xB8) {
-        if (apdu.data[2] == 0x2) {
             algo_aut = EF_ALGO_PRIV2;
             pk_aut = EF_PK_DEC;
         }
         else if (apdu.data[2] == 0x3) {
             algo_aut = EF_ALGO_PRIV3;
             pk_aut = EF_PK_AUT;
+        }
+    }
+    else if (P2(apdu) == 0xB8) {
+        if (apdu.data[2] == 0x2) {
+            algo_dec = EF_ALGO_PRIV2;
+            pk_dec = EF_PK_DEC;
+        }
+        else if (apdu.data[2] == 0x3) {
+            algo_dec = EF_ALGO_PRIV3;
+            pk_dec = EF_PK_AUT;
         }
     }
     return SW_OK();
