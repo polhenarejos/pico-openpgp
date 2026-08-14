@@ -109,9 +109,7 @@ int cmd_keypair_gen(void) {
         if (fid == EF_PK_SIG) {
             reset_sig_count();
         }
-        else if (fid == EF_PK_DEC) {
-            // OpenPGP does not allow generating AES keys. So, we generate a new one when gen for DEC is called.
-            // It is a 256 AES key by default.
+        else if (fid == EF_PK_DEC && !file_has_data(file_search_by_fid(EF_AES_KEY, NULL, SPECIFY_EF))) {
             uint8_t aes_key[32]; //maximum AES key size
             uint8_t key_size = 32;
             memcpy(aes_key, random_bytes_get(key_size), key_size);
