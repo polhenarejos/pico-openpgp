@@ -25,12 +25,17 @@
 #include "mbedtls/ecdh.h"
 #include "mbedtls/asn1.h"
 
+static bool forcesig_enabled(void) {
+    file_t *pw_status = file_search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF);
+    return pw_status && file_has_data(pw_status) && file_get_size(pw_status) > 0 && file_get_data(pw_status)[0] == 0;
+}
+
 int cmd_pso(void) {
     uint16_t algo_fid = 0x0, pk_fid = 0x0;
     uint16_t uif_fid = 0x0;
     bool is_aes = false;
     if (P1(apdu) == 0x9E && P2(apdu) == 0x9A) {
-        if (!has_pw3 && !has_pw1) {
+        if (!has_pw1 && (forcesig_enabled() || !has_pw3)) {
             return SW_SECURITY_STATUS_NOT_SATISFIED();
         }
         algo_fid = EF_ALGO_PRIV1;
