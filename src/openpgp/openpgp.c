@@ -204,6 +204,15 @@ int check_pin_len(uint16_t fid, size_t len) {
     return SW_OK();
 }
 
+static bool offered_pin_len_impossible(const file_t *pin, size_t len) {
+    if (!pin || (pin->fid != EF_PW1 && pin->fid != EF_PW3 && pin->fid != EF_RC)) {
+        return false;
+    }
+    size_t min_len = pin->fid == EF_PW1 ? 6u : 8u;
+    size_t stored_len = file_get_data(pin)[0];
+    return stored_len >= min_len && stored_len <= 127u && (len < min_len || len > 127u);
+}
+
 static bool reset_code_is_public_default(const file_t *rc) {
     static const uint8_t default_reset_code[] = "12345678";
 
@@ -895,6 +904,9 @@ static int pin_wrong_retry(const file_t *pin) {
 int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     if (!file_has_data(pin)) {
         return SW_REFERENCE_NOT_FOUND();
+    }
+    if (offered_pin_len_impossible(pin, len)) {
+        return SW_WRONG_DATA();
     }
     isUserAuthenticated = false;
     //has_pw1 = has_pw3 = false;
