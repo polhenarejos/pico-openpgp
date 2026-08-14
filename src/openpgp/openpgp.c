@@ -1003,33 +1003,74 @@ int pin_reset_retries(const file_t *pin, bool force) {
     return r;
 }
 
-static int pin_wrong_retry(const file_t *pin) {
-    if (!pin) {
+int pin_spend_retry(const file_t *pin, uint8_t *remaining) {
+    if (!pin || !remaining) {
         return PICOKEYS_ERR_NULL_PARAM;
     }
     file_t *pw_status = file_search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF);
-    if (!pw_status) {
+    if (!pw_status || !file_has_data(pw_status)) {
         return PICOKEYS_ERR_FILE_NOT_FOUND;
     }
-    uint8_t p[64];
-    uint16_t status_len = MIN(file_get_size(pw_status), sizeof(p));
-    if (3u + (pin->fid & 0xfu) >= status_len) {
+    uint16_t status_len = file_get_size(pw_status);
+    uint16_t retry_index = 3u + (pin->fid & 0xfu);
+    if (status_len > 64u || retry_index >= status_len) {
         return PICOKEYS_ERR_MEMORY_FATAL;
     }
-    memcpy(p, file_get_data(pw_status), status_len);
-    if (p[3 + (pin->fid & 0xf)] > 0) {
-        p[3 + (pin->fid & 0xf)] -= 1;
-        int r = file_put_data(pw_status, CONST_BYTE_ARRAY(p, status_len));
-        if (r != PICOKEYS_OK) {
-            return r;
-        }
-        flash_commit();
-        if (p[3 + (pin->fid & 0xf)] == 0) {
-            return PICOKEYS_ERR_BLOCKED;
-        }
-        return p[3 + (pin->fid & 0xf)];
+    uint8_t status[64];
+    memcpy(status, file_get_data(pw_status), status_len);
+    if (status[retry_index] == 0) {
+        return PICOKEYS_ERR_BLOCKED;
     }
-    return PICOKEYS_ERR_BLOCKED;
+    *remaining = --status[retry_index];
+    int r = file_put_data(pw_status, CONST_BYTE_ARRAY(status, status_len));
+    if (r != PICOKEYS_OK) {
+        return r;
+    }
+    flash_commit();
+    if (!file_has_data(pw_status) || file_get_size(pw_status) != status_len || file_get_data(pw_status)[retry_index] != *remaining) {
+        return PICOKEYS_ERR_MEMORY_FATAL;
+    }
+    return PICOKEYS_OK;
+}
+
+int pin_check_verifier(const file_t *pin, const uint8_t *data, size_t len, uint8_t offset, bool *mismatch) {
+    if (!file_has_data(pin)) {
+        return SW_REFERENCE_NOT_FOUND();
+    }
+    if (mismatch) {
+        *mismatch = false;
+    }
+    if (file_get_size(pin) != sizeof(uint8_t[32]) + offset || (offset == 2 && file_get_data(pin)[1] != 1u)) {
+        return SW_CONDITIONS_NOT_SATISFIED();
+    }
+    uint8_t dhash[32];
+    if (offset == 1) {
+        double_hash_pin(CONST_BYTE_ARRAY(data, len), dhash);
+    }
+    else {
+        pin_derive_verifier(CONST_BYTE_ARRAY(data, len), dhash);
+    }
+    uint8_t remaining = 0;
+    int r = pin_spend_retry(pin, &remaining);
+    if (r == PICOKEYS_ERR_BLOCKED) {
+        return SW_PIN_BLOCKED();
+    }
+    if (r != PICOKEYS_OK) {
+        return SW_MEMORY_FAILURE();
+    }
+    if (mbedtls_ct_memcmp(file_get_data(pin) + offset, dhash, sizeof(dhash)) != 0) {
+        if (mismatch) {
+            *mismatch = true;
+        }
+        if (remaining == 0) {
+            return SW_PIN_BLOCKED();
+        }
+        return set_res_sw(0x63, 0xc0 | remaining);
+    }
+    if (pin_reset_retries(pin, true) != PICOKEYS_OK) {
+        return SW_MEMORY_FAILURE();
+    }
+    return SW_OK();
 }
 
 static void clear_pin_access_status(const file_t *pin) {
@@ -1046,22 +1087,9 @@ static void clear_pin_access_status(const file_t *pin) {
     }
 }
 
-static bool pin_retry_blocked(const file_t *pin) {
-    file_t *pw_status = file_search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF);
-    if (!pin || !pw_status || !file_has_data(pw_status)) {
-        return false;
-    }
-    uint16_t status_len = MIN(file_get_size(pw_status), 64u);
-    uint16_t retry_idx = 3u + (pin->fid & 0xfu);
-    return retry_idx < status_len && file_get_data(pw_status)[retry_idx] == 0;
-}
-
 int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     if (!file_has_data(pin)) {
         return SW_REFERENCE_NOT_FOUND();
-    }
-    if (pin_retry_blocked(pin)) {
-        return SW_PIN_BLOCKED();
     }
     if (offered_pin_len_impossible(pin, len)) {
         return SW_WRONG_DATA();
@@ -1069,32 +1097,14 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     isUserAuthenticated = false;
     //has_pw1 = has_pw3 = false;
 
-    uint8_t dhash[32], off = 2;
-    if (file_get_size(pin) == 33) {
-        off = 1;
-        double_hash_pin(CONST_BYTE_ARRAY(data, len), dhash);
-    }
-    else {
-        pin_derive_verifier(CONST_BYTE_ARRAY(data, len), dhash);
-    }
-    if (sizeof(dhash) != file_get_size(pin) - off) { //1 byte for pin len and 1 byte for format
-        return SW_CONDITIONS_NOT_SATISFIED();
-    }
-    if (mbedtls_ct_memcmp(file_get_data(pin) + off, dhash, sizeof(dhash)) != 0) {
+    uint8_t off = file_get_size(pin) == 33 ? 1 : 2;
+    bool mismatch = false;
+    int r = pin_check_verifier(pin, data, len, off, &mismatch);
+    if (mismatch) {
         clear_pin_access_status(pin);
-        int retries;
-        if ((retries = pin_wrong_retry(pin)) < PICOKEYS_OK) {
-            return SW_PIN_BLOCKED();
-        }
-        return set_res_sw(0x63, 0xc0 | retries);
     }
-
-    int r = pin_reset_retries(pin, false);
-    if (r == PICOKEYS_ERR_BLOCKED) {
-        return SW_PIN_BLOCKED();
-    }
-    if (r != PICOKEYS_OK) {
-        return SW_MEMORY_FAILURE();
+    if (r != 0x9000) {
+        return r;
     }
     if (off == 1) {
         uint8_t pin_data[34], *pin_sp = NULL;

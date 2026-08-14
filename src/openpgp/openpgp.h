@@ -48,6 +48,8 @@ extern int rsa_sign(mbedtls_rsa_context *ctx, const uint8_t *data, size_t data_l
 extern int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey, bool use_dek);
 extern int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey, bool use_dek);
 extern int pin_reset_retries(const file_t *pin, bool force);
+extern int pin_spend_retry(const file_t *pin, uint8_t *remaining);
+extern int pin_check_verifier(const file_t *pin, const uint8_t *data, size_t len, uint8_t offset, bool *mismatch);
 
 #define ALGO_RSA        0x01
 #define ALGO_ECDH       0x12

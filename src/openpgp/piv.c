@@ -472,7 +472,8 @@ static int cmd_piv_verify(void) {
         return SW_INCORRECT_PARAMS();
     }
     if (apdu.nc > 0) {
-        uint16_t ret = check_pin(pw, apdu.data, apdu.nc);
+        has_pwpiv = false;
+        uint16_t ret = pin_check_verifier(pw, apdu.data, apdu.nc, 2, NULL);
         if (ret == 0x9000) {
             has_pwpiv = true;
             hash_multi(CONST_BYTE_ARRAY(apdu.data, apdu.nc), session_pwpiv);
@@ -1335,7 +1336,7 @@ static int cmd_piv_change_pin(void) {
     if (!ef) {
         return SW_MEMORY_FAILURE();
     }
-    uint16_t ret = check_pin(ef, old_pin, PIV_PIN_WIRE_SIZE);
+    uint16_t ret = pin_check_verifier(ef, old_pin, PIV_PIN_WIRE_SIZE, 2, NULL);
     if (ret != 0x9000) {
         return ret;
     }
@@ -1361,7 +1362,7 @@ static int cmd_piv_reset_retry(void) {
     if (!ef) {
         return SW_MEMORY_FAILURE();
     }
-    uint16_t ret = check_pin(ef, old_puk, PIV_PIN_WIRE_SIZE);
+    uint16_t ret = pin_check_verifier(ef, old_puk, PIV_PIN_WIRE_SIZE, 2, NULL);
     if (ret != 0x9000) {
         return ret;
     }
