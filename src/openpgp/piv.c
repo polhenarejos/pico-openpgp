@@ -571,6 +571,7 @@ static int cmd_get_metadata(void) {
     if (key_ref == EF_PIV_PIN || key_ref == EF_PIV_PUK || key_ref == EF_PIV_KEY_CARDMGM) {
         uint8_t dhash[32];
         int32_t eq = 0;
+        bool is_default;
         if (key_ref == EF_PIV_PIN) {
             pin_derive_verifier(CONST_BYTE_ARRAY((const uint8_t *)"\x31\x32\x33\x34\x35\x36\xFF\xFF", 8), dhash);
             eq = file_get_size(ef_key) == 34u && file_get_data(ef_key)[1] == 1u ? mbedtls_ct_memcmp(dhash, file_get_data(ef_key) + 2, sizeof(dhash)) : -1;
@@ -591,6 +592,10 @@ static int cmd_get_metadata(void) {
             eq = r == PICOKEYS_OK && management_key_size == sizeof(piv_management_key_default) ? mbedtls_ct_memcmp(piv_management_key_default, management_key, management_key_size) : -1;
             mbedtls_platform_zeroize(management_key, sizeof(management_key));
         }
+        is_default = eq == 0;
+        if (key_ref == EF_PIV_KEY_CARDMGM) {
+            is_default = is_default & (meta[2] == TOUCHPOLICY_NEVER);
+        }
         if (key_ref == EF_PIV_PIN || key_ref == EF_PIV_PUK) {
             res_APDU[res_APDU_size++] = 0x1;
             res_APDU[res_APDU_size++] = 0x1;
@@ -598,7 +603,7 @@ static int cmd_get_metadata(void) {
         }
         res_APDU[res_APDU_size++] = 0x5;
         res_APDU[res_APDU_size++] = 1;
-        res_APDU[res_APDU_size++] = eq == 0;
+        res_APDU[res_APDU_size++] = is_default;
         if (key_ref == EF_PIV_PIN || key_ref == EF_PIV_PUK) {
             file_t *pw_status;
             if (!(pw_status = file_search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF))) {
