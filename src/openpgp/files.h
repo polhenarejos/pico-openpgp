@@ -89,6 +89,7 @@
 #define EF_GFM          0x7f74 //C
 
 #define OPENPGP_MAX_CHALLENGE_SIZE 1024u
+#define OPENPGP_MAX_DO_SIZE        2036u
 
 // PIV
 

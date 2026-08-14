@@ -66,6 +66,9 @@ int cmd_get_data(void) {
     else {
         select_file(ef);
     }
+    if ((file_get_type(ef) & FILE_DATA_FLASH) && file_get_size(ef) > OPENPGP_MAX_DO_SIZE) {
+        return SW_MEMORY_FAILURE();
+    }
     if (ef->data) {
         if (requested_fid == EF_PW_STATUS || requested_fid == EF_HIST_BYTES ||
             requested_fid == EF_FULL_AID || requested_fid == EF_SEC_TPL) {
@@ -73,7 +76,6 @@ int cmd_get_data(void) {
         }
         uint16_t fids[] = { 1, ef->fid };
         uint16_t data_len = parse_do(fids, 1);
-        data_len = MIN(data_len, res_APDU_size);
         if (!(file_get_type(ef) & FILE_DATA_FLASH)) {
             uint8_t *p = NULL;
             tlv_item_t item;
@@ -105,7 +107,10 @@ int cmd_get_data(void) {
             if (data_len >= 256) {
                 off++;
             }
-            data_len = MIN(data_len, OPENPGP_MAX_RESPONSE_SIZE - off);
+            if (data_len > OPENPGP_MAX_RESPONSE_SIZE - off) {
+                res_APDU_size = 0;
+                return SW_MEMORY_FAILURE();
+            }
             res_APDU_size = data_len;
             memmove(res_APDU + off, res_APDU, data_len);
             off = 0;

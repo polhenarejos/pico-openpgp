@@ -60,8 +60,8 @@ uint8_t extended_capabilities[] = {
                      */
     0,        /* Secure Messaging Algorithm: N/A (TDES=0, AES=1) */
     (uint8_t)(OPENPGP_MAX_CHALLENGE_SIZE >> 8), (uint8_t)OPENPGP_MAX_CHALLENGE_SIZE, /* Max size of GET CHALLENGE */
-    0x08, 0x00,   /* max. length of cardholder certificate (2KiB) */
-    0x08, 0x00,   /* max. length of private DO (2KiB) */
+    (uint8_t)(OPENPGP_MAX_DO_SIZE >> 8), (uint8_t)OPENPGP_MAX_DO_SIZE,
+    (uint8_t)(OPENPGP_MAX_DO_SIZE >> 8), (uint8_t)OPENPGP_MAX_DO_SIZE,
     0x00, 0x1
 };
 

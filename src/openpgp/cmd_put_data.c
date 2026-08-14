@@ -51,6 +51,9 @@ int cmd_put_data(void) {
     if (!put_data_authorized(requested_fid)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
+    if (apdu.nc > OPENPGP_MAX_DO_SIZE) {
+        return SW_WRONG_DATA();
+    }
 
     uint16_t max_size = fixed_do_max_size(requested_fid);
     if (max_size != 0 && apdu.nc > max_size) {
