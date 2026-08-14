@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -eu
 
 OK="\t\033[32mok\033[0m"
 FAIL="\t\033[31mfail\033[0m"
