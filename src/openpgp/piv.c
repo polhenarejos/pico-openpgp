@@ -744,11 +744,8 @@ static int authenticate_mgm(uint8_t algo, file_t *ef_mgm, uint8_t chal_len,
 
 static int cmd_authenticate(void) {
     uint8_t algo = P1(apdu), key_ref = P2(apdu);
-    if (apdu.nc == 0) {
-        return SW_WRONG_LENGTH();
-    }
-    if (apdu.data[0] != 0x7C) {
-        return SW_WRONG_DATA();
+    if (apdu.nc == 0 || apdu.data[0] != 0x7C) {
+        return SW_INCORRECT_PARAMS();
     }
     file_t *ef_mgm = NULL;
     if (key_ref == EF_PIV_KEY_CARDMGM) {
@@ -876,17 +873,14 @@ static int cmd_authenticate(void) {
 
 static int cmd_asym_keygen(void) {
     uint8_t key_ref = P2(apdu);
-    if (apdu.nc == 0) {
-        return SW_WRONG_LENGTH();
+    if (!has_mgm) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    if (apdu.data[0] != 0xAC) {
-        return SW_WRONG_DATA();
+    if (apdu.nc == 0 || apdu.data[0] != 0xAC) {
+        return SW_INCORRECT_PARAMS();
     }
     if (P1(apdu) != 0x0) {
         return SW_INCORRECT_P1P2();
-    }
-    if (!has_mgm) {
-        return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     if (key_ref != EF_PIV_KEY_AUTHENTICATION && key_ref != EF_PIV_KEY_SIGNATURE && key_ref != EF_PIV_KEY_KEYMGM && key_ref != EF_PIV_KEY_CARDAUTH && !(key_ref >= EF_PIV_KEY_RETIRED1 && key_ref <= EF_PIV_KEY_RETIRED20)) {
         return SW_INCORRECT_P1P2();
@@ -1066,9 +1060,6 @@ static int cmd_set_mgmkey(void) {
 }
 
 static int cmd_move_key(void) {
-    if (apdu.nc != 0) {
-        return SW_WRONG_LENGTH();
-    }
     if (!has_mgm) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
@@ -1510,6 +1501,9 @@ static const cmd_t cmds[] = {
 
 int piv_process_apdu(void) {
     sm_unwrap();
+    if (apdu.nc == 1) {
+        return SW_INCORRECT_PARAMS();
+    }
     for (const cmd_t *cmd = cmds; cmd->ins != 0x00; cmd++) {
         if (cmd->ins == INS(apdu)) {
             int r = cmd->cmd_handler();
