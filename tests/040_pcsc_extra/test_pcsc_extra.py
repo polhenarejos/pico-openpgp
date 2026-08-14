@@ -533,7 +533,7 @@ def test_openpgp_cardholder_certificate_occurrences(card):
     _, sw = raw(card, INS_SELECT_DATA, 0, 0x04, b"\x60\x04\x5C\x02\x00\x65")
     assert sw == b"\x6A\x88"
     _, sw = raw(card, INS_SELECT_DATA, 3, 0x04, b"\x60\x04\x5C\x02\x7F\x21")
-    assert sw == b"\x6A\x88"
+    assert sw == b"\x6B\x00"
     for occ in range(3):
         expect(card, INS_SELECT_DATA, occ, 0x04, b"\x60\x04\x5C\x02\x7F\x21")
         expect(card, INS_PUT_DATA, 0x7F, 0x21)
