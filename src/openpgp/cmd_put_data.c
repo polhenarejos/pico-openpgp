@@ -61,13 +61,10 @@ int cmd_put_data(void) {
         return SW_WRONG_P1P2();
     }
     if (fid == EF_PW_STATUS) {
-        if (apdu.nc > 4) {
+        if (apdu.nc != 1 || apdu.data[0] > 1) {
             return SW_WRONG_DATA();
         }
         fid = EF_PW_PRIV;
-        if (apdu.nc == 0) {
-            return SW_WRONG_LENGTH();
-        }
         if (!(ef = file_search_by_fid(fid, NULL, SPECIFY_EF))) {
             return SW_REFERENCE_NOT_FOUND();
         }
@@ -94,7 +91,7 @@ int cmd_put_data(void) {
                     uint16_t status_len = MIN(file_get_size(ef), sizeof(pw_status));
                     memcpy(pw_status, file_get_data(ef), status_len);
                 }
-                memcpy(pw_status, apdu.data, MIN(apdu.nc, 4u));
+                pw_status[0] = apdu.data[0];
                 r = file_put_data(ef, CONST_BYTE_ARRAY(pw_status, sizeof(pw_status)));
             }
             else if (fid == EF_RC) {

@@ -219,6 +219,27 @@ static bool reset_code_is_public_default(const file_t *rc) {
     return pin_record_matches_value(rc, default_reset_code, sizeof(default_reset_code) - 1);
 }
 
+static void restore_pw_status_limits(void) {
+    file_t *pw_status = file_search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF);
+    if (!pw_status || !file_has_data(pw_status) || file_get_size(pw_status) > 64) {
+        return;
+    }
+
+    uint16_t status_len = file_get_size(pw_status);
+    uint8_t status[64];
+    bool changed = false;
+    memcpy(status, file_get_data(pw_status), status_len);
+    for (uint8_t i = 1; i < 4 && i < status_len; i++) {
+        if (status[i] != 127) {
+            status[i] = 127;
+            changed = true;
+        }
+    }
+    if (changed) {
+        file_put_data(pw_status, CONST_BYTE_ARRAY(status, status_len));
+    }
+}
+
 static int set_reset_code_retries(uint8_t retries) {
     file_t *pw_status = file_search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF);
     if (!pw_status || !file_has_data(pw_status)) {
@@ -437,6 +458,7 @@ void scan_files_openpgp(void) {
         }
 #endif
     }
+    restore_pw_status_limits();
     file_t *rc = file_search_by_fid(EF_RC, NULL, SPECIFY_EF);
     if (!rc || !file_has_data(rc) || reset_dek || reset_code_is_public_default(rc)) {
         openpgp_reset_code_deactivate();
