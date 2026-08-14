@@ -124,6 +124,11 @@ def test_piv_ec_import_requires_the_field_length(managed_piv):
         delete_key(managed_piv, slot)
 
 
+@pytest.mark.parametrize(("instruction", "p2"), ((0x24, 0x80), (0x24, 0x81), (0x2C, 0x80)))
+def test_piv_reference_changes_require_two_wire_blocks(piv, instruction, p2):
+    assert_apdu_error(lambda: piv.protocol.send_apdu(0, instruction, 0, p2, b"12345678"), SW.INCORRECT_PARAMETERS)
+
+
 def test_piv_card_authentication_key_is_pin_free_by_default(managed_piv):
     slot = SLOT.CARD_AUTH
     try:

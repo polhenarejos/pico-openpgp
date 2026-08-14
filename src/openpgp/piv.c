@@ -56,6 +56,7 @@
 #define PINPOLICY_ONCE 2
 #define PINPOLICY_ALWAYS 3
 #define MGM_PIN_POLICY PINPOLICY_DEFAULT
+#define PIV_PIN_WIRE_SIZE 8u
 
 #define TOUCHPOLICY_DEFAULT 0
 #define TOUCHPOLICY_NEVER 1
@@ -97,6 +98,15 @@ static uint8_t piv_default_pin_policy(uint8_t key_ref) {
         return PINPOLICY_NEVER;
     }
     return PINPOLICY_ONCE;
+}
+
+static bool piv_reference_pair(const uint8_t **old_ref, const uint8_t **new_ref) {
+    if (apdu.nc != 2u * PIV_PIN_WIRE_SIZE) {
+        return false;
+    }
+    *old_ref = apdu.data;
+    *new_ref = apdu.data + PIV_PIN_WIRE_SIZE;
+    return true;
 }
 
 uint8_t piv_aid[] = {
@@ -1291,20 +1301,23 @@ static int cmd_piv_change_pin(void) {
     if (P1(apdu) != 0x0 || (pin_ref != 0x80 && pin_ref != 0x81)) {
         return SW_REFERENCE_NOT_FOUND();
     }
+    const uint8_t *old_pin = NULL, *new_pin = NULL;
+    if (!piv_reference_pair(&old_pin, &new_pin)) {
+        return SW_INCORRECT_PARAMS();
+    }
     file_t *ef = file_search_by_fid(pin_ref == 0x80 ? EF_PIV_PIN : EF_PIV_PUK, NULL, SPECIFY_ANY);
     if (!ef) {
         return SW_MEMORY_FAILURE();
     }
-    uint8_t *pin_data = file_get_data(ef), pin_len = apdu.nc - pin_data[0];
-    uint16_t ret = check_pin(ef, apdu.data, pin_data[0]);
+    uint16_t ret = check_pin(ef, old_pin, PIV_PIN_WIRE_SIZE);
     if (ret != 0x9000) {
         return ret;
     }
 
     uint8_t dhash[34];
-    dhash[0] = pin_len;
+    dhash[0] = PIV_PIN_WIRE_SIZE;
     dhash[1] = 0x1; // Format
-    pin_derive_verifier(CONST_BYTE_ARRAY(apdu.data + pin_data[0], pin_len), dhash + 2);
+    pin_derive_verifier(CONST_BYTE_ARRAY(new_pin, PIV_PIN_WIRE_SIZE), dhash + 2);
     file_put_data(ef, CONST_BYTE_ARRAY(dhash, sizeof(dhash)));
     flash_commit();
     return SW_OK();
@@ -1314,19 +1327,22 @@ static int cmd_piv_reset_retry(void) {
     if (P1(apdu) != 0x0 || P2(apdu) != 0x80) {
         return SW_REFERENCE_NOT_FOUND();
     }
+    const uint8_t *old_puk = NULL, *new_pin = NULL;
+    if (!piv_reference_pair(&old_puk, &new_pin)) {
+        return SW_INCORRECT_PARAMS();
+    }
     file_t *ef = file_search_by_fid(EF_PIV_PUK, NULL, SPECIFY_ANY);
     if (!ef) {
         return SW_MEMORY_FAILURE();
     }
-    uint8_t *puk_data = file_get_data(ef), pin_len = apdu.nc - puk_data[0];
-    uint16_t ret = check_pin(ef, apdu.data, puk_data[0]);
+    uint16_t ret = check_pin(ef, old_puk, PIV_PIN_WIRE_SIZE);
     if (ret != 0x9000) {
         return ret;
     }
     uint8_t dhash[34];
-    dhash[0] = pin_len;
+    dhash[0] = PIV_PIN_WIRE_SIZE;
     dhash[1] = 0x1; // Format
-    pin_derive_verifier(CONST_BYTE_ARRAY(apdu.data + puk_data[0], pin_len), dhash + 2);
+    pin_derive_verifier(CONST_BYTE_ARRAY(new_pin, PIV_PIN_WIRE_SIZE), dhash + 2);
     ef = file_search_by_fid(EF_PIV_PIN, NULL, SPECIFY_ANY);
     file_put_data(ef, CONST_BYTE_ARRAY(dhash, sizeof(dhash)));
     pin_reset_retries(ef, true);
