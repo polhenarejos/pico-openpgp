@@ -986,18 +986,19 @@ int pin_reset_retries(const file_t *pin, bool force) {
     if (!pw_status || !pw_retries) {
         return PICOKEYS_ERR_FILE_NOT_FOUND;
     }
-    if (3u + (pin->fid & 0xfu) >= file_get_size(pw_status) || (pin->fid & 0xfu) >= file_get_size(pw_retries)) {
+    uint8_t p[64];
+    uint16_t status_len = MIN(file_get_size(pw_status), sizeof(p));
+    if (3u + (pin->fid & 0xfu) >= status_len || (pin->fid & 0xfu) >= file_get_size(pw_retries)) {
         return PICOKEYS_ERR_MEMORY_FATAL;
     }
-    uint8_t p[64];
-    memcpy(p, file_get_data(pw_status), file_get_size(pw_status));
+    memcpy(p, file_get_data(pw_status), status_len);
     uint8_t retries = p[3 + (pin->fid & 0xf)];
     if (retries == 0 && force == false) { //blocked
         return PICOKEYS_ERR_BLOCKED;
     }
     uint8_t max_retries = file_get_data(pw_retries)[(pin->fid & 0xf)];
     p[3 + (pin->fid & 0xf)] = max_retries;
-    int r = file_put_data(pw_status, CONST_BYTE_ARRAY(p, file_get_size(pw_status)));
+    int r = file_put_data(pw_status, CONST_BYTE_ARRAY(p, status_len));
     flash_commit();
     return r;
 }
@@ -1011,10 +1012,14 @@ static int pin_wrong_retry(const file_t *pin) {
         return PICOKEYS_ERR_FILE_NOT_FOUND;
     }
     uint8_t p[64];
-    memcpy(p, file_get_data(pw_status), file_get_size(pw_status));
+    uint16_t status_len = MIN(file_get_size(pw_status), sizeof(p));
+    if (3u + (pin->fid & 0xfu) >= status_len) {
+        return PICOKEYS_ERR_MEMORY_FATAL;
+    }
+    memcpy(p, file_get_data(pw_status), status_len);
     if (p[3 + (pin->fid & 0xf)] > 0) {
         p[3 + (pin->fid & 0xf)] -= 1;
-        int r = file_put_data(pw_status, CONST_BYTE_ARRAY(p, file_get_size(pw_status)));
+        int r = file_put_data(pw_status, CONST_BYTE_ARRAY(p, status_len));
         if (r != PICOKEYS_OK) {
             return r;
         }
