@@ -39,7 +39,7 @@ int cmd_put_data(void) {
     if (!file_authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    if ((fid == EF_PRIV_DO_1 || fid == EF_PRIV_DO_3) && (!has_pw2 && !has_pw3)) {
+    if ((fid == EF_PRIV_DO_1 || fid == EF_PRIV_DO_3) && !has_pw2) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     if (!(fid == EF_PRIV_DO_1 || fid == EF_PRIV_DO_3) && !has_pw3) {

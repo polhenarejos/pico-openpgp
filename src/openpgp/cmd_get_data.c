@@ -32,7 +32,7 @@ int cmd_get_data(void) {
         return SW_REFERENCE_NOT_FOUND();
     }
     if (fid == EF_PRIV_DO_3) {
-        if (!has_pw2 && !has_pw3) {
+        if (!has_pw2) {
             return SW_SECURITY_STATUS_NOT_SATISFIED();
         }
     }

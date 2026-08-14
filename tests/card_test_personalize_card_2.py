@@ -223,12 +223,13 @@ class Test_Card_Personalize_Card_2(object):
         v = card.verify(3, PW3_TEST0)
         assert v
 
-    def test_private_do_0101_write_ok_with_pw3(self, card):
+    def test_private_do_0101_write_fail_with_pw3(self, card):
         card.cmd_select_openpgp()
         v = card.verify(3, PW3_TEST0)
         assert v
-        r = card.cmd_put_data(PRIVATE_DO_0101[0], PRIVATE_DO_0101[1], b"priv0101_pw3_ok")
-        assert r
+        _expect_security_error(
+            lambda: card.cmd_put_data(PRIVATE_DO_0101[0], PRIVATE_DO_0101[1], b"priv0101_pw3")
+        )
 
     def test_private_do_0101_write_fail_with_pw1_81(self, card):
         card.cmd_select_openpgp()
@@ -248,7 +249,7 @@ class Test_Card_Personalize_Card_2(object):
     def test_private_do_0101_read_always(self, card):
         card.cmd_select_openpgp()
         data = get_data_object(card, 0x0101)
-        assert data == b"priv0101_ok" or data == b"priv0101_pw3_ok"
+        assert data == b"priv0101_ok"
 
     def test_private_do_0102_write_fail_with_pw1(self, card):
         card.cmd_select_openpgp()
@@ -280,19 +281,19 @@ class Test_Card_Personalize_Card_2(object):
         assert v
         _expect_security_error(lambda: get_data_object(card, 0x0103))
 
-    def test_private_do_0103_write_ok_with_pw3(self, card):
+    def test_private_do_0103_write_fail_with_pw3(self, card):
         card.cmd_select_openpgp()
         v = card.verify(3, PW3_TEST0)
         assert v
-        r = card.cmd_put_data(PRIVATE_DO_0103[0], PRIVATE_DO_0103[1], b"priv0103_pw3_ok")
-        assert r
+        _expect_security_error(
+            lambda: card.cmd_put_data(PRIVATE_DO_0103[0], PRIVATE_DO_0103[1], b"priv0103_pw3")
+        )
 
-    def test_private_do_0103_read_ok_with_pw3(self, card):
+    def test_private_do_0103_read_fail_with_pw3(self, card):
         card.cmd_select_openpgp()
         v = card.verify(3, PW3_TEST0)
         assert v
-        data = get_data_object(card, 0x0103)
-        assert data == b"priv0103_pw3_ok"
+        _expect_security_error(lambda: get_data_object(card, 0x0103))
 
     def test_private_do_0103_write_ok_with_pw1_82(self, card):
         card.cmd_select_openpgp()
