@@ -1636,6 +1636,9 @@ static const cmd_t cmds[] = {
 
 int piv_process_apdu(void) {
     sm_unwrap();
+    if (INS(apdu) != INS_AUTHENTICATE && INS(apdu) != INS_SELECT && !(INS(apdu) == INS_GET_METADATA && P2(apdu) == EF_PIV_KEY_CARDMGM)) {
+        clear_mgm_challenge();
+    }
     if (apdu.nc == 1) {
         return SW_INCORRECT_PARAMS();
     }
