@@ -324,7 +324,9 @@ void scan_files_openpgp(void) {
     bool reset_dek = false;
     bool bootstrap_legacy = false;
     file_t *ef_dek = file_search_by_fid(EF_DEK, NULL, SPECIFY_ANY), *ef_dek_pw1 = file_search_by_fid(EF_DEK_PW1, NULL, SPECIFY_ANY), *ef_dek_rc = file_search_by_fid(EF_DEK_RC, NULL, SPECIFY_ANY), *ef_dek_pw3 = file_search_by_fid(EF_DEK_PW3, NULL, SPECIFY_ANY);
-    if (!file_has_data(ef_dek_pw1) && !file_has_data(ef_dek_rc) && !file_has_data(ef_dek_pw3) && !file_has_data(ef_dek)) {
+    file_t *pw1 = file_search_by_fid(EF_PW1, NULL, SPECIFY_ANY), *pw3 = file_search_by_fid(EF_PW3, NULL, SPECIFY_ANY);
+    bool provisioning = !file_has_data(pw1) && !file_has_data(pw3);
+    if (provisioning && (!file_has_data(ef_dek_pw1) || !file_has_data(ef_dek_pw3)) && !file_has_data(ef_dek_rc) && !file_has_data(ef_dek)) {
         printf("DEK are empty\r\n");
         const uint8_t *random_dek = random_bytes_get(DEK_SIZE);
         const uint8_t def1[6] = {0x31, 0x32, 0x33, 0x34, 0x35, 0x36};
