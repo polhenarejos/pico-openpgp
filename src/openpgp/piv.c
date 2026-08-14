@@ -482,9 +482,10 @@ static int cmd_get_metadata(void) {
     else if (key_ref == 0x81) {
         key_ref = EF_PIV_PUK;
     }
+    uint16_t key_fid = key_ref == 0x93 ? EF_PIV_KEY_RETIRED18 : key_ref;
     byte_array_t metadata = meta_find(key_ref);
     uint8_t *meta = metadata.data;
-    file_t *ef_key = file_search_by_fid(key_ref, NULL, SPECIFY_EF);
+    file_t *ef_key = file_search_by_fid(key_fid, NULL, SPECIFY_EF);
     if (!file_has_data(ef_key)) {
         return SW_REFERENCE_NOT_FOUND();
     }
