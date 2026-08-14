@@ -231,7 +231,7 @@ static void restore_pw_status_limits(void) {
     uint8_t status[64];
     bool changed = false;
     memcpy(status, file_get_data(pw_status), status_len);
-    for (uint8_t i = 1; i < 4 && i < status_len; i++) {
+    for (uint16_t i = 1; i < 4 && i < status_len; i++) {
         if (status[i] != 127) {
             status[i] = 127;
             changed = true;
