@@ -89,6 +89,9 @@ int cmd_put_data(void) {
                 r = file_put_data(ef, CONST_BYTE_ARRAY(pw_status, sizeof(pw_status)));
             }
             else if (fid == EF_RC) {
+                if ((r = check_pin_len(EF_RC, apdu.nc)) != 0x9000) {
+                    return r;
+                }
                 has_rc = false;
                 if ((r = load_dek()) != PICOKEYS_OK) {
                     return SW_EXEC_ERROR();

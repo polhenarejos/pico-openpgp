@@ -56,6 +56,9 @@ int cmd_change_pin(void) {
         return SW_REFERENCE_NOT_FOUND();
     }
     uint8_t pin_len = file_get_data(pw)[0];
+    if (apdu.nc < pin_len) {
+        return SW_WRONG_LENGTH();
+    }
     uint16_t r = 0;
     r = check_pin(pw, apdu.data, pin_len);
     if (r != 0x9000) {
@@ -67,6 +70,7 @@ int cmd_change_pin(void) {
 
     const uint8_t *new_pin = apdu.data + pin_len;
     size_t new_pin_len = apdu.nc - pin_len;
+    bool allow_empty_new_pin = false;
 #ifdef ENABLE_ADMINLESS_MODE
     /* Empty PW3 is Gnuk's "PW3 not configured" transition. Keep its
      * current verifier so KDF-backed host flows can still verify it. */
@@ -75,10 +79,14 @@ int cmd_change_pin(void) {
         new_pin = apdu.data;
         new_pin_len = pin_len;
     }
+    allow_empty_new_pin = clear_pw3;
     bool sync_adminless_pw3 = P2(apdu) == 0x81 && (openpgp_adminless_is_active() || (openpgp_adminless_is_pending() && new_pin_len >= 8));
     bool disable_pending_adminless = P2(apdu) == 0x81 && openpgp_adminless_is_pending() && new_pin_len < 8;
     bool enable_adminless = P2(apdu) == 0x83 && !clear_pw3 && pw3_matches_nonfactory_pw1(new_pin, new_pin_len);
 #endif
+    if (!allow_empty_new_pin && (r = check_pin_len(fid, new_pin_len)) != 0x9000) {
+        return r;
+    }
 
     uint8_t dhash[34];
     dhash[0] = new_pin_len;

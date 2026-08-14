@@ -29,6 +29,7 @@ int cmd_reset_retry(void) {
         bool sync_adminless_pw3 = openpgp_adminless_is_active();
 #endif
         has_pw1 = false;
+        uint16_t r = 0;
         if (!(pw = file_search_by_fid(EF_PW1, NULL, SPECIFY_EF))) {
             return SW_REFERENCE_NOT_FOUND();
         }
@@ -44,11 +45,14 @@ int cmd_reset_retry(void) {
             if (apdu.nc <= pin_len) {
                 return SW_WRONG_LENGTH();
             }
-            uint16_t r = check_pin(rc, apdu.data, pin_len);
+            r = check_pin(rc, apdu.data, pin_len);
             if (r != 0x9000) {
                 return r;
             }
             newpin_len = apdu.nc - pin_len;
+            if ((r = check_pin_len(EF_PW1, newpin_len)) != 0x9000) {
+                return r;
+            }
             has_rc = true;
             pin_derive_session(CONST_BYTE_ARRAY(apdu.data, pin_len), session_rc);
             has_pw1 = has_pw3 = false;
@@ -59,8 +63,10 @@ int cmd_reset_retry(void) {
                 return SW_CONDITIONS_NOT_SATISFIED();
             }
             newpin_len = apdu.nc;
+            if ((r = check_pin_len(EF_PW1, newpin_len)) != 0x9000) {
+                return r;
+            }
         }
-        int r = 0;
         if ((r = load_dek()) != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
         }

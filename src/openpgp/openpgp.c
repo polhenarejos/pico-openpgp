@@ -196,6 +196,14 @@ static bool pin_record_matches_value(const file_t *pin, const uint8_t *value, si
     return false;
 }
 
+int check_pin_len(uint16_t fid, size_t len) {
+    size_t min_len = fid == EF_PW1 ? 6u : 8u;
+    if (len < min_len || len > 127u) {
+        return SW_CONDITIONS_NOT_SATISFIED();
+    }
+    return SW_OK();
+}
+
 static bool reset_code_is_public_default(const file_t *rc) {
     static const uint8_t default_reset_code[] = "12345678";
 
