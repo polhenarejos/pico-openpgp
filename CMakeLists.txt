@@ -150,7 +150,7 @@ if(NOT ESP_PLATFORM)
             ${CMAKE_CURRENT_LIST_DIR}/pico-keys-sdk/src/fs/object_policy.c
             ${CMAKE_CURRENT_LIST_DIR}/pico-keys-sdk/src/fs/object_store_txn.c
             ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/key_container.c
-            ${CMAKE_CURRENT_LIST_DIR}/tests/openpgp_key_container_test.c
+            ${CMAKE_CURRENT_LIST_DIR}/tests/openpgp/openpgp_key_container_test.c
         )
         target_include_directories(openpgp_key_container_test PRIVATE ${INCLUDES})
         if(MSVC)
