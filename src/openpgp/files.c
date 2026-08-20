@@ -65,11 +65,6 @@ uint8_t extended_capabilities[] = {
     0x00, 0x1
 };
 
-uint8_t feature_mngmnt[] = {
-    3, 0,
-    0x81, 0x01, 0x20,
-};
-
 uint8_t exlen_info[] = {
     8, 0,
     0x2, 0x2, 0x07, 0xf6,
@@ -110,8 +105,9 @@ file_entry_t file_entries[] = {
                .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_R_WP },
     /* 11 */ { .fid = EF_EXLEN_INFO, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF,
                .data = exlen_info, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
-    /* 12 */ { .fid = EF_GFM, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF,
-               .data = feature_mngmnt, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
+    /* 12 */ { .fid = EF_GFM, .parent = 0, .name = NULL,
+               .type = FILE_TYPE_WORKING_EF | FILE_DATA_FUNC, .data = (uint8_t *) parse_gfm,
+               .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
     /* 13 */ { .fid = EF_SIG_COUNT, .parent = 0, .name = NULL,
                .type = FILE_TYPE_WORKING_EF | FILE_DATA_FLASH, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },

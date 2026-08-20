@@ -21,6 +21,7 @@
 int parse_trium(uint16_t fid, uint8_t num, size_t size);
 int parse_ch_data(const file_t *f, int mode);
 int parse_sec_tpl(const file_t *f, int mode);
+int parse_gfm(const file_t *f, int mode);
 int parse_ch_cert(const file_t *f, int mode);
 int parse_fp(const file_t *f, int mode);
 int parse_cafp(const file_t *f, int mode);
@@ -163,6 +164,18 @@ int parse_sec_tpl(const file_t *f, int mode) {
     }
     res_APDU_size += 3;
     return 5 + 2;
+}
+
+int parse_gfm(const file_t *f, int mode) {
+    (void) f;
+    (void) mode;
+    res_APDU[res_APDU_size++] = EF_GFM >> 8;
+    res_APDU[res_APDU_size++] = EF_GFM & 0xff;
+    res_APDU[res_APDU_size++] = 3;
+    res_APDU[res_APDU_size++] = 0x81;
+    res_APDU[res_APDU_size++] = 0x01;
+    res_APDU[res_APDU_size++] = 0x20;
+    return 6;
 }
 
 int parse_ch_cert(const file_t *f, int mode) {
