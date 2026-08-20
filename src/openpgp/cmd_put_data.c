@@ -71,6 +71,9 @@ int cmd_put_data(void) {
          (apdu.data[0] == ALGO_RSA && apdu.nc < 3))) {
         return SW_WRONG_DATA();
     }
+    if (is_algorithm_attr && apdu.nc > 0 && !openpgp_algorithm_attr_supported(apdu.data, apdu.nc)) {
+        return SW_WRONG_DATA();
+    }
     if (fid == EF_CH_NAME && apdu.nc > 39u) {
         return SW_WRONG_DATA();
     }
