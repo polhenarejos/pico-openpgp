@@ -495,10 +495,12 @@ file_entry_t file_entries[] = {
     /* 140 */ { .fid = EF_DEK_PWPIV, .parent = 0, .name = NULL,
                .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_NONE },
-
-    /* 141 */ { .fid = 0x0000, .parent = 0, .name = openpgp_aid, .type = FILE_TYPE_WORKING_EF,
+    /* 141 */ { .fid = EF_VAULT_KEY, .parent = 0, .name = NULL,
+               .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
+               .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_NONE },
+    /* 142 */ { .fid = 0x0000, .parent = 0, .name = openpgp_aid, .type = FILE_TYPE_WORKING_EF,
                .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = ACL_RO },
-    /* 142 */ { .fid = 0x0000, .parent = 0xff, .name = NULL, .type = FILE_TYPE_NOT_KNOWN, .data = NULL,
+    /* 143 */ { .fid = 0x0000, .parent = 0xff, .name = NULL, .type = FILE_TYPE_NOT_KNOWN, .data = NULL,
                .ef_structure = 0, .acl = ACL_NONE }                                                                                       //end
 };
 

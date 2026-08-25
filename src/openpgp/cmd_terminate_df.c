@@ -42,6 +42,11 @@ int cmd_terminate_df(void) {
     if (apdu.nc != 0) {
         return SW_WRONG_LENGTH();
     }
+    /* The flash reset is global; do not erase a provisioned PIV application. */
+    file_t *piv_dek = file_search_by_fid(EF_DEK_PWPIV, NULL, SPECIFY_EF);
+    if (piv_dek && file_has_data(piv_dek)) {
+        return SW_FUNC_NOT_SUPPORTED();
+    }
     file_initialize_flash(true);
     scan_files_openpgp();
     return SW_OK();

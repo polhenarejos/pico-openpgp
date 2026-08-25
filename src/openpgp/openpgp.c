@@ -532,8 +532,6 @@ void release_dek(void) {
     memset(dek, 0, sizeof(dek));
 }
 
-extern bool has_pwpiv;
-extern uint8_t session_pwpiv[32];
 #define PIN_TXN_PAYLOAD_SIZE (2u + 34u + DEK_FILE_SIZE)
 
 static const file_object_txn_layout_t pin_txn_layout_pw1 = {
@@ -1625,6 +1623,7 @@ int ecdsa_sign(mbedtls_ecp_keypair *ctx, const uint8_t *data, size_t data_len, u
 #define INS_IMPORT_DATA     0xDB
 #define INS_TERMINATE_DF    0xE6
 #define INS_VERSION         0xF1
+#define INS_VAULT           0xF2
 
 static const cmd_t cmds[] = {
     { INS_GET_DATA, cmd_get_data },
@@ -1645,6 +1644,7 @@ static const cmd_t cmds[] = {
     { INS_SELECT_DATA, cmd_select_data },
     { INS_GET_NEXT_DATA, cmd_get_next_data },
     { INS_GET_BULK_DATA, cmd_get_bulk_data },
+    { INS_VAULT, cmd_openpgp_vault },
     { 0x00, NULL }
 };
 

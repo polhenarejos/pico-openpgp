@@ -58,6 +58,7 @@ set(SOURCES ${SOURCES}
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/openpgp.c
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/object_provider.c
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/key_container.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/openpgp_vault.c
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/files.c
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/piv.c
         ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/management.c

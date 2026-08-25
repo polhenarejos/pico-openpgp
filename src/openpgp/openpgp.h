@@ -29,6 +29,7 @@
 #include "mbedtls/ecdsa.h"
 #include "crypto_utils.h"
 #include "files.h"
+#include "vault.h"
 
 extern bool has_pw1;
 extern bool has_pw2;
@@ -38,6 +39,8 @@ extern uint8_t session_pw1[32];
 extern uint8_t session_rc[32];
 extern uint8_t session_pw3[32];
 extern uint8_t dek[IV_SIZE + 32];
+extern bool has_pwpiv;
+extern uint8_t session_pwpiv[32];
 
 extern int store_keys(void *key_ctx, int type, uint16_t key_id, bool use_kek);
 extern int store_keypair(void *key_ctx, int type, uint16_t key_id, const uint8_t *public_data, size_t public_size);
@@ -107,6 +110,8 @@ int cmd_pso(void);
 int cmd_keypair_gen(void);
 int cmd_reset_retry(void);
 int cmd_get_bulk_data(void);
+int cmd_openpgp_vault(void);
+int cmd_piv_vault(void);
 
 #define DEK_SIZE        (IV_SIZE + 32)
 #define DEK_AAD_SIZE    (PIN_KDF_SIZE(DEK_SIZE))

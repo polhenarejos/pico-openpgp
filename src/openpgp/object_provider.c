@@ -22,8 +22,10 @@
 #include "openpgp.h"
 
 static file_object_crypto_provider_t openpgp_object_crypto_provider;
+static file_object_crypto_provider_t openpgp_vault_object_crypto_provider;
 static file_object_crypto_provider_t openpgp_piv_object_crypto_provider;
 static bool openpgp_object_crypto_provider_initialized;
+static bool openpgp_vault_object_crypto_provider_initialized;
 static bool openpgp_piv_object_crypto_provider_initialized;
 
 static int openpgp_object_root_load(void *ctx, uint8_t root[FILE_OBJECT_CRYPTO_ROOT_KEY_SIZE]) {
@@ -74,6 +76,24 @@ static int openpgp_object_crypto_provider_init(void) {
     return r;
 }
 
+static int openpgp_vault_object_crypto_provider_init(void) {
+    if (openpgp_vault_object_crypto_provider_initialized) {
+        return PICOKEYS_OK;
+    }
+
+    const file_object_crypto_provider_config_t config = {
+        .namespace_id = OPENPGP_VAULT_OBJECT_NAMESPACE,
+        .load_root = openpgp_object_root_load,
+        .load_public_root = openpgp_object_public_root_load,
+        .identity_valid = openpgp_object_identity_valid
+    };
+    int r = file_object_crypto_provider_init(&openpgp_vault_object_crypto_provider, &config);
+    if (r == PICOKEYS_OK) {
+        openpgp_vault_object_crypto_provider_initialized = true;
+    }
+    return r;
+}
+
 static int openpgp_piv_object_crypto_provider_init(void) {
     if (openpgp_piv_object_crypto_provider_initialized) {
         return PICOKEYS_OK;
@@ -104,6 +124,20 @@ const file_object_record_protector_t *openpgp_object_record_protector(void) {
         return NULL;
     }
     return file_object_crypto_record_protector(&openpgp_object_crypto_provider);
+}
+
+const file_object_authenticator_t *openpgp_vault_object_manifest_authenticator(void) {
+    if (openpgp_vault_object_crypto_provider_init() != PICOKEYS_OK) {
+        return NULL;
+    }
+    return file_object_crypto_manifest_authenticator(&openpgp_vault_object_crypto_provider);
+}
+
+const file_object_record_protector_t *openpgp_vault_object_record_protector(void) {
+    if (openpgp_vault_object_crypto_provider_init() != PICOKEYS_OK) {
+        return NULL;
+    }
+    return file_object_crypto_record_protector(&openpgp_vault_object_crypto_provider);
 }
 
 const file_object_authenticator_t *openpgp_piv_object_manifest_authenticator(void) {

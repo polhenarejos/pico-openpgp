@@ -21,9 +21,13 @@
 #include "object_container.h"
 
 #define OPENPGP_OBJECT_NAMESPACE 0x0005u
+/* The SDK vault layout and FIDO vault use namespace 0x0002. */
+#define OPENPGP_VAULT_OBJECT_NAMESPACE 0x0002u
 
 const file_object_authenticator_t *openpgp_object_manifest_authenticator(void);
 const file_object_record_protector_t *openpgp_object_record_protector(void);
+const file_object_authenticator_t *openpgp_vault_object_manifest_authenticator(void);
+const file_object_record_protector_t *openpgp_vault_object_record_protector(void);
 const file_object_authenticator_t *openpgp_piv_object_manifest_authenticator(void);
 const file_object_record_protector_t *openpgp_piv_object_record_protector(void);
 

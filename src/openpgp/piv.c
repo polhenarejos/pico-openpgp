@@ -36,6 +36,7 @@
 #include "key_container.h"
 #include "openpgp.h"
 #include "button.h"
+#include "usb.h"
 
 #define PIV_ALGO_3DES   0x03
 #define PIV_ALGO_AES128 0x08
@@ -74,6 +75,20 @@
 #define IS_RETIRED(x) ((x) >= EF_PIV_KEY_RETIRED1 && (x) <= EF_PIV_KEY_RETIRED20)
 #define IS_ACTIVE(x) ((x) >= EF_PIV_KEY_AUTHENTICATION && (x) <= EF_PIV_KEY_CARDAUTH)
 #define IS_KEY(x) ((IS_ACTIVE((x))) || (IS_RETIRED((x))))
+
+#ifndef ENABLE_EMULATION
+extern void execute_tasks(void);
+
+static bool piv_button_wait(void) {
+    uint32_t event = 0;
+    button_wait_start();
+    while (is_req_button_pending()) {
+        execute_tasks();
+    }
+    queue_remove_blocking(&usb_to_card_q, &event);
+    return event != EV_BUTTON_PRESSED;
+}
+#endif
 
 static size_t piv_rsa_modulus_size(uint8_t algo) {
     if (algo == PIV_ALGO_RSA1024) {
@@ -900,7 +915,7 @@ static int cmd_authenticate(void) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
 #ifndef ENABLE_EMULATION
-    if (meta[2] != TOUCHPOLICY_NEVER && button_wait()) {
+    if (meta[2] != TOUCHPOLICY_NEVER && piv_button_wait()) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
 #endif
@@ -1077,12 +1092,19 @@ static int cmd_asym_keygen(void) {
         make_rsa_response(&rsa);
         uint8_t cert[2048];
         r = x509_create_cert(&rsa, a80.data[0], key_ref, false, cert, sizeof(cert));
+        if (r <= 0) {
+            mbedtls_rsa_free(&rsa);
+            return SW_EXEC_ERROR();
+        }
         file_t *ef = file_search_by_fid(key_cert, NULL, SPECIFY_ANY);
-        file_put_data(ef, CONST_BYTE_ARRAY(cert + sizeof(cert) - r, r));
+        if (!ef || file_put_data(ef, CONST_BYTE_ARRAY(cert + sizeof(cert) - r, r)) != PICOKEYS_OK) {
+            mbedtls_rsa_free(&rsa);
+            return SW_EXEC_ERROR();
+        }
         r = store_keys(&rsa, ALGO_RSA, key_ref == 0x93 ? EF_PIV_KEY_RETIRED18 : key_ref, false);
         mbedtls_rsa_free(&rsa);
         if (r != PICOKEYS_OK) {
-            return SW_EXEC_ERROR();
+            return r == PICOKEYS_ERR_NO_MEMORY ? SW_FILE_FULL() : SW_EXEC_ERROR();
         }
     }
     else if (a80.data[0] == PIV_ALGO_ECCP256 || a80.data[0] == PIV_ALGO_ECCP384) {
@@ -1098,12 +1120,19 @@ static int cmd_asym_keygen(void) {
         make_ecdsa_response(&ecdsa);
         uint8_t cert[2048];
         r = x509_create_cert(&ecdsa, a80.data[0], key_ref, false, cert, sizeof(cert));
+        if (r <= 0) {
+            mbedtls_ecdsa_free(&ecdsa);
+            return SW_EXEC_ERROR();
+        }
         file_t *ef = file_search_by_fid(key_cert, NULL, SPECIFY_ANY);
-        file_put_data(ef, CONST_BYTE_ARRAY(cert + sizeof(cert) - r, r));
+        if (!ef || file_put_data(ef, CONST_BYTE_ARRAY(cert + sizeof(cert) - r, r)) != PICOKEYS_OK) {
+            mbedtls_ecdsa_free(&ecdsa);
+            return SW_EXEC_ERROR();
+        }
         r = store_keys(&ecdsa, ALGO_ECDSA, key_ref == 0x93 ? EF_PIV_KEY_RETIRED18 : key_ref, false);
         mbedtls_ecdsa_free(&ecdsa);
         if (r != PICOKEYS_OK) {
-            return SW_EXEC_ERROR();
+            return r == PICOKEYS_ERR_NO_MEMORY ? SW_FILE_FULL() : SW_EXEC_ERROR();
         }
     }
     else if (a80.data[0] == PIV_ALGO_X25519) {
@@ -1640,6 +1669,7 @@ static int cmd_import_asym(void) {
 #define INS_RESET           0xFB
 #define INS_ATTESTATION     0xF9
 #define INS_IMPORT_ASYM     0xFE
+#define INS_VAULT           0xF2
 
 static const cmd_t cmds[] = {
     { INS_VERSION, cmd_version },
@@ -1659,6 +1689,7 @@ static const cmd_t cmds[] = {
     { INS_RESET, cmd_reset },
     { INS_ATTESTATION, cmd_attestation },
     { INS_IMPORT_ASYM, cmd_import_asym },
+    { INS_VAULT, cmd_piv_vault },
     { 0x00, 0x0 }
 };
 

@@ -40,6 +40,7 @@
 #define EF_DEK_RC       0x109b
 #define EF_DEK_PW3      0x109c
 #define EF_DEK_PWPIV    0x109d
+#define EF_VAULT_KEY    0xce03
 #define EF_CH_1         0x1f21
 #define EF_CH_2         0x1f22
 #define EF_CH_3         0x1f23

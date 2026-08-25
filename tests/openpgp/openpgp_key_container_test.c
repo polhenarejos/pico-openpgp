@@ -68,6 +68,11 @@ uint8_t session_rc[32];
 uint8_t session_pw3[32];
 uint8_t dek[IV_SIZE + 32];
 
+bool openpgp_vault_backup_authorized(openpgp_vault_app_t app) {
+    (void)app;
+    return false;
+}
+
 static test_file_t *test_file_from_handle(const file_t *file) {
     for (size_t i = 0; i < TEST_FILE_COUNT; i++) {
         if (&test_files[i].file == file) {

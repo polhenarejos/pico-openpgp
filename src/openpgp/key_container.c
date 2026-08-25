@@ -305,7 +305,13 @@ int openpgp_key_container_store(uint16_t fid, const uint8_t *private_data, uint3
 
 static bool openpgp_key_private_operation_authorized(uint16_t fid, uint16_t operation, bool internal_firmware) {
     if (openpgp_key_container_is_piv(fid)) {
+        if (operation == FILE_OBJECT_OPERATION_EXPORT) {
+            return internal_firmware && openpgp_vault_backup_authorized(OPENPGP_VAULT_APP_PIV);
+        }
         return piv_key_operation_authorized(operation, internal_firmware);
+    }
+    if (operation == FILE_OBJECT_OPERATION_EXPORT) {
+        return openpgp_vault_backup_authorized(OPENPGP_VAULT_APP_OPENPGP);
     }
     if (operation == FILE_OBJECT_OPERATION_UPDATE || operation == FILE_OBJECT_OPERATION_DELETE || operation == FILE_OBJECT_OPERATION_CHANGE_POLICY) {
         return has_pw3;
