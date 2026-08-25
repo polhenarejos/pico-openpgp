@@ -137,6 +137,14 @@ int openpgp_vault_store_kvault(openpgp_vault_app_t app, const uint8_t kvault[OPE
     return ret;
 }
 
+int openpgp_vault_clear_openpgp(void) {
+    if (openpgp_vault_sdk_init() != PICOKEYS_OK) {
+        return PICOKEYS_EXEC_ERROR;
+    }
+    int ret = picokeys_vault_delete_kvault(OPENPGP_VAULT_APP_OPENPGP);
+    return ret == PICOKEYS_ERR_FILE_NOT_FOUND ? PICOKEYS_OK : ret;
+}
+
 int openpgp_vault_clear_wrappers(void) {
     if (openpgp_vault_sdk_init() != PICOKEYS_OK) {
         return PICOKEYS_EXEC_ERROR;
@@ -316,13 +324,11 @@ static int openpgp_vault_export(openpgp_vault_app_t app, uint16_t fid, uint8_t a
     }
     else {
         uint8_t intermediate[OPENPGP_VAULT_PLAIN_MAX + PICOKEYS_VAULT_BLOB_TAG_SIZE] = { 0 };
-        uint8_t first[PICOKEYS_VAULT_BLOB_TAG_SIZE];
-        ret = picokeys_vault_encrypt_layer(picokeys_vault_algorithm_layer(algorithm, 0), keys[0], blob + OPENPGP_VAULT_BLOB_HEADER_SIZE, blob, OPENPGP_VAULT_BLOB_HEADER_SIZE, plain, plain_len, intermediate, first);
+        ret = picokeys_vault_encrypt_layer(picokeys_vault_algorithm_layer(algorithm, 0), keys[0], blob + OPENPGP_VAULT_BLOB_HEADER_SIZE, blob, OPENPGP_VAULT_BLOB_HEADER_SIZE, plain, plain_len, intermediate, intermediate + plain_len);
         if (ret == PICOKEYS_OK) {
             ret = picokeys_vault_encrypt_layer(picokeys_vault_algorithm_layer(algorithm, 1), keys[1], blob + OPENPGP_VAULT_BLOB_HEADER_SIZE + PICOKEYS_VAULT_BLOB_NONCE_SIZE, blob, OPENPGP_VAULT_BLOB_HEADER_SIZE, intermediate, plain_len + PICOKEYS_VAULT_BLOB_TAG_SIZE, blob + OPENPGP_VAULT_BLOB_HEADER_SIZE + nonce_len, blob + total_len - PICOKEYS_VAULT_BLOB_TAG_SIZE);
         }
         mbedtls_platform_zeroize(intermediate, sizeof(intermediate));
-        mbedtls_platform_zeroize(first, sizeof(first));
     }
     if (ret == PICOKEYS_OK) {
         *blob_len = total_len;
@@ -402,7 +408,22 @@ static int openpgp_vault_import(openpgp_vault_app_t app, uint16_t target_fid, co
         mbedtls_platform_zeroize(expected_hash, sizeof(expected_hash));
     }
     if (ret == PICOKEYS_OK) {
-        ret = openpgp_key_container_store(target_fid, decoded.private_data, decoded.private_len, decoded.public_len ? decoded.public_data : NULL, decoded.public_len, true);
+        uint8_t current_private[OPENPGP_MAX_OBJECT_SIZE] = { 0 };
+        uint8_t current_public[OPENPGP_MAX_OBJECT_SIZE] = { 0 };
+        byte_buffer_t current_private_output = BYTE_BUFFER(current_private, sizeof(current_private));
+        byte_buffer_t current_public_output = BYTE_BUFFER(current_public, sizeof(current_public));
+        int current_ret = openpgp_key_container_read_private(target_fid, FILE_OBJECT_OPERATION_UPDATE, true, &current_private_output);
+        if (current_ret == PICOKEYS_OK && decoded.public_len > 0) {
+            current_ret = openpgp_key_container_read_public(target_fid, &current_public_output);
+        }
+        if (current_ret == PICOKEYS_OK && current_private_output.len == decoded.private_len && current_public_output.len == decoded.public_len && memcmp(current_private, decoded.private_data, decoded.private_len) == 0 && memcmp(current_public, decoded.public_data, decoded.public_len) == 0) {
+            ret = PICOKEYS_OK;
+        }
+        else {
+            ret = openpgp_key_container_store(target_fid, decoded.private_data, decoded.private_len, decoded.public_len ? decoded.public_data : NULL, decoded.public_len, true);
+        }
+        mbedtls_platform_zeroize(current_private, sizeof(current_private));
+        mbedtls_platform_zeroize(current_public, sizeof(current_public));
     }
     mbedtls_platform_zeroize(&decoded, sizeof(decoded));
     mbedtls_platform_zeroize(plain, sizeof(plain));
@@ -533,7 +554,7 @@ int openpgp_vault_command(openpgp_vault_app_t app) {
             return SW_INCORRECT_P1P2();
         }
         int ret = openpgp_vault_import(app, fid, apdu.data, apdu.nc);
-        return ret == PICOKEYS_OK ? SW_OK() : ret == PICOKEYS_NO_LOGIN ? SW_SECURITY_STATUS_NOT_SATISFIED() : SW_DATA_INVALID();
+        return ret == PICOKEYS_OK ? SW_OK() : ret == PICOKEYS_NO_LOGIN ? SW_SECURITY_STATUS_NOT_SATISFIED() : ret == PICOKEYS_ERR_NO_MEMORY || ret == PICOKEYS_ERR_MEMORY_FATAL ? SW_MEMORY_FAILURE() : SW_DATA_INVALID();
     }
     if (P1(apdu) == OPENPGP_VAULT_SUBCOMMAND_UNENROLL) {
         if (P2(apdu) != 0 || apdu.nc != 0) {

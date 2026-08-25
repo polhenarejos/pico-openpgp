@@ -25,6 +25,7 @@
 #define OPENPGP_KEY_OBJECT_PUBLIC 0x0002u
 
 bool openpgp_key_container_supported(uint16_t fid);
+bool openpgp_key_container_is_piv(uint16_t fid);
 bool openpgp_key_container_is_marker(const file_t *file);
 bool openpgp_key_container_physical_fid(uint16_t fid);
 bool openpgp_key_container_can_create(uint16_t fid);

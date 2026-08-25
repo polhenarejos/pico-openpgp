@@ -60,7 +60,7 @@ static uint16_t openpgp_key_record_fid(uint16_t fid, uint8_t slot, uint16_t obje
     return (uint16_t)((prefix << 8) | openpgp_key_container_id(fid));
 }
 
-static bool openpgp_key_container_is_piv(uint16_t fid) {
+bool openpgp_key_container_is_piv(uint16_t fid) {
     bool retired_range = fid >= EF_PIV_KEY_RETIRED1 && fid <= EF_PIV_KEY_RETIRED17;
     bool retired_reserved_gap = fid == EF_PIV_KEY_RETIRED19 || fid == EF_PIV_KEY_RETIRED20 || fid == EF_PIV_KEY_RETIRED18;
     bool active = fid >= EF_PIV_KEY_AUTHENTICATION && fid <= EF_PIV_KEY_CARDAUTH;

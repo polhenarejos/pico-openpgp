@@ -1,8 +1,14 @@
+import base64
+import ctypes
+import ctypes.util
 import hashlib
+import json
 import os
 import struct
+from pathlib import Path
 
 import pytest
+from cryptography import x509
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import x448
@@ -10,7 +16,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM, ChaCha20Poly1305
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 
-VAULT_MAGIC = b"PKV1"
+VAULT_MAGIC = b"PKV\x01"
 VAULT_ID_DOMAIN = b"PicoKeys Vault ID v1"
 VAULT_ENROLL_INFO = b"PicoKeys Vault enrollment v1"
 VAULT_ID_BYTES = 32
@@ -34,10 +40,70 @@ VAULT_UNENROLL = 0x06
 
 OPENPGP_AID = bytes.fromhex("D27600012401")
 PIV_AID = bytes.fromhex("A000000308")
+DEFAULT_ENROLLMENT = Path.home() / ".config" / "PicoKeys" / "vault" / "enrollment-35d3ddbcebc9-Test.json"
+
+OPENPGP_VAULT_FINGERPRINT_TAGS = {
+    1: 0xC7,
+    2: 0xC8,
+    3: 0xC9,
+    # OpenPGP does not define a fingerprint DO for the symmetric AES key.
+    4: 0xC5,
+}
 
 
 def _vault_id(kvault):
     return hashlib.sha256(VAULT_ID_DOMAIN + kvault).digest()
+
+
+def _derive_passphrase(passphrase, salt):
+    try:
+        from cryptography.hazmat.primitives.kdf.argon2 import Argon2id
+        return Argon2id(salt=salt, length=32, iterations=3, lanes=4, memory_cost=64 * 1024).derive(passphrase.encode())
+    except ImportError:
+        library_name = ctypes.util.find_library("argon2")
+        if not library_name:
+            raise RuntimeError("Argon2id support is unavailable")
+        library = ctypes.CDLL(library_name)
+        hash_function = library.argon2id_hash_raw
+        hash_function.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_void_p, ctypes.c_size_t]
+        hash_function.restype = ctypes.c_int
+        output = ctypes.create_string_buffer(32)
+        password_bytes = passphrase.encode()
+        result = hash_function(3, 64 * 1024, 4, password_bytes, len(password_bytes), salt, len(salt), output, 32)
+        if result != 0:
+            raise RuntimeError(f"Argon2id failed: {result}")
+        return output.raw
+
+
+def _create_enrollment(passphrase, kvault, private_key, label, certificate=b""):
+    salt = bytes(range(16))
+    nonce = bytes(range(12))
+    private_bytes = private_key.private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw, serialization.NoEncryption())
+    plain = json.dumps({
+        "version": 1,
+        "kvault": base64.b64encode(kvault).decode(),
+        "x448_private": base64.b64encode(private_bytes).decode(),
+        "certificate": base64.b64encode(certificate).decode(),
+        "label": label,
+        "vault_id": _vault_id(kvault).hex()
+    }, separators=(",", ":")).encode()
+    ciphertext = AESGCM(_derive_passphrase(passphrase, salt)).encrypt(nonce, plain, b"PicoKeys Kvault envelope v1")
+    return {
+        "version": 1,
+        "label": label,
+        "vault_id": _vault_id(kvault).hex(),
+        "salt": base64.b64encode(salt).decode(),
+        "nonce": base64.b64encode(nonce).decode(),
+        "ciphertext": base64.b64encode(ciphertext).decode()
+    }
+
+
+def _open_enrollment(value, passphrase):
+    salt = base64.b64decode(value["salt"])
+    nonce = base64.b64decode(value["nonce"])
+    ciphertext = base64.b64decode(value["ciphertext"])
+    plain = AESGCM(_derive_passphrase(passphrase, salt)).decrypt(nonce, ciphertext, b"PicoKeys Kvault envelope v1")
+    return json.loads(plain)
 
 
 def _object_hash(app, fid):
@@ -136,6 +202,20 @@ def _enrollment_packet(private_key, device_public, challenge, kvault, label):
     return struct.pack(">H", len(certificate)) + certificate + nonce + AESGCM(session_key).encrypt(nonce, plain, info)
 
 
+def _certificate_enrollment_packet(certificate, private_key, device_public, challenge, kvault, label):
+    certificate_public = x509.load_der_x509_certificate(certificate).public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    info = VAULT_ENROLL_INFO + challenge + certificate_public + device_public
+    shared = private_key.exchange(x448.X448PublicKey.from_public_bytes(device_public))
+    session_key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=info).derive(shared)
+    label_bytes = label.encode()
+    if len(label_bytes) > 64:
+        raise ValueError("vault label is too long")
+    plain = kvault + bytes([len(label_bytes)]) + label_bytes
+    nonce = os.urandom(NONCE_BYTES)
+    encrypted = AESGCM(session_key).encrypt(nonce, plain, info)
+    return struct.pack(">H", len(certificate)) + certificate + nonce + encrypted
+
+
 def _reader(card):
     return card._OpenPGP_Card__reader
 
@@ -175,22 +255,52 @@ def _select(card, aid):
 
 
 def _live_card(request):
-    if os.environ.get("PICO_OPENPGP_VAULT_LIVE") != "1":
-        pytest.skip("set PICO_OPENPGP_VAULT_LIVE=1 for live vault APDU tests")
     return request.getfixturevalue("card")
 
 
 def _live_admin_card(request):
     card = _live_card(request)
-    password = os.environ.get("PICO_OPENPGP_VAULT_PW3")
-    if not password:
-        pytest.skip("set PICO_OPENPGP_VAULT_PW3 for authenticated live vault tests")
+    password = os.environ.get("PICO_OPENPGP_VAULT_PW3", "12345678")
     _select(card, OPENPGP_AID)
-    try:
-        card.verify(3, password.encode())
-    except Exception as error:
-        pytest.skip(f"live PW3 unavailable: {error}")
+    assert card.verify(3, password.encode())
     return card
+
+
+def _live_enrollment(card):
+    enrollment_json = os.environ.get("PICO_OPENPGP_VAULT_ENROLLMENT_JSON")
+    if enrollment_json:
+        try:
+            value = json.loads(enrollment_json)
+        except json.JSONDecodeError as error:
+            pytest.fail(f"invalid PICO_OPENPGP_VAULT_ENROLLMENT_JSON: {error}")
+    else:
+        path = Path(os.environ.get("PICO_OPENPGP_VAULT_ENROLLMENT", str(DEFAULT_ENROLLMENT)))
+        if not path.is_file():
+            pytest.fail(f"enrollment JSON does not exist: {path}")
+        value = json.loads(path.read_text(encoding="utf-8"))
+    passphrase = os.environ.get("PICO_OPENPGP_VAULT_PASSPHRASE") or "test"
+    plain = _open_enrollment(value, passphrase)
+    kvault = base64.b64decode(plain["kvault"])
+    private_key = x448.X448PrivateKey.from_private_bytes(base64.b64decode(plain["x448_private"]))
+    certificate = base64.b64decode(plain["certificate"])
+    certificate_object = x509.load_der_x509_certificate(certificate)
+    certificate_public = certificate_object.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    private_public = private_key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    assert certificate_public == private_public
+    assert _vault_id(kvault).hex() == plain["vault_id"]
+
+    _select(card, OPENPGP_AID)
+    password = os.environ.get("PICO_OPENPGP_VAULT_PW3", "12345678")
+    assert card.verify(3, password.encode())
+    response, result = _raw(card, INS_VAULT, VAULT_START_ENROLLMENT, 0)
+    assert result == b"\x90\x00"
+    assert len(response) == 56 + VAULT_ENROLL_CHALLENGE_BYTES
+    packet = _certificate_enrollment_packet(certificate, private_key, response[:56], response[56:], kvault, plain.get("label", ""))
+    vault_id, result = _raw(card, INS_VAULT, VAULT_FINISH_ENROLLMENT, 0, packet)
+    assert result == b"\x90\x00"
+    assert len(vault_id) == VAULT_ID_BYTES
+    assert vault_id == _vault_id(kvault)
+    return password
 
 
 def test_vault_id_is_deterministic_and_256_bit():
@@ -198,6 +308,29 @@ def test_vault_id_is_deterministic_and_256_bit():
     assert _vault_id(kvault) == _vault_id(kvault)
     assert len(_vault_id(kvault)) == VAULT_ID_BYTES
     assert _vault_id(kvault) != _vault_id(bytes(range(1, 33)))
+
+
+def test_create_and_open_enrollment_json():
+    value = _create_enrollment("correct horse", bytes(range(32)), x448.X448PrivateKey.generate(), "test vault")
+    plain = _open_enrollment(value, "correct horse")
+    assert plain["vault_id"] == value["vault_id"]
+    assert plain["label"] == "test vault"
+    assert len(base64.b64decode(plain["kvault"])) == 32
+
+
+def test_wrong_enrollment_passphrase_is_rejected():
+    value = _create_enrollment("correct horse", os.urandom(32), x448.X448PrivateKey.generate(), "")
+    with pytest.raises(InvalidTag):
+        _open_enrollment(value, "wrong horse")
+
+
+def test_tampered_enrollment_json_is_rejected():
+    value = _create_enrollment("secret", os.urandom(32), x448.X448PrivateKey.generate(), "")
+    ciphertext = bytearray(base64.b64decode(value["ciphertext"]))
+    ciphertext[0] ^= 1
+    value["ciphertext"] = base64.b64encode(ciphertext).decode()
+    with pytest.raises(InvalidTag):
+        _open_enrollment(value, "secret")
 
 
 @pytest.mark.parametrize("algorithm", ALGORITHMS)
@@ -313,8 +446,7 @@ def test_live_vault_dispatch_and_parameter_validation(request):
 def test_live_enrollment_begin_and_malformed_finish(request):
     card = _live_admin_card(request)
     response, status = _raw(card, INS_VAULT, VAULT_START_ENROLLMENT, 0)
-    if status != b"\x90\x00":
-        pytest.skip(f"enrollment start unavailable: {status.hex()}")
+    assert status == b"\x90\x00"
     assert len(response) == 56 + VAULT_ENROLL_CHALLENGE_BYTES
     _, status = _raw(card, INS_VAULT, VAULT_FINISH_ENROLLMENT, 0, b"\0")
     assert status != b"\x90\x00"
@@ -326,39 +458,47 @@ def test_live_unknown_vault_subcommand_is_rejected(request):
     _expect(card, INS_VAULT, 0x07, 0, status=b"\x6A\x86")
 
 
-def test_live_export_import_roundtrip(request):
-    if os.environ.get("PICO_OPENPGP_VAULT_ROUNDTRIP") != "1":
-        pytest.skip("set PICO_OPENPGP_VAULT_ROUNDTRIP=1 for the live key round-trip")
-    card = _live_admin_card(request)
-    status = _expect(card, INS_VAULT, VAULT_STATUS, 0)
-    if status[3] != VAULT_ID_BYTES:
-        pytest.skip("OpenPGP vault is not enrolled")
-    blobs = []
-    for algorithm in ALGORITHMS:
-        blob, result = _raw(card, INS_VAULT, VAULT_EXPORT, 1, bytes([algorithm]))
-        if result != b"\x90\x00":
-            pytest.skip(f"OpenPGP key handle 1 is not exportable: {result.hex()}")
-        assert blob[ALGORITHM_OFFSET] == algorithm
-        blobs.append(blob)
-    for blob in blobs:
-        _, result = _raw(card, INS_VAULT, VAULT_IMPORT, 1, blob)
-        assert result == b"\x90\x00"
+@pytest.mark.parametrize("algorithm", ALGORITHMS)
+def test_live_export_import_roundtrip(request, algorithm):
+    card = _live_card(request)
+    _live_enrollment(card)
+
+    blob, result = _raw(card, INS_VAULT, VAULT_EXPORT, 1, bytes([algorithm]))
+    assert result == b"\x90\x00"
+    assert blob[ALGORITHM_OFFSET] == algorithm
+    _, result = _raw(card, INS_VAULT, VAULT_IMPORT, 1, blob)
+    assert result == b"\x90\x00"
 
 
-def test_live_unenroll_requires_explicit_opt_in(request):
-    if os.environ.get("PICO_OPENPGP_VAULT_DESTRUCTIVE_TESTS") != "1":
-        pytest.skip("set PICO_OPENPGP_VAULT_DESTRUCTIVE_TESTS=1 to erase the device vault")
+@pytest.mark.parametrize("handle,fingerprint_tag", OPENPGP_VAULT_FINGERPRINT_TAGS.items())
+def test_live_export_import_roundtrip_for_every_openpgp_key(request, handle, fingerprint_tag):
+    card = _live_card(request)
+    _live_enrollment(card)
+    fingerprint, result = _raw(card, 0xCA, 0, fingerprint_tag)
+    assert result == b"\x90\x00"
+    blob, result = _raw(card, INS_VAULT, VAULT_EXPORT, handle)
+    assert result == b"\x90\x00"
+    assert blob[:4] == VAULT_MAGIC
+    _, result = _raw(card, INS_VAULT, VAULT_IMPORT, handle, blob)
+    assert result == b"\x90\x00"
+    restored_fingerprint, result = _raw(card, 0xCA, 0, fingerprint_tag)
+    assert result == b"\x90\x00"
+    assert restored_fingerprint == fingerprint
+
+
+def test_live_unenroll(request):
     card = _live_admin_card(request)
     _, status = _raw(card, INS_VAULT, VAULT_UNENROLL, 0)
     assert status == b"\x90\x00"
     response = _expect(card, INS_VAULT, VAULT_STATUS, 0)
     assert response[3] == 0
+    _live_enrollment(card)
 
 
 def test_live_piv_vault_dispatch(request):
     card = _live_card(request)
     _, status = _raw(card, 0xA4, 0x04, 0, PIV_AID)
-    if status != b"\x90\x00":
-        pytest.skip("connected card does not expose the PIV application")
+    assert status == b"\x90\x00"
     response = _expect(card, INS_VAULT, VAULT_STATUS, 0)
     assert len(response) >= 37
+    _select(card, OPENPGP_AID)

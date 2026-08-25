@@ -39,5 +39,15 @@ jobs:
         persist-credentials: false
     - name: Build in container
       run: ./tests/build-in-docker.sh
+    - name: Validate Vault test secrets
+      env:
+        PICO_OPENPGP_VAULT_ENROLLMENT_JSON: ${{ secrets.PICO_OPENPGP_VAULT_ENROLLMENT_JSON }}
+        PICO_OPENPGP_VAULT_PASSPHRASE: ${{ secrets.PICO_OPENPGP_VAULT_PASSPHRASE }}
+      run: |
+        test -n "$PICO_OPENPGP_VAULT_ENROLLMENT_JSON" || { echo "PICO_OPENPGP_VAULT_ENROLLMENT_JSON is required." >&2; exit 1; }
+        test -n "$PICO_OPENPGP_VAULT_PASSPHRASE" || { echo "PICO_OPENPGP_VAULT_PASSPHRASE is required." >&2; exit 1; }
     - name: Start emulation and test
+      env:
+        PICO_OPENPGP_VAULT_ENROLLMENT_JSON: ${{ secrets.PICO_OPENPGP_VAULT_ENROLLMENT_JSON }}
+        PICO_OPENPGP_VAULT_PASSPHRASE: ${{ secrets.PICO_OPENPGP_VAULT_PASSPHRASE }}
       run: ./tests/run-test-in-docker.sh

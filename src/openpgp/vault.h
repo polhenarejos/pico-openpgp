@@ -38,6 +38,7 @@ bool openpgp_vault_is_enrolled(void);
 bool openpgp_vault_wrapper_available(openpgp_vault_app_t app);
 int openpgp_vault_load_kvault(openpgp_vault_app_t app, uint8_t kvault[OPENPGP_VAULT_KEY_SIZE]);
 int openpgp_vault_store_kvault(openpgp_vault_app_t app, const uint8_t kvault[OPENPGP_VAULT_KEY_SIZE]);
+int openpgp_vault_clear_openpgp(void);
 int openpgp_vault_clear_wrappers(void);
 bool openpgp_vault_backup_authorized(openpgp_vault_app_t app);
 int openpgp_vault_command(openpgp_vault_app_t app);
