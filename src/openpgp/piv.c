@@ -492,7 +492,7 @@ static int cmd_piv_verify(void) {
         uint16_t ret = pin_check_verifier(pw, apdu.data, apdu.nc, 2, NULL);
         if (ret == 0x9000) {
             has_pwpiv = true;
-            hash_multi(CONST_BYTE_ARRAY(apdu.data, apdu.nc), session_pwpiv);
+            pin_derive_session(CONST_BYTE_ARRAY(apdu.data, apdu.nc), session_pwpiv);
         }
         return ret; //SW already set
     }
