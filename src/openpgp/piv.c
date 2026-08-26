@@ -35,7 +35,6 @@
 #include "mbedtls/constant_time.h"
 #include "key_container.h"
 #include "openpgp.h"
-#include "button.h"
 #include "usb.h"
 
 #define PIV_ALGO_3DES   0x03
@@ -77,15 +76,12 @@
 #define IS_KEY(x) ((IS_ACTIVE((x))) || (IS_RETIRED((x))))
 
 #ifndef ENABLE_EMULATION
-extern void execute_tasks(void);
-
 static bool piv_button_wait(void) {
-    uint32_t event = 0;
-    button_wait_start();
-    while (is_req_button_pending()) {
-        execute_tasks();
-    }
-    queue_remove_blocking(&usb_to_card_q, &event);
+    uint32_t event = EV_PRESS_BUTTON;
+    queue_add_blocking(&card_to_usb_q, &event);
+    do {
+        queue_remove_blocking(&usb_to_card_q, &event);
+    } while (event != EV_BUTTON_PRESSED && event != EV_BUTTON_TIMEOUT && event != EV_BUTTON_CANCELLED);
     return event != EV_BUTTON_PRESSED;
 }
 #endif
