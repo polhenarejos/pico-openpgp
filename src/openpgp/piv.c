@@ -910,11 +910,6 @@ static int cmd_authenticate(void) {
     if (pin_policy != PINPOLICY_NEVER && !has_pwpiv && (key_ref == EF_PIV_KEY_AUTHENTICATION || key_ref == EF_PIV_KEY_SIGNATURE || key_ref == EF_PIV_KEY_KEYMGM || key_ref == EF_PIV_KEY_CARDAUTH || IS_RETIRED(key_ref))) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-#ifndef ENABLE_EMULATION
-    if (meta[2] != TOUCHPOLICY_NEVER && piv_button_wait()) {
-        return SW_SECURITY_STATUS_NOT_SATISFIED();
-    }
-#endif
     uint8_t chal_len = algo == PIV_ALGO_3DES ? sizeof(mgm_challenge) / 2 : sizeof(mgm_challenge);
     tlv_ctx_t ctxi, a7c = { 0 };
     tlv_ctx_init(BYTE_ARRAY(apdu.data, apdu.nc), &ctxi);
@@ -927,6 +922,11 @@ static int cmd_authenticate(void) {
         return SW_INCORRECT_PARAMS();
     }
     bool challenge_response = (operation_tag == 0x80 || operation_tag == 0x82) && operation.len > 0;
+#ifndef ENABLE_EMULATION
+    if (meta[2] != TOUCHPOLICY_NEVER && (!pending_mgm_challenge || !challenge_response) && piv_button_wait()) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
+#endif
     if (key_ref == EF_PIV_KEY_CARDMGM && meta[0] != algo && !(pending_mgm_challenge && challenge_response)) {
         return SW_INCORRECT_PARAMS();
     }
