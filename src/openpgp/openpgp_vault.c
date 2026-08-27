@@ -125,11 +125,12 @@ int openpgp_vault_store_kvault(openpgp_vault_app_t app, const uint8_t kvault[OPE
     if (!kvault || !openpgp_vault_app_valid(app)) {
         return PICOKEYS_ERR_NULL_PARAM;
     }
-    if (openpgp_vault_sdk_init() != PICOKEYS_OK) {
-        return PICOKEYS_EXEC_ERROR;
+    int ret = openpgp_vault_sdk_init();
+    if (ret != PICOKEYS_OK) {
+        return ret;
     }
     uint8_t root[OPENPGP_VAULT_KEY_SIZE] = { 0 };
-    int ret = openpgp_vault_load_root(app, root);
+    ret = openpgp_vault_load_root(app, root);
     if (ret == PICOKEYS_OK) {
         ret = picokeys_vault_set_kvault(kvault, root, app);
     }
