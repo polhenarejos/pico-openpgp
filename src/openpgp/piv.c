@@ -310,7 +310,7 @@ static void scan_files_piv(void) {
     bool reset_dek = false;
     if ((ef = file_search_by_fid(EF_DEK_PWPIV, NULL, SPECIFY_ANY)) && !file_has_data(ef)) {
         printf("DEK PIV is empty or older\r\n");
-        const uint8_t defpin[8] = { 0x31, 0x32, 0x33, 0x34, 0x35, 0x36 };
+        const uint8_t defpin[8] = { 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0xFF, 0xFF };
         const uint8_t *random_dek = random_bytes_get(IV_SIZE + 32);
 
         uint8_t def[DEK_FILE_SIZE];
@@ -1693,9 +1693,6 @@ int piv_process_apdu(void) {
     sm_unwrap();
     if (INS(apdu) != INS_AUTHENTICATE && INS(apdu) != INS_SELECT && !(INS(apdu) == INS_GET_METADATA && P2(apdu) == EF_PIV_KEY_CARDMGM)) {
         clear_mgm_challenge();
-    }
-    if (apdu.nc == 1) {
-        return SW_INCORRECT_PARAMS();
     }
     for (const cmd_t *cmd = cmds; cmd->ins != 0x00; cmd++) {
         if (cmd->ins == INS(apdu)) {
