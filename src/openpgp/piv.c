@@ -1694,6 +1694,11 @@ int piv_process_apdu(void) {
     if (INS(apdu) != INS_AUTHENTICATE && INS(apdu) != INS_SELECT && !(INS(apdu) == INS_GET_METADATA && P2(apdu) == EF_PIV_KEY_CARDMGM)) {
         clear_mgm_challenge();
     }
+    if (apdu.nc == 1 && (INS(apdu) == INS_VERSION || INS(apdu) == INS_YK_SERIAL || INS(apdu) == INS_GET_METADATA || INS(apdu) == INS_VERIFY || INS(apdu) == INS_AUTHENTICATE || INS(apdu) == INS_ASYM_KEYGEN || INS(apdu) == INS_PUT_DATA || INS(apdu) == INS_MOVE_KEY)) {
+        int r = SW_INCORRECT_PARAMS();
+        sm_wrap();
+        return r;
+    }
     for (const cmd_t *cmd = cmds; cmd->ins != 0x00; cmd++) {
         if (cmd->ins == INS(apdu)) {
             int r = cmd->cmd_handler();
