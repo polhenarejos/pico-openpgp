@@ -16,7 +16,7 @@
  */
 
 #ifdef ESP_PLATFORM
-#include "esp_compat.h"
+#include "compat/esp_compat.h"
 #define MBEDTLS_ALLOW_PRIVATE_ACCESS
 #endif
 #include "openpgp.h"

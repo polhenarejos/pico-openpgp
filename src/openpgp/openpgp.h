@@ -29,7 +29,7 @@
 #include "mbedtls/ecdsa.h"
 #include "crypto_utils.h"
 #include "files.h"
-#include "vault.h"
+#include "openpgp_vault.h"
 
 extern bool has_pw1;
 extern bool has_pw2;

@@ -16,7 +16,7 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "vault.h"
+#include "openpgp_vault.h"
 
 #include <string.h>
 
