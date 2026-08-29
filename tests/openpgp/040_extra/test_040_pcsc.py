@@ -251,7 +251,7 @@ def test_openpgp_status_objects(card):
     app = expect(card, INS_GET_DATA, 0x00, 0x6E, le=0)
     assert app and app[0] == 0x4F
     assert OPENPGP_AID in app
-    assert expect(card, 0xF1, 0x00, 0x00, le=0) == b"\x04\x06\x00"
+    assert expect(card, 0xF1, 0x00, 0x00, le=0) == b"\x05\x00\x00"
 
 
 def test_openpgp_fixed_width_status_dos_are_zero_padded(card):
