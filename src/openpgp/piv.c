@@ -1855,29 +1855,37 @@ static const cmd_t extension_cmds[] = {
 };
 
 int piv_process_apdu(void) {
-    sm_unwrap();
+    int r = sm_unwrap();
+    if (r != PICOKEYS_OK) {
+        res_APDU_size = 0;
+        return SW_SECURE_MESSAGE_EXEC_ERROR();
+    }
     if (INS(apdu) != INS_AUTHENTICATE && INS(apdu) != INS_SELECT && !(INS(apdu) == INS_GET_METADATA && P2(apdu) == EF_PIV_KEY_CARDMGM)) {
         clear_mgm_challenge();
     }
     if (apdu.nc == 1 && (INS(apdu) == INS_VERSION || INS(apdu) == INS_YK_SERIAL || INS(apdu) == INS_GET_METADATA || INS(apdu) == INS_VERIFY || INS(apdu) == INS_AUTHENTICATE || INS(apdu) == INS_ASYM_KEYGEN || INS(apdu) == INS_PUT_DATA || INS(apdu) == INS_MOVE_KEY)) {
-        int r = SW_INCORRECT_PARAMS();
-        sm_wrap();
-        return r;
+        r = SW_INCORRECT_PARAMS();
+        goto wrap_response;
     }
     for (const cmd_t *cmd = standard_cmds; cmd->ins != 0x00; cmd++) {
         if (cmd->ins == INS(apdu)) {
-            int r = cmd->cmd_handler();
-            sm_wrap();
-            return r;
+            r = cmd->cmd_handler();
+            goto wrap_response;
         }
     }
 
     for (const cmd_t *cmd = extension_cmds; cmd->ins != 0x00; cmd++) {
         if (cmd->ins == INS(apdu)) {
-            int r = cmd->cmd_handler();
-            sm_wrap();
-            return r;
+            r = cmd->cmd_handler();
+            goto wrap_response;
         }
     }
-    return SW_INS_NOT_SUPPORTED();
+    r = SW_INS_NOT_SUPPORTED();
+
+wrap_response:
+    if (sm_wrap() != PICOKEYS_OK) {
+        res_APDU_size = 0;
+        return SW_SECURE_MESSAGE_EXEC_ERROR();
+    }
+    return r;
 }

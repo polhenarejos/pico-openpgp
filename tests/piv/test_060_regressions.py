@@ -72,6 +72,10 @@ def test_piv_rejects_one_byte_bodies_before_dispatch(piv, instruction):
     assert raised.value.sw == SW.INCORRECT_PARAMETERS
 
 
+def test_piv_rejects_secure_messaging_without_an_active_session(piv):
+    assert_apdu_error(lambda: piv.protocol.send_apdu(0x0C, 0xFD, 0, 0), 0x6600)
+
+
 @pytest.mark.parametrize(
     ("instruction", "p1", "p2", "data", "status"),
     (
