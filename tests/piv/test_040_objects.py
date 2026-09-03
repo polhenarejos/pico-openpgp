@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-from itertools import product
 
 import pytest
 from cryptography import x509
@@ -13,7 +12,7 @@ from yubikit.core.smartcard import ApduError, SW
 from yubikit.piv import KEY_TYPE, OBJECT_ID, PIN_POLICY, SLOT, TOUCH_POLICY
 from ykman.piv import generate_csr, generate_self_signed_certificate
 
-from test_030_keys import SUPPORTED_KEY_TYPES, TEST_SLOTS
+from test_030_keys import SIGNING_KEY_CASES
 
 
 def test_certificate_round_trip(managed_piv):
@@ -31,7 +30,7 @@ def test_certificate_round_trip(managed_piv):
         delete_key(managed_piv, slot)
 
 
-@pytest.mark.parametrize(("key_type", "slot"), tuple(product(SUPPORTED_KEY_TYPES, TEST_SLOTS)))
+@pytest.mark.parametrize(("key_type", "slot"), SIGNING_KEY_CASES)
 def test_signature_and_certificate_round_trip_for_all_script_cases(managed_piv, key_type, slot):
     message = b"Pico PIV shell compatibility test"
     ca_key = ec.generate_private_key(ec.SECP256R1())

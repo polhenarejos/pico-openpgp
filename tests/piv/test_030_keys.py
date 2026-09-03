@@ -12,6 +12,8 @@ SUPPORTED_KEY_TYPES = (KEY_TYPE.RSA1024, KEY_TYPE.ECCP256, KEY_TYPE.ECCP384)
 COMMON_SLOTS = (SLOT.AUTHENTICATION, SLOT.SIGNATURE, SLOT.KEY_MANAGEMENT, SLOT.CARD_AUTH)
 TEST_SLOTS = COMMON_SLOTS + tuple(SLOT(value) for value in range(0x82, 0x96))
 KEY_CASES = tuple(product(SUPPORTED_KEY_TYPES, TEST_SLOTS))
+SIGNING_SLOTS = (SLOT.AUTHENTICATION, SLOT.SIGNATURE, SLOT.CARD_AUTH)
+SIGNING_KEY_CASES = tuple((key_type, slot) for key_type, slot in KEY_CASES if key_type.algorithm.value == "rsa" or slot in SIGNING_SLOTS)
 
 
 @pytest.mark.parametrize(("key_type", "slot"), KEY_CASES)
@@ -24,7 +26,7 @@ def test_generate_and_delete_supported_key_types(managed_piv, key_type, slot):
     assert_apdu_error(lambda: managed_piv.get_slot_metadata(slot), SW.REFERENCE_DATA_NOT_FOUND)
 
 
-@pytest.mark.parametrize(("key_type", "slot"), KEY_CASES)
+@pytest.mark.parametrize(("key_type", "slot"), SIGNING_KEY_CASES)
 def test_sign_and_verify_supported_key_types(managed_piv, key_type, slot):
     message = b"Pico PIV functional test"
     try:
@@ -39,7 +41,7 @@ def test_sign_and_verify_supported_key_types(managed_piv, key_type, slot):
         delete_key(managed_piv, slot)
 
 
-@pytest.mark.parametrize("slot", COMMON_SLOTS)
+@pytest.mark.parametrize("slot", SIGNING_SLOTS)
 def test_common_slots_can_sign(managed_piv, slot):
     key_type = KEY_TYPE.ECCP256
     message = b"Pico PIV common slot test"
@@ -53,7 +55,7 @@ def test_common_slots_can_sign(managed_piv, slot):
 
 
 def test_sign_requires_pin(managed_piv):
-    slot = SLOT.RETIRED1
+    slot = SLOT.SIGNATURE
     try:
         managed_piv.generate_key(slot, KEY_TYPE.ECCP256, PIN_POLICY.ONCE, TOUCH_POLICY.NEVER)
         assert_apdu_error(lambda: managed_piv.sign(slot, KEY_TYPE.ECCP256, b"no PIN", hashes.SHA256(), None), SW.SECURITY_CONDITION_NOT_SATISFIED)
@@ -82,7 +84,7 @@ def test_rsa_decipher(managed_piv):
     ],
 )
 def test_import_key_and_use_it(managed_piv, key_type, private_key):
-    slot = SLOT.RETIRED2
+    slot = SLOT.SIGNATURE
     try:
         assert managed_piv.put_key(slot, private_key, PIN_POLICY.ONCE, TOUCH_POLICY.NEVER) == key_type
         managed_piv.verify_pin(DEFAULT_PIN)
