@@ -18,6 +18,9 @@
 
 #include "piv.h"
 
+static bool piv_is_certificate_fid(uint16_t fid) {
+    return fid == EF_PIV_AUTHENTICATION || fid == EF_PIV_SIGNATURE || fid == EF_PIV_KEY_MANAGEMENT || fid == EF_PIV_CARD_AUTH || (fid >= EF_PIV_RETIRED1 && fid <= EF_PIV_RETIRED20);
+}
 
 int cmd_piv_put_data(void) {
     if (P1(apdu) != 0x3F || P2(apdu) != 0xFF) {
@@ -49,7 +52,7 @@ int cmd_piv_put_data(void) {
         if (a53.len > OPENPGP_MAX_OBJECT_SIZE) {
             return SW_WRONG_LENGTH();
         }
-        if (fid == EF_PIV_AUTHENTICATION && !piv_validate_certificate_object(a53.data, a53.len)) {
+        if (piv_is_certificate_fid(fid) && !piv_validate_certificate_object(a53.data, a53.len)) {
             return SW_WRONG_DATA();
         }
         if (a53.len > 0) {

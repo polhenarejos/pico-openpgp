@@ -138,6 +138,13 @@ def test_piv_generates_rsa3072(managed_piv):
         delete_key(managed_piv, slot)
 
 
+@pytest.mark.parametrize("slot", (SLOT.SIGNATURE, SLOT.KEY_MANAGEMENT, SLOT.RETIRED2))
+def test_piv_rejects_malformed_certificate_objects_for_all_certificate_slots(managed_piv, slot):
+    malformed_certificate = Tlv(0x70, b"\x01")
+
+    assert_apdu_error(lambda: managed_piv.put_object(OBJECT_ID.from_slot(slot), malformed_certificate), SW.WRONG_LENGTH)
+
+
 @pytest.mark.parametrize(
     ("key_type", "curve"),
     ((KEY_TYPE.ECCP256, ec.SECP256R1()), (KEY_TYPE.ECCP384, ec.SECP384R1())),
