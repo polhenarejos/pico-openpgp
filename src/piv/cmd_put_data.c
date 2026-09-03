@@ -52,7 +52,7 @@ int cmd_piv_put_data(void) {
         if (a53.len > OPENPGP_MAX_OBJECT_SIZE) {
             return SW_WRONG_LENGTH();
         }
-        if (piv_is_certificate_fid(fid) && !piv_validate_certificate_object(a53.data, a53.len)) {
+        if (a53.len > 0 && piv_is_certificate_fid(fid) && !piv_validate_certificate_object(a53.data, a53.len)) {
             return SW_WRONG_DATA();
         }
         if (a53.len > 0) {

@@ -404,12 +404,25 @@ bool piv_validate_certificate_object(uint8_t *data, uint16_t data_len) {
         return false;
     }
 
-    mbedtls_x509_crt crt;
-    mbedtls_x509_crt_init(&crt);
-    int r = mbedtls_x509_crt_parse(&crt, certificate.data, certificate.len);
-    bool valid = r == 0 && crt.next == NULL && crt.raw.len == certificate.len;
-    mbedtls_x509_crt_free(&crt);
-    return valid;
+    uint8_t *der_p = (uint8_t *)certificate.data;
+    uint8_t *der_end = der_p + certificate.len;
+    size_t item_len;
+    /* Keep PUT DATA certificate validation allocation-free. */
+    if (mbedtls_asn1_get_tag(&der_p, der_end, &item_len, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) != 0 || item_len != (size_t)(der_end - der_p)) {
+        return false;
+    }
+    if (mbedtls_asn1_get_tag(&der_p, der_end, &item_len, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) != 0) {
+        return false;
+    }
+    der_p += item_len;
+    if (mbedtls_asn1_get_tag(&der_p, der_end, &item_len, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) != 0) {
+        return false;
+    }
+    der_p += item_len;
+    if (mbedtls_asn1_get_tag(&der_p, der_end, &item_len, MBEDTLS_ASN1_BIT_STRING) != 0 || der_p + item_len != der_end) {
+        return false;
+    }
+    return true;
 }
 
 int piv_format_certificate_object(const uint8_t *certificate, uint16_t certificate_len, uint8_t *object, uint16_t object_size) {
