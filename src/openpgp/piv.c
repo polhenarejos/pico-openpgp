@@ -352,11 +352,11 @@ void select_piv_aid(void) {
     memcpy(res_APDU + res_APDU_size, app_label, strlen(app_label));
 
     res_APDU[res_APDU_size++] = 0xAC;
-    res_APDU[res_APDU_size++] = 12;
+    res_APDU[res_APDU_size++] = 11;
     res_APDU[res_APDU_size++] = 0x80;
-    res_APDU[res_APDU_size++] = 7;
-    memcpy(res_APDU + res_APDU_size, "\x07\x08\x0A\x0C\x11\x14\x2E", 7);
-    res_APDU_size += 7;
+    res_APDU[res_APDU_size++] = 6;
+    memcpy(res_APDU + res_APDU_size, "\x07\x08\x0A\x0C\x11\x14", 6);
+    res_APDU_size += 6;
     res_APDU[res_APDU_size++] = 0x6;
     res_APDU[res_APDU_size++] = 1;
     res_APDU[res_APDU_size++] = 0x00;

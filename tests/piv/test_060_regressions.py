@@ -76,6 +76,13 @@ def test_piv_rejects_secure_messaging_without_an_active_session(piv):
     assert_apdu_error(lambda: piv.protocol.send_apdu(0x0C, 0xFD, 0, 0), SW.CLASS_NOT_SUPPORTED)
 
 
+def test_piv_application_template_does_not_advertise_unimplemented_secure_messaging(piv):
+    response = piv.protocol.send_apdu(0, 0xA4, 0x04, 0, b"\xA0\x00\x00\x03\x08")
+    template = Tlv.parse_dict(response)[0xAC]
+
+    assert Tlv.unpack(0x80, template) == b"\x07\x08\x0A\x0C\x11\x14"
+
+
 @pytest.mark.parametrize(
     ("instruction", "p1", "p2", "data", "status"),
     (
