@@ -1048,8 +1048,12 @@ static int cmd_authenticate(void) {
         }
         return SW_INCORRECT_PARAMS();
     }
-    bool ecdh = (key_ref == EF_PIV_KEY_KEYMGM || IS_RETIRED(key_ref)) && (algo == PIV_ALGO_ECCP256 || algo == PIV_ALGO_ECCP384) && operation_tag == 0x85 && operation.len > 0;
-    if (!ecdh && operation_tag != 0x81) {
+    bool key_management_ecc = (key_ref == EF_PIV_KEY_KEYMGM || IS_RETIRED(key_ref)) && (algo == PIV_ALGO_ECCP256 || algo == PIV_ALGO_ECCP384);
+    bool ecdh = key_management_ecc && operation_tag == 0x85 && operation.len > 0;
+    if (key_management_ecc && !ecdh) {
+        return SW_INCORRECT_PARAMS();
+    }
+    if (!key_management_ecc && operation_tag != 0x81) {
         return SW_INCORRECT_PARAMS();
     }
     if (algo != PIV_ALGO_RSA1024 && algo != PIV_ALGO_RSA2048 && algo != PIV_ALGO_RSA3072 && algo != PIV_ALGO_RSA4096 && algo != PIV_ALGO_ECCP256 && algo != PIV_ALGO_ECCP384) {

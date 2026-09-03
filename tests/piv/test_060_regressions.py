@@ -89,7 +89,7 @@ def test_piv_invalid_reference_and_framing_statuses(piv, instruction, p1, p2, da
 
 
 def test_piv_general_authenticate_uses_the_first_operation_tag(managed_piv):
-    slot = SLOT.RETIRED1
+    slot = SLOT.AUTHENTICATION
     digest = b"\x01" * 32
     try:
         managed_piv.generate_key(slot, KEY_TYPE.ECCP256, PIN_POLICY.ONCE, TOUCH_POLICY.NEVER)
@@ -100,6 +100,18 @@ def test_piv_general_authenticate_uses_the_first_operation_tag(managed_piv):
         first_signature = Tlv(0x7C, Tlv(0x81, digest) + Tlv(0x85, b""))
         response = managed_piv.protocol.send_apdu(0, 0x87, KEY_TYPE.ECCP256, slot, first_signature)
         assert Tlv.unpack(0x82, Tlv.unpack(0x7C, response))
+    finally:
+        delete_key(managed_piv, slot)
+
+
+def test_piv_9d_ecc_rejects_ecdsa_operation(managed_piv):
+    slot = SLOT.KEY_MANAGEMENT
+    try:
+        managed_piv.generate_key(slot, KEY_TYPE.ECCP256, PIN_POLICY.ONCE, TOUCH_POLICY.NEVER)
+        managed_piv.verify_pin(DEFAULT_PIN)
+        request = Tlv(0x7C, Tlv(0x81, b"\x01" * 32))
+
+        assert_apdu_error(lambda: managed_piv.protocol.send_apdu(0, 0x87, KEY_TYPE.ECCP256, slot, request), SW.INCORRECT_PARAMETERS)
     finally:
         delete_key(managed_piv, slot)
 
