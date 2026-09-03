@@ -163,6 +163,24 @@ def test_piv_set_retries_rejects_values_above_standard_limit(managed_piv, pin_re
     assert puk_after.attempts_remaining == puk_before.attempts_remaining
 
 
+def test_piv_reset_retry_reports_blocked_puk_without_resetting_pin(managed_piv):
+    managed_piv.verify_pin(DEFAULT_PIN)
+    managed_piv.protocol.send_apdu(0, 0xFA, 1, 1, b"")
+    try:
+        pin_before = managed_piv.get_pin_metadata()
+        request = b"00000000" + DEFAULT_PIN.encode() + b"\xFF\xFF"
+        assert_apdu_error(lambda: managed_piv.protocol.send_apdu(0, 0x2C, 0, 0x80, request), SW.AUTH_METHOD_BLOCKED)
+        assert managed_piv.get_puk_metadata().attempts_remaining == 0
+
+        request = b"12345678" + b"654321" + b"\xFF\xFF"
+        assert_apdu_error(lambda: managed_piv.protocol.send_apdu(0, 0x2C, 0, 0x80, request), SW.AUTH_METHOD_BLOCKED)
+        pin_after = managed_piv.get_pin_metadata()
+        assert pin_after.total_attempts == pin_before.total_attempts
+        assert pin_after.attempts_remaining == pin_before.attempts_remaining
+    finally:
+        managed_piv.protocol.send_apdu(0, 0xFA, 3, 3, b"")
+
+
 @pytest.mark.parametrize(("instruction", "p2"), ((0x24, 0x80), (0x24, 0x81), (0x2C, 0x80)))
 def test_piv_reference_changes_require_two_wire_blocks(piv, instruction, p2):
     assert_apdu_error(lambda: piv.protocol.send_apdu(0, instruction, 0, p2, b"12345678"), SW.INCORRECT_PARAMETERS)

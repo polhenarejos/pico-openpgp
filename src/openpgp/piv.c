@@ -323,7 +323,7 @@ static void scan_files_piv(void) {
         file_put_data(ef, CONST_BYTE_ARRAY(def, sizeof(def)));
 
         openpgp_key_container_store(EF_PIV_KEY_CARDMGM, piv_management_key_default, sizeof(piv_management_key_default), NULL, 0, true);
-        uint8_t meta[] = { PIV_ALGO_AES192, MGM_PIN_POLICY, TOUCHPOLICY_ALWAYS };
+        uint8_t meta[] = { PIV_ALGO_AES192, MGM_PIN_POLICY, TOUCHPOLICY_NEVER };
         meta_add(EF_PIV_KEY_CARDMGM, CONST_BYTE_ARRAY(meta, sizeof(meta)));
 
         reset_dek = true;
@@ -1409,6 +1409,9 @@ static int cmd_piv_reset_retry(void) {
     dhash[1] = 0x1; // Format
     pin_derive_verifier(CONST_BYTE_ARRAY(new_pin, PIV_PIN_WIRE_SIZE), dhash + 2);
     ef = file_search_by_fid(EF_PIV_PIN, NULL, SPECIFY_ANY);
+    if (!ef) {
+        return SW_REFERENCE_NOT_FOUND();
+    }
     file_put_data(ef, CONST_BYTE_ARRAY(dhash, sizeof(dhash)));
     pin_reset_retries(ef, true);
     flash_commit();
