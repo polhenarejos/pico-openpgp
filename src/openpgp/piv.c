@@ -1065,6 +1065,9 @@ static int cmd_asym_keygen(void) {
         printf("KEYPAIR RSA\r\n");
         tlv_ctx_t a81 = {0};
         tlv_find_tag(&aac, 0x81, &a81);
+        if (tlv_len(&a81) && tlv_get_uint(&a81) != 65537u) {
+            return SW_DATA_INVALID();
+        }
         mbedtls_rsa_context rsa;
         mbedtls_rsa_init(&rsa);
         int exponent = 65537, nlen = (a80.data[0] == PIV_ALGO_RSA1024 ? 1024 : 2048);

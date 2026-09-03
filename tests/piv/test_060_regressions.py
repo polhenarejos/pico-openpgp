@@ -134,6 +134,19 @@ def test_piv_rejects_x25519_generation_without_creating_slot_state(managed_piv):
     assert_apdu_error(lambda: managed_piv.get_certificate(slot), 0x6A82)
 
 
+def test_piv_rejects_rsa_generation_with_nonstandard_exponent(managed_piv):
+    slot = SLOT.RETIRED2
+    delete_key(managed_piv, slot)
+    try:
+        request = Tlv(0xAC, Tlv(0x80, b"\x07") + Tlv(0x81, b"\x03"))
+
+        assert_apdu_error(lambda: managed_piv.protocol.send_apdu(0, 0x47, 0, slot, request), SW.DATA_INVALID)
+        assert_apdu_error(lambda: managed_piv.get_slot_metadata(slot), SW.REFERENCE_DATA_NOT_FOUND)
+        assert_apdu_error(lambda: managed_piv.get_certificate(slot), 0x6A82)
+    finally:
+        delete_key(managed_piv, slot)
+
+
 @pytest.mark.parametrize(("instruction", "p2"), ((0x24, 0x80), (0x24, 0x81), (0x2C, 0x80)))
 def test_piv_reference_changes_require_two_wire_blocks(piv, instruction, p2):
     assert_apdu_error(lambda: piv.protocol.send_apdu(0, instruction, 0, p2, b"12345678"), SW.INCORRECT_PARAMETERS)
