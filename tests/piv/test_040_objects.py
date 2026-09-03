@@ -62,7 +62,8 @@ def test_signature_and_certificate_round_trip_for_all_script_cases(managed_piv, 
         assert stored.public_bytes(serialization.Encoding.DER) == certificate.public_bytes(serialization.Encoding.DER)
         ca_key.public_key().verify(stored.signature, stored.tbs_certificate_bytes, ec.ECDSA(stored.signature_hash_algorithm))
         ca_key.public_key().verify(ca_certificate.signature, ca_certificate.tbs_certificate_bytes, ec.ECDSA(ca_certificate.signature_hash_algorithm))
-        managed_piv.delete_certificate(slot)
+        if slot != SLOT.AUTHENTICATION:
+            managed_piv.delete_certificate(slot)
     finally:
         delete_key(managed_piv, slot)
 

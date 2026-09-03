@@ -911,9 +911,12 @@ static bool piv_first_auth_operation(const tlv_ctx_t *ctx, uint16_t *tag, tlv_ct
 
 static int piv_ecdh(file_t *ef_key, uint8_t algo, const tlv_ctx_t *peer_key) {
     size_t expected_len = algo == PIV_ALGO_ECCP256 ? 65 : 97;
+    uint8_t tls_peer_key[1 + 97];
     if (peer_key->len != expected_len || peer_key->data[0] != 0x04) {
         return SW_DATA_INVALID();
     }
+    tls_peer_key[0] = peer_key->len;
+    memcpy(tls_peer_key + 1, peer_key->data, peer_key->len);
 
     mbedtls_ecp_keypair key;
     mbedtls_ecdh_context ctx;
@@ -936,7 +939,7 @@ static int piv_ecdh(file_t *ef_key, uint8_t algo, const tlv_ctx_t *peer_key) {
         return SW_EXEC_ERROR();
     }
 
-    r = mbedtls_ecdh_read_public(&ctx, peer_key->data, peer_key->len);
+    r = mbedtls_ecdh_read_public(&ctx, tls_peer_key, peer_key->len + 1);
     if (r != 0) {
         mbedtls_ecdh_free(&ctx);
         mbedtls_ecp_keypair_free(&key);
@@ -1045,7 +1048,7 @@ static int cmd_authenticate(void) {
         }
         return SW_INCORRECT_PARAMS();
     }
-    bool ecdh = key_ref == EF_PIV_KEY_KEYMGM && (algo == PIV_ALGO_ECCP256 || algo == PIV_ALGO_ECCP384) && operation_tag == 0x85;
+    bool ecdh = (key_ref == EF_PIV_KEY_KEYMGM || IS_RETIRED(key_ref)) && (algo == PIV_ALGO_ECCP256 || algo == PIV_ALGO_ECCP384) && operation_tag == 0x85 && operation.len > 0;
     if (!ecdh && operation_tag != 0x81) {
         return SW_INCORRECT_PARAMS();
     }
