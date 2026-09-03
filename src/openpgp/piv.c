@@ -460,6 +460,23 @@ static bool piv_validate_certificate_object(uint8_t *data, uint16_t data_len) {
     return valid;
 }
 
+static int piv_format_certificate_object(const uint8_t *certificate, uint16_t certificate_len, uint8_t *object, uint16_t object_size) {
+    uint16_t object_len = tlv_len_tag(0x70, certificate_len) + 3;
+    if (!certificate || !object || object_len > object_size) {
+        return PICOKEYS_ERR_NO_MEMORY;
+    }
+
+    uint8_t *p = object;
+    *p++ = 0x70;
+    p += tlv_format_len(certificate_len, p);
+    memmove(p, certificate, certificate_len);
+    p += certificate_len;
+    *p++ = 0x71;
+    *p++ = 1;
+    *p++ = 0;
+    return (int)(p - object);
+}
+
 static int piv_select_aid(app_t *a, uint8_t force) {
     (void) force;
     a->process_apdu = piv_process_apdu;
@@ -1204,8 +1221,19 @@ static int cmd_asym_keygen(void) {
             mbedtls_rsa_free(&rsa);
             return SW_EXEC_ERROR();
         }
+        uint16_t cert_len = (uint16_t)r;
+        uint16_t object_len = tlv_len_tag(0x70, cert_len) + 3;
+        if (object_len > sizeof(cert)) {
+            mbedtls_rsa_free(&rsa);
+            return SW_EXEC_ERROR();
+        }
+        r = piv_format_certificate_object(cert + sizeof(cert) - cert_len, cert_len, cert + sizeof(cert) - object_len, sizeof(cert));
+        if (r <= 0) {
+            mbedtls_rsa_free(&rsa);
+            return SW_EXEC_ERROR();
+        }
         file_t *ef = file_search_by_fid(key_cert, NULL, SPECIFY_ANY);
-        if (!ef || file_put_data(ef, CONST_BYTE_ARRAY(cert + sizeof(cert) - r, r)) != PICOKEYS_OK) {
+        if (!ef || file_put_data(ef, CONST_BYTE_ARRAY(cert + sizeof(cert) - object_len, r)) != PICOKEYS_OK) {
             mbedtls_rsa_free(&rsa);
             return SW_EXEC_ERROR();
         }
@@ -1232,8 +1260,19 @@ static int cmd_asym_keygen(void) {
             mbedtls_ecdsa_free(&ecdsa);
             return SW_EXEC_ERROR();
         }
+        uint16_t cert_len = (uint16_t)r;
+        uint16_t object_len = tlv_len_tag(0x70, cert_len) + 3;
+        if (object_len > sizeof(cert)) {
+            mbedtls_ecdsa_free(&ecdsa);
+            return SW_EXEC_ERROR();
+        }
+        r = piv_format_certificate_object(cert + sizeof(cert) - cert_len, cert_len, cert + sizeof(cert) - object_len, sizeof(cert));
+        if (r <= 0) {
+            mbedtls_ecdsa_free(&ecdsa);
+            return SW_EXEC_ERROR();
+        }
         file_t *ef = file_search_by_fid(key_cert, NULL, SPECIFY_ANY);
-        if (!ef || file_put_data(ef, CONST_BYTE_ARRAY(cert + sizeof(cert) - r, r)) != PICOKEYS_OK) {
+        if (!ef || file_put_data(ef, CONST_BYTE_ARRAY(cert + sizeof(cert) - object_len, r)) != PICOKEYS_OK) {
             mbedtls_ecdsa_free(&ecdsa);
             return SW_EXEC_ERROR();
         }

@@ -5,7 +5,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from piv_helpers import DEFAULT_MANAGEMENT_KEY, DEFAULT_PIN, assert_apdu_error, delete_key
 from yubikit.core import Tlv
 from yubikit.core.smartcard import ApduError, SW
-from yubikit.piv import KEY_TYPE, PIN_POLICY, SLOT, TOUCH_POLICY
+from yubikit.piv import KEY_TYPE, OBJECT_ID, PIN_POLICY, SLOT, TOUCH_POLICY
 
 
 def set_management_key(piv, key, touch):
@@ -126,6 +126,9 @@ def test_piv_generates_rsa3072(managed_piv):
 
         metadata = Tlv.parse_dict(managed_piv.protocol.send_apdu(0, 0xF7, 0, slot))
         assert metadata[0x01] == b"\x05"
+        certificate_object = Tlv.parse_dict(managed_piv.get_object(OBJECT_ID.from_slot(slot)))
+        assert certificate_object[0x70].startswith(b"\x30")
+        assert certificate_object[0x71] == b"\x00"
         assert managed_piv.get_certificate(slot).public_key().key_size == 3072
     finally:
         delete_key(managed_piv, slot)
