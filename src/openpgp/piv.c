@@ -754,17 +754,14 @@ static int mgm_crypt(uint8_t algo, const file_t *ef_mgm, const uint8_t *input, u
     mbedtls_aes_init(&ctx);
     r = encrypt ? mbedtls_aes_setkey_enc(&ctx, management_key, (unsigned int)(key_len * 8u)) : mbedtls_aes_setkey_dec(&ctx, management_key, (unsigned int)(key_len * 8u));
     if (r == 0) {
-        r = mbedtls_aes_crypt_ecb(&ctx, encrypt ? MBEDTLS_AES_ENCRYPT : MBEDTLS_AES_DECRYPT,
-                                  input, output);
+        r = mbedtls_aes_crypt_ecb(&ctx, encrypt ? MBEDTLS_AES_ENCRYPT : MBEDTLS_AES_DECRYPT, input, output);
     }
     mbedtls_aes_free(&ctx);
     mbedtls_platform_zeroize(management_key, sizeof(management_key));
     return r;
 }
 
-static int authenticate_mgm(uint8_t algo, file_t *ef_mgm, uint8_t chal_len,
-                            const tlv_ctx_t *a80, const tlv_ctx_t *a81,
-                            const tlv_ctx_t *a82) {
+static int authenticate_mgm(uint8_t algo, file_t *ef_mgm, uint8_t chal_len, const tlv_ctx_t *a80, const tlv_ctx_t *a81, const tlv_ctx_t *a82) {
     bool has_80 = a80->data != NULL;
     bool has_81 = a81->data != NULL;
     bool has_82 = a82->data != NULL;
@@ -803,11 +800,8 @@ static int authenticate_mgm(uint8_t algo, file_t *ef_mgm, uint8_t chal_len,
     }
 
     if (has_80 && a80->len > 0) {
-        bool valid_state = mgm_challenge_kind == MGM_CHALLENGE_MUTUAL &&
-                           mgm_challenge_algo == algo &&
-                           a80->len == chal_len && has_81 && a81->len == chal_len && !has_82;
-        bool witness_matches = valid_state &&
-                               mbedtls_ct_memcmp(a80->data, mgm_challenge, chal_len) == 0;
+        bool valid_state = mgm_challenge_kind == MGM_CHALLENGE_MUTUAL && mgm_challenge_algo == algo && a80->len == chal_len && has_81 && a81->len == chal_len && !has_82;
+        bool witness_matches = valid_state && mbedtls_ct_memcmp(a80->data, mgm_challenge, chal_len) == 0;
         clear_mgm_challenge();
         if (!witness_matches) {
             return SW_DATA_INVALID();
@@ -826,13 +820,10 @@ static int authenticate_mgm(uint8_t algo, file_t *ef_mgm, uint8_t chal_len,
     }
 
     if (has_82 && a82->len > 0) {
-        bool valid_state = mgm_challenge_kind == MGM_CHALLENGE_SINGLE &&
-                           mgm_challenge_algo == algo &&
-                           a82->len == chal_len && !has_80 && !has_81;
+        bool valid_state = mgm_challenge_kind == MGM_CHALLENGE_SINGLE && mgm_challenge_algo == algo && a82->len == chal_len && !has_80 && !has_81;
         uint8_t response[sizeof(mgm_challenge)] = { 0 };
         int r = valid_state ? mgm_crypt(algo, ef_mgm, a82->data, response, false) : -1;
-        bool response_matches = r == 0 &&
-                                mbedtls_ct_memcmp(response, mgm_challenge, chal_len) == 0;
+        bool response_matches = r == 0 && mbedtls_ct_memcmp(response, mgm_challenge, chal_len) == 0;
         memset(response, 0, sizeof(response));
         clear_mgm_challenge();
         if (r != 0 && valid_state) {
@@ -1130,8 +1121,6 @@ static int cmd_asym_keygen(void) {
         if (r != PICOKEYS_OK) {
             return r == PICOKEYS_ERR_NO_MEMORY ? SW_FILE_FULL() : SW_EXEC_ERROR();
         }
-    }
-    else if (a80.data[0] == PIV_ALGO_X25519) {
     }
     else {
         return SW_DATA_INVALID();

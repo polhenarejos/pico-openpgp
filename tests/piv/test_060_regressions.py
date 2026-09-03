@@ -124,6 +124,16 @@ def test_piv_ec_import_requires_the_field_length(managed_piv):
         delete_key(managed_piv, slot)
 
 
+def test_piv_rejects_x25519_generation_without_creating_slot_state(managed_piv):
+    slot = SLOT.RETIRED1
+    delete_key(managed_piv, slot)
+    request = Tlv(0xAC, Tlv(0x80, b"\xE1"))
+
+    assert_apdu_error(lambda: managed_piv.protocol.send_apdu(0, 0x47, 0, slot, request), SW.DATA_INVALID)
+    assert_apdu_error(lambda: managed_piv.get_slot_metadata(slot), SW.REFERENCE_DATA_NOT_FOUND)
+    assert_apdu_error(lambda: managed_piv.get_certificate(slot), 0x6A82)
+
+
 @pytest.mark.parametrize(("instruction", "p2"), ((0x24, 0x80), (0x24, 0x81), (0x2C, 0x80)))
 def test_piv_reference_changes_require_two_wire_blocks(piv, instruction, p2):
     assert_apdu_error(lambda: piv.protocol.send_apdu(0, instruction, 0, p2, b"12345678"), SW.INCORRECT_PARAMETERS)
