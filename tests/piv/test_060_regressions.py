@@ -147,6 +147,22 @@ def test_piv_rejects_rsa_generation_with_nonstandard_exponent(managed_piv):
         delete_key(managed_piv, slot)
 
 
+@pytest.mark.parametrize("pin_retries, puk_retries", ((11, 1), (1, 11), (11, 11)))
+def test_piv_set_retries_rejects_values_above_standard_limit(managed_piv, pin_retries, puk_retries):
+    managed_piv.verify_pin(DEFAULT_PIN)
+    pin_before = managed_piv.get_pin_metadata()
+    puk_before = managed_piv.get_puk_metadata()
+
+    assert_apdu_error(lambda: managed_piv.protocol.send_apdu(0, 0xFA, pin_retries, puk_retries, b""), SW.INCORRECT_PARAMETERS)
+
+    pin_after = managed_piv.get_pin_metadata()
+    puk_after = managed_piv.get_puk_metadata()
+    assert pin_after.total_attempts == pin_before.total_attempts
+    assert pin_after.attempts_remaining == pin_before.attempts_remaining
+    assert puk_after.total_attempts == puk_before.total_attempts
+    assert puk_after.attempts_remaining == puk_before.attempts_remaining
+
+
 @pytest.mark.parametrize(("instruction", "p2"), ((0x24, 0x80), (0x24, 0x81), (0x2C, 0x80)))
 def test_piv_reference_changes_require_two_wire_blocks(piv, instruction, p2):
     assert_apdu_error(lambda: piv.protocol.send_apdu(0, instruction, 0, p2, b"12345678"), SW.INCORRECT_PARAMETERS)

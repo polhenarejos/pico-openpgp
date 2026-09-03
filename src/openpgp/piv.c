@@ -58,6 +58,7 @@
 #define PINPOLICY_ALWAYS 3
 #define MGM_PIN_POLICY PINPOLICY_DEFAULT
 #define PIV_PIN_WIRE_SIZE 8u
+#define PIV_MAX_RETRIES 10u
 
 #define TOUCHPOLICY_DEFAULT 0
 #define TOUCHPOLICY_NEVER 1
@@ -1417,6 +1418,9 @@ static int cmd_piv_reset_retry(void) {
 static int cmd_set_retries(void) {
     if (!has_mgm || !has_pwpiv) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
+    if (P1(apdu) > PIV_MAX_RETRIES || P2(apdu) > PIV_MAX_RETRIES) {
+        return SW_INCORRECT_PARAMS();
     }
     file_t *ef = file_search_by_fid(EF_PW_RETRIES, NULL, SPECIFY_ANY);
     if (!ef) {
