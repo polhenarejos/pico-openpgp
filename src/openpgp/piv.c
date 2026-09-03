@@ -336,6 +336,7 @@ static int piv_unload(void) {
 }
 
 void select_piv_aid(void) {
+    res_APDU_size = 0;
     res_APDU[res_APDU_size++] = 0x61;
     res_APDU[res_APDU_size++] = 0; //filled later
     res_APDU[res_APDU_size++] = 0x4F;
@@ -350,6 +351,7 @@ void select_piv_aid(void) {
     res_APDU[res_APDU_size++] = 0x50;
     res_APDU[res_APDU_size++] = strlen(app_label);
     memcpy(res_APDU + res_APDU_size, app_label, strlen(app_label));
+    res_APDU_size += strlen(app_label);
 
     res_APDU[res_APDU_size++] = 0xAC;
     res_APDU[res_APDU_size++] = 12;
@@ -360,6 +362,7 @@ void select_piv_aid(void) {
     res_APDU[res_APDU_size++] = 0x6;
     res_APDU[res_APDU_size++] = 1;
     res_APDU[res_APDU_size++] = 0x00;
+    res_APDU[1] = res_APDU_size - 2;
 }
 
 bool piv_validate_certificate_object(uint8_t *data, uint16_t data_len) {
