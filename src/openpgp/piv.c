@@ -409,6 +409,56 @@ static void select_piv_aid(void) {
     res_APDU[res_APDU_size++] = 0x00;
 }
 
+static bool piv_validate_certificate_object(uint8_t *data, uint16_t data_len) {
+    tlv_ctx_t object = { .data = data, .len = data_len };
+    const_byte_array_t certificate = {0};
+    uint8_t cert_info = 0;
+    bool has_certificate = false;
+    bool has_cert_info = false;
+    uint8_t *p = NULL;
+    tlv_item_t item;
+
+    while (tlv_walk(&object, &p, &item)) {
+        if (item.tag == 0x70) {
+            if (has_certificate) {
+                return false;
+            }
+            certificate = item.value;
+            has_certificate = true;
+        }
+        else if (item.tag == 0x71) {
+            if (has_cert_info || item.value.len != 1) {
+                return false;
+            }
+            cert_info = item.value.data[0];
+            has_cert_info = true;
+        }
+    }
+
+    if (p && (size_t)(p - data) != data_len) {
+        return false;
+    }
+    if (!has_certificate || certificate.len == 0) {
+        return false;
+    }
+    if (has_cert_info && cert_info == 1) {
+        return true;
+    }
+    if (has_cert_info && cert_info != 0) {
+        return false;
+    }
+    if (certificate.data[0] != 0x30) {
+        return false;
+    }
+
+    mbedtls_x509_crt crt;
+    mbedtls_x509_crt_init(&crt);
+    int r = mbedtls_x509_crt_parse(&crt, certificate.data, certificate.len);
+    bool valid = r == 0 && crt.next == NULL && crt.raw.len == certificate.len;
+    mbedtls_x509_crt_free(&crt);
+    return valid;
+}
+
 static int piv_select_aid(app_t *a, uint8_t force) {
     (void) force;
     a->process_apdu = piv_process_apdu;
@@ -1165,6 +1215,9 @@ static int cmd_piv_put_data(void) {
         }
         if (a53.len > OPENPGP_MAX_OBJECT_SIZE) {
             return SW_WRONG_LENGTH();
+        }
+        if (fid == EF_PIV_AUTHENTICATION && !piv_validate_certificate_object(a53.data, a53.len)) {
+            return SW_WRONG_DATA();
         }
         if (a53.len > 0) {
             file_put_data(ef, CONST_BYTE_ARRAY(a53.data, a53.len));

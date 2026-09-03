@@ -96,6 +96,22 @@ def test_populated_chuid_cannot_be_replaced(managed_piv):
     assert managed_piv.get_object(OBJECT_ID.CHUID) == original
 
 
+def test_piv_authentication_certificate_rejects_invalid_der(managed_piv):
+    try:
+        original = managed_piv.get_object(0x5FC105)
+    except ApduError as error:
+        if error.sw != SW.FILE_NOT_FOUND:
+            raise
+        original = None
+
+    invalid_certificate = Tlv(0x70, b"\x30\x01\x00") + Tlv(0x71, b"\x00")
+    assert_apdu_error(lambda: managed_piv.put_object(0x5FC105, invalid_certificate), 0x6700)
+    if original is None:
+        assert_apdu_error(lambda: managed_piv.get_object(0x5FC105), SW.FILE_NOT_FOUND)
+    else:
+        assert managed_piv.get_object(0x5FC105) == original
+
+
 def test_object_write_requires_management_authentication(piv):
     request = Tlv(0x5C, b"\x5f\xc1\x02") + Tlv(0x53, b"test")
     assert_apdu_error(lambda: piv.protocol.send_apdu(0, 0xDB, 0x3F, 0xFF, request), SW.SECURITY_CONDITION_NOT_SATISFIED)
