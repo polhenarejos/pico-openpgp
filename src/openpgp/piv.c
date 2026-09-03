@@ -1669,20 +1669,24 @@ static int cmd_import_asym(void) {
 #define INS_IMPORT_ASYM     0xFE
 #define INS_VAULT           0xF2
 
-static const cmd_t cmds[] = {
-    { INS_VERSION, cmd_version },
+static const cmd_t standard_cmds[] = {
     { INS_SELECT, cmd_piv_select },
-    { INS_YK_SERIAL, cmd_get_serial },
     { INS_VERIFY, cmd_piv_verify },
     { INS_GET_DATA, cmd_piv_get_data },
-    { INS_GET_METADATA, cmd_get_metadata },
     { INS_AUTHENTICATE, cmd_authenticate },
     { INS_ASYM_KEYGEN, cmd_asym_keygen },
     { INS_PUT_DATA, cmd_piv_put_data },
-    { INS_SET_MGMKEY, cmd_set_mgmkey },
-    { INS_MOVE_KEY, cmd_move_key },
     { INS_CHANGE_PIN, cmd_piv_change_pin },
     { INS_RESET_RETRY, cmd_piv_reset_retry },
+    { 0x00, 0x0 }
+};
+
+static const cmd_t extension_cmds[] = {
+    { INS_VERSION, cmd_version },
+    { INS_YK_SERIAL, cmd_get_serial },
+    { INS_GET_METADATA, cmd_get_metadata },
+    { INS_SET_MGMKEY, cmd_set_mgmkey },
+    { INS_MOVE_KEY, cmd_move_key },
     { INS_SET_RETRIES, cmd_set_retries },
     { INS_RESET, cmd_reset },
     { INS_ATTESTATION, cmd_attestation },
@@ -1701,7 +1705,15 @@ int piv_process_apdu(void) {
         sm_wrap();
         return r;
     }
-    for (const cmd_t *cmd = cmds; cmd->ins != 0x00; cmd++) {
+    for (const cmd_t *cmd = standard_cmds; cmd->ins != 0x00; cmd++) {
+        if (cmd->ins == INS(apdu)) {
+            int r = cmd->cmd_handler();
+            sm_wrap();
+            return r;
+        }
+    }
+
+    for (const cmd_t *cmd = extension_cmds; cmd->ins != 0x00; cmd++) {
         if (cmd->ins == INS(apdu)) {
             int r = cmd->cmd_handler();
             sm_wrap();
