@@ -83,6 +83,19 @@ def test_chuid_object_round_trip(managed_piv):
         managed_piv.put_object(OBJECT_ID.CHUID, original)
 
 
+def test_populated_chuid_cannot_be_replaced(managed_piv):
+    try:
+        original = managed_piv.get_object(OBJECT_ID.CHUID)
+    except ApduError as error:
+        if error.sw == SW.FILE_NOT_FOUND:
+            pytest.skip("requires a populated CHUID")
+        raise
+
+    replacement = original + b"\x00"
+    assert_apdu_error(lambda: managed_piv.put_object(OBJECT_ID.CHUID, replacement), 0x6A81)
+    assert managed_piv.get_object(OBJECT_ID.CHUID) == original
+
+
 def test_object_write_requires_management_authentication(piv):
     request = Tlv(0x5C, b"\x5f\xc1\x02") + Tlv(0x53, b"test")
     assert_apdu_error(lambda: piv.protocol.send_apdu(0, 0xDB, 0x3F, 0xFF, request), SW.SECURITY_CONDITION_NOT_SATISFIED)

@@ -1160,6 +1160,9 @@ static int cmd_piv_put_data(void) {
         if (!ef) {
             return SW_MEMORY_FAILURE();
         }
+        if (fid == EF_PIV_CHUID && file_has_data(ef)) {
+            return SW_FUNC_NOT_SUPPORTED();
+        }
         if (a53.len > OPENPGP_MAX_OBJECT_SIZE) {
             return SW_WRONG_LENGTH();
         }
