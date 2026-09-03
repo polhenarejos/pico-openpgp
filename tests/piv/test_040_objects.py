@@ -7,7 +7,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
 from cryptography.x509.oid import NameOID
 
-from piv_helpers import DEFAULT_MANAGEMENT_KEY, DEFAULT_PIN, assert_apdu_error, delete_key
+from piv_helpers import DEFAULT_PIN, assert_apdu_error, delete_key
 from yubikit.core import Tlv
 from yubikit.core.smartcard import ApduError, SW
 from yubikit.piv import KEY_TYPE, OBJECT_ID, PIN_POLICY, SLOT, TOUCH_POLICY
@@ -68,19 +68,17 @@ def test_signature_and_certificate_round_trip_for_all_script_cases(managed_piv, 
 
 
 def test_chuid_object_round_trip(managed_piv):
-    original = None
     try:
-        try:
-            original = managed_piv.get_object(OBJECT_ID.CHUID)
-        except ApduError as error:
-            if error.sw != SW.FILE_NOT_FOUND:
-                raise
-        value = b"\x30\x03PIV"
-        managed_piv.put_object(OBJECT_ID.CHUID, value)
-        assert managed_piv.get_object(OBJECT_ID.CHUID) == value
-    finally:
-        managed_piv.authenticate(DEFAULT_MANAGEMENT_KEY)
-        managed_piv.put_object(OBJECT_ID.CHUID, original)
+        managed_piv.get_object(OBJECT_ID.CHUID)
+    except ApduError as error:
+        if error.sw != SW.FILE_NOT_FOUND:
+            raise
+    else:
+        pytest.skip("requires an empty CHUID")
+
+    value = b"\x30\x03PIV"
+    managed_piv.put_object(OBJECT_ID.CHUID, value)
+    assert managed_piv.get_object(OBJECT_ID.CHUID) == value
 
 
 def test_populated_chuid_cannot_be_replaced(managed_piv):

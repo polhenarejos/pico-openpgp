@@ -1,4 +1,6 @@
 import pytest
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+from cryptography.hazmat.primitives.asymmetric import ec
 
 from piv_helpers import DEFAULT_MANAGEMENT_KEY, DEFAULT_PIN, assert_apdu_error, delete_key
 from yubikit.core import Tlv
@@ -98,6 +100,26 @@ def test_piv_general_authenticate_uses_the_first_operation_tag(managed_piv):
         first_signature = Tlv(0x7C, Tlv(0x81, digest) + Tlv(0x85, b""))
         response = managed_piv.protocol.send_apdu(0, 0x87, KEY_TYPE.ECCP256, slot, first_signature)
         assert Tlv.unpack(0x82, Tlv.unpack(0x7C, response))
+    finally:
+        delete_key(managed_piv, slot)
+
+
+@pytest.mark.parametrize(
+    ("key_type", "curve"),
+    ((KEY_TYPE.ECCP256, ec.SECP256R1()), (KEY_TYPE.ECCP384, ec.SECP384R1())),
+)
+def test_piv_9d_ecdh_returns_the_shared_secret(managed_piv, key_type, curve):
+    slot = SLOT.KEY_MANAGEMENT
+    peer_private_key = ec.generate_private_key(curve)
+    try:
+        card_public_key = managed_piv.generate_key(slot, key_type, PIN_POLICY.ONCE, TOUCH_POLICY.NEVER)
+        managed_piv.verify_pin(DEFAULT_PIN)
+        peer_public_key = peer_private_key.public_key().public_bytes(Encoding.X962, PublicFormat.UncompressedPoint)
+        request = Tlv(0x7C, Tlv(0x82, b"") + Tlv(0x85, peer_public_key))
+        response = managed_piv.protocol.send_apdu(0, 0x87, key_type, slot, request)
+
+        shared_secret = Tlv.unpack(0x82, Tlv.unpack(0x7C, response))
+        assert shared_secret == peer_private_key.exchange(ec.ECDH(), card_public_key)
     finally:
         delete_key(managed_piv, slot)
 

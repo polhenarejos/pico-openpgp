@@ -31,6 +31,7 @@
 #include "tlv.h"
 #include "mbedtls/aes.h"
 #include "mbedtls/des.h"
+#include "mbedtls/ecdh.h"
 #include "mbedtls/x509_crt.h"
 #include "mbedtls/constant_time.h"
 #include "key_container.h"
@@ -908,6 +909,58 @@ static bool piv_first_auth_operation(const tlv_ctx_t *ctx, uint16_t *tag, tlv_ct
     return false;
 }
 
+static int piv_ecdh(file_t *ef_key, uint8_t algo, const tlv_ctx_t *peer_key) {
+    size_t expected_len = algo == PIV_ALGO_ECCP256 ? 65 : 97;
+    if (peer_key->len != expected_len || peer_key->data[0] != 0x04) {
+        return SW_DATA_INVALID();
+    }
+
+    mbedtls_ecp_keypair key;
+    mbedtls_ecdh_context ctx;
+    uint8_t shared_secret[MBEDTLS_ECP_MAX_BYTES] = { 0 };
+    size_t shared_len = 0;
+    mbedtls_ecp_keypair_init(&key);
+    mbedtls_ecdh_init(&ctx);
+
+    int r = load_private_key_ecdsa(&key, ef_key, false);
+    if (r == PICOKEYS_OK) {
+        r = mbedtls_ecdh_setup(&ctx, key.grp.id);
+    }
+    if (r == 0) {
+        r = mbedtls_ecdh_get_params(&ctx, &key, MBEDTLS_ECDH_OURS);
+    }
+    if (r != 0) {
+        mbedtls_ecdh_free(&ctx);
+        mbedtls_ecp_keypair_free(&key);
+        mbedtls_platform_zeroize(shared_secret, sizeof(shared_secret));
+        return SW_EXEC_ERROR();
+    }
+
+    r = mbedtls_ecdh_read_public(&ctx, peer_key->data, peer_key->len);
+    if (r != 0) {
+        mbedtls_ecdh_free(&ctx);
+        mbedtls_ecp_keypair_free(&key);
+        mbedtls_platform_zeroize(shared_secret, sizeof(shared_secret));
+        return SW_DATA_INVALID();
+    }
+    r = mbedtls_ecdh_calc_secret(&ctx, &shared_len, shared_secret, sizeof(shared_secret), random_fill_iterator, NULL);
+    mbedtls_ecdh_free(&ctx);
+    mbedtls_ecp_keypair_free(&key);
+    if (r != 0 || shared_len == 0 || shared_len > 127) {
+        mbedtls_platform_zeroize(shared_secret, sizeof(shared_secret));
+        return SW_EXEC_ERROR();
+    }
+
+    res_APDU[0] = 0x7C;
+    res_APDU[1] = shared_len + 2;
+    res_APDU[2] = 0x82;
+    res_APDU[3] = shared_len;
+    memcpy(res_APDU + 4, shared_secret, shared_len);
+    res_APDU_size = shared_len + 4;
+    mbedtls_platform_zeroize(shared_secret, sizeof(shared_secret));
+    return SW_OK();
+}
+
 static int cmd_authenticate(void) {
     uint8_t algo = P1(apdu), key_ref = P2(apdu);
     if (apdu.nc == 0 || apdu.data[0] != 0x7C) {
@@ -992,7 +1045,8 @@ static int cmd_authenticate(void) {
         }
         return SW_INCORRECT_PARAMS();
     }
-    if (operation_tag != 0x81) {
+    bool ecdh = key_ref == EF_PIV_KEY_KEYMGM && (algo == PIV_ALGO_ECCP256 || algo == PIV_ALGO_ECCP384) && operation_tag == 0x85;
+    if (!ecdh && operation_tag != 0x81) {
         return SW_INCORRECT_PARAMS();
     }
     if (algo != PIV_ALGO_RSA1024 && algo != PIV_ALGO_RSA2048 && algo != PIV_ALGO_RSA3072 && algo != PIV_ALGO_RSA4096 && algo != PIV_ALGO_ECCP256 && algo != PIV_ALGO_ECCP384) {
@@ -1003,7 +1057,13 @@ static int cmd_authenticate(void) {
     if (!file_has_data(ef_key)) {
         return SW_MEMORY_FAILURE();
     }
-    if (algo == PIV_ALGO_RSA1024 || algo == PIV_ALGO_RSA2048 || algo == PIV_ALGO_RSA3072 || algo == PIV_ALGO_RSA4096) {
+    if (ecdh) {
+        int r = piv_ecdh(ef_key, algo, &operation);
+        if (r != 0x9000) {
+            return r;
+        }
+    }
+    else if (algo == PIV_ALGO_RSA1024 || algo == PIV_ALGO_RSA2048 || algo == PIV_ALGO_RSA3072 || algo == PIV_ALGO_RSA4096) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
         int r = load_private_key_rsa(&ctx, ef_key, false);
