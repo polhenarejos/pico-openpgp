@@ -77,6 +77,23 @@ list(APPEND SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/files.c
     ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/piv.c
     ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/management.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/piv/cmd_version.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/piv/cmd_select.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/piv/cmd_get_serial.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/piv/cmd_verify.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/piv/cmd_get_data.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/piv/cmd_get_metadata.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/piv/cmd_authenticate.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/piv/cmd_asym_keygen.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/piv/cmd_put_data.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/piv/cmd_set_mgmkey.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/piv/cmd_move_key.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/piv/cmd_change_pin.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/piv/cmd_reset_retry.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/piv/cmd_set_retries.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/piv/cmd_reset.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/piv/cmd_attestation.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/piv/cmd_import_asym.c
     ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_select.c
     ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_get_data.c
     ${CMAKE_CURRENT_LIST_DIR}/src/openpgp/cmd_verify.c
@@ -105,6 +122,7 @@ endif()
 
 set(INCLUDES ${INCLUDES}
     ${CMAKE_CURRENT_LIST_DIR}/src/openpgp
+    ${CMAKE_CURRENT_LIST_DIR}/src/piv
 )
 if(NOT ESP_PLATFORM)
     target_sources(pico_openpgp PUBLIC ${SOURCES})

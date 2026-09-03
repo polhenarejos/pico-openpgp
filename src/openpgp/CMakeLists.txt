@@ -1,6 +1,6 @@
 idf_component_register(
     SRCS ${SOURCES}
-    INCLUDE_DIRS .
+    INCLUDE_DIRS . ../piv
     REQUIRES mbedtls efuse pico-keys-sdk
 )
 if(OPENPGP_TEST_INIT_LEGACY_PIN)
