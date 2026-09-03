@@ -116,6 +116,21 @@ def test_piv_9d_ecc_rejects_ecdsa_operation(managed_piv):
         delete_key(managed_piv, slot)
 
 
+def test_piv_generates_rsa3072(managed_piv):
+    slot = SLOT.RETIRED2
+    delete_key(managed_piv, slot)
+    try:
+        request = Tlv(0xAC, Tlv(0x80, b"\x05"))
+        response = managed_piv.protocol.send_apdu(0, 0x47, 0, slot, request)
+        assert response
+
+        metadata = Tlv.parse_dict(managed_piv.protocol.send_apdu(0, 0xF7, 0, slot))
+        assert metadata[0x01] == b"\x05"
+        assert managed_piv.get_certificate(slot).public_key().key_size == 3072
+    finally:
+        delete_key(managed_piv, slot)
+
+
 @pytest.mark.parametrize(
     ("key_type", "curve"),
     ((KEY_TYPE.ECCP256, ec.SECP256R1()), (KEY_TYPE.ECCP384, ec.SECP384R1())),

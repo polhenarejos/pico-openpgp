@@ -207,7 +207,7 @@ static int x509_create_cert(void *pk_ctx, uint8_t algo, uint8_t slot, bool attes
     mbedtls_ecdsa_context actx; // attestation key
     mbedtls_pk_init(&skey);
     mbedtls_pk_init(&ikey);
-    if (algo == PIV_ALGO_RSA1024 || algo == PIV_ALGO_RSA2048) {
+    if (algo == PIV_ALGO_RSA1024 || algo == PIV_ALGO_RSA2048 || algo == PIV_ALGO_RSA3072) {
         mbedtls_pk_setup(&skey, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
     }
     else if (algo == PIV_ALGO_ECCP256 || algo == PIV_ALGO_ECCP384) {
@@ -1179,7 +1179,7 @@ static int cmd_asym_keygen(void) {
     else {
         key_cert = key_ref + 0xC08B;
     }
-    if (a80.data[0] == PIV_ALGO_RSA1024 || a80.data[0] == PIV_ALGO_RSA2048) {
+    if (a80.data[0] == PIV_ALGO_RSA1024 || a80.data[0] == PIV_ALGO_RSA2048 || a80.data[0] == PIV_ALGO_RSA3072) {
         printf("KEYPAIR RSA\r\n");
         tlv_ctx_t a81 = {0};
         tlv_find_tag(&aac, 0x81, &a81);
@@ -1188,7 +1188,7 @@ static int cmd_asym_keygen(void) {
         }
         mbedtls_rsa_context rsa;
         mbedtls_rsa_init(&rsa);
-        int exponent = 65537, nlen = (a80.data[0] == PIV_ALGO_RSA1024 ? 1024 : 2048);
+        int exponent = 65537, nlen = a80.data[0] == PIV_ALGO_RSA1024 ? 1024 : a80.data[0] == PIV_ALGO_RSA2048 ? 2048 : 3072;
         if (tlv_len(&a81)) {
             exponent = (int)tlv_get_uint(&a81);
         }
