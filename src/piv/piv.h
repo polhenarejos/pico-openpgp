@@ -131,7 +131,7 @@ int cmd_get_serial(void);
 int cmd_piv_verify(void);
 int cmd_piv_get_data(void);
 int cmd_get_metadata(void);
-int cmd_authenticate(void);
+int cmd_piv_authenticate(void);
 int cmd_asym_keygen(void);
 int cmd_piv_put_data(void);
 int cmd_set_mgmkey(void);

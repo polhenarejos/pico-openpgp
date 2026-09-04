@@ -19,7 +19,7 @@
 #include "piv.h"
 
 
-int cmd_authenticate(void) {
+int cmd_piv_authenticate(void) {
     uint8_t algo = P1(apdu), key_ref = P2(apdu);
     if (apdu.nc == 0 || apdu.data[0] != 0x7C) {
         return SW_INCORRECT_PARAMS();

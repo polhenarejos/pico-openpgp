@@ -664,7 +664,7 @@ static const cmd_t standard_cmds[] = {
     { INS_SELECT, cmd_piv_select },
     { INS_VERIFY, cmd_piv_verify },
     { INS_GET_DATA, cmd_piv_get_data },
-    { INS_AUTHENTICATE, cmd_authenticate },
+    { INS_AUTHENTICATE, cmd_piv_authenticate },
     { INS_ASYM_KEYGEN, cmd_asym_keygen },
     { INS_PUT_DATA, cmd_piv_put_data },
     { INS_CHANGE_PIN, cmd_piv_change_pin },
