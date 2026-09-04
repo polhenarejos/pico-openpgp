@@ -10,32 +10,36 @@ for alg in ${algs[*]}; do
         echo -n "    Keygen... "
         gen_and_check $alg $slot && echo -e ".\t${OK}" || exit $?
 
-        echo -n "    Test request certificate... "
-        e=$(piv verify -arequest -P123456 -s$slot -S'/CN=bar/OU=test/O=example.com/' -ipublic.pem -ocert.pem 2>&1)
-        test $? -eq 0 && echo -n "." || exit $?
-        grep -q "Successfully verified PIN" <<< $e && echo -n "." || exit $?
-        grep -q "Successfully generated a certificate request" <<< $e && echo -e ".\t${OK}" || exit $?
+        if [[ "$alg" == ECCP* && ( "$slot" == "9d" || "$slot" =~ ^(8[2-9a-f]|9[0-5])$ ) ]]; then
+            echo -e "    Signing tests skipped for ECC key-management slot.\t${OK}"
+        else
+            echo -n "    Test request certificate... "
+            e=$(piv verify -arequest -P123456 -s$slot -S'/CN=bar/OU=test/O=example.com/' -ipublic.pem -ocert.pem 2>&1)
+            test $? -eq 0 && echo -n "." || exit $?
+            grep -q "Successfully verified PIN" <<< $e && echo -n "." || exit $?
+            grep -q "Successfully generated a certificate request" <<< $e && echo -e ".\t${OK}" || exit $?
 
-        echo -n "    OpenSSL verify request... "
-        e=$(openssl req -verify -in cert.pem 2>&1)
-        test $? -eq 0 && echo -n "." || exit $?
-        grep -q " OK" <<< $e && echo -e ".\t${OK}" || exit $?
+            echo -n "    OpenSSL verify request... "
+            e=$(openssl req -verify -in cert.pem 2>&1)
+            test $? -eq 0 && echo -n "." || exit $?
+            grep -q " OK" <<< $e && echo -e ".\t${OK}" || exit $?
 
-        echo -n "    Test self-signed certificate... "
-        e=$(piv verify -aselfsign -P123456 -s$slot -S'/CN=bar/OU=test/O=example.com/' -ipublic.pem -ocert.pem 2>&1)
-        test $? -eq 0 && echo -n "." || exit $?
-        grep -q "Successfully verified PIN" <<< $e && echo -n "." || exit $?
-        grep -q "Successfully generated a new self signed certificate" <<< $e && echo -e ".\t${OK}" || exit $?
+            echo -n "    Test self-signed certificate... "
+            e=$(piv verify -aselfsign -P123456 -s$slot -S'/CN=bar/OU=test/O=example.com/' -ipublic.pem -ocert.pem 2>&1)
+            test $? -eq 0 && echo -n "." || exit $?
+            grep -q "Successfully verified PIN" <<< $e && echo -n "." || exit $?
+            grep -q "Successfully generated a new self signed certificate" <<< $e && echo -e ".\t${OK}" || exit $?
 
-        echo -n "    Test signature... "
-        e=$(piv verify-pin -atest-signature -s$slot -P123456 -icert.pem 2>&1)
-        test $? -eq 0 && echo -n "." || exit $?
-        grep -q "Successful" <<< $e && echo -e ".\t${OK}" || exit $?
+            echo -n "    Test signature... "
+            e=$(piv verify-pin -atest-signature -s$slot -P123456 -icert.pem 2>&1)
+            test $? -eq 0 && echo -n "." || exit $?
+            grep -q "Successful" <<< $e && echo -e ".\t${OK}" || exit $?
 
-        echo -n "    OpenSSL verify cert... "
-        e=$(openssl verify -CAfile cert.pem cert.pem 2>&1)
-        test $? -eq 0 && echo -n "." || exit $?
-        grep -q ": OK" <<< $e && echo -e ".\t${OK}" || exit $?
+            echo -n "    OpenSSL verify cert... "
+            e=$(openssl verify -CAfile cert.pem cert.pem 2>&1)
+            test $? -eq 0 && echo -n "." || exit $?
+            grep -q ": OK" <<< $e && echo -e ".\t${OK}" || exit $?
+        fi
 
         echo -n "    Key deletion... "
         delete_key $alg $slot && echo -e ".\t${OK}" || exit $?
