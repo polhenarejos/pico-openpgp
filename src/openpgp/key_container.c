@@ -211,7 +211,6 @@ static int openpgp_key_layout_deactivate(void *ctx, uint32_t container_id) {
 static const file_object_container_layout_t openpgp_key_container_layout = {
     .namespace_id = OPENPGP_OBJECT_NAMESPACE,
     .container_kind = OPENPGP_KEY_CONTAINER_KIND,
-    .commit_timeout_ms = OPENPGP_KEY_CONTAINER_COMMIT_TIMEOUT_MS,
     .manifest_fid = openpgp_key_layout_manifest_fid,
     .record_fid = openpgp_key_layout_record_fid,
     .record_allocate = openpgp_key_layout_record_allocate,
