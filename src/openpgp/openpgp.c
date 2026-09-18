@@ -262,7 +262,7 @@ static int set_reset_code_retries(uint8_t retries) {
 }
 
 int openpgp_reset_code_deactivate(void) {
-    int r = PICOKEYS_OK;
+    int r = pin_txn_delete(EF_RC);
     file_t *rc = file_search_by_fid(EF_RC, NULL, SPECIFY_EF);
     file_t *dek_rc = file_search_by_fid(EF_DEK_RC, NULL, SPECIFY_EF);
 
