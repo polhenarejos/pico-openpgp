@@ -52,6 +52,26 @@ uint8_t dek[DEK_SIZE];
 uint16_t algo_dec = EF_ALGO_PRIV2, algo_aut = EF_ALGO_PRIV3, pk_dec = EF_PK_DEC, pk_aut = EF_PK_AUT;
 extern bool is_gpg;
 
+static bool pin_is_factory_default(const file_t *pin, const uint8_t *factory_pin, size_t factory_pin_len) {
+    uint8_t verifier[34];
+
+    if (!pin || !file_has_data(pin)) {
+        return false;
+    }
+    if (file_get_size(pin) == 33) {
+        verifier[0] = factory_pin_len;
+        double_hash_pin(CONST_BYTE_ARRAY(factory_pin, factory_pin_len), verifier + 1);
+        return mbedtls_ct_memcmp(file_get_data(pin), verifier, 33) == 0;
+    }
+    if (file_get_size(pin) == 34) {
+        verifier[0] = factory_pin_len;
+        verifier[1] = 0x1;
+        pin_derive_verifier(CONST_BYTE_ARRAY(factory_pin, factory_pin_len), verifier + 2);
+        return mbedtls_ct_memcmp(file_get_data(pin), verifier, sizeof(verifier)) == 0;
+    }
+    return false;
+}
+
 #ifdef ENABLE_ADMINLESS_MODE
 enum {
     ADMINLESS_MODE_PENDING = 0,
@@ -84,26 +104,6 @@ static int adminless_set_mode(uint8_t mode) {
 static bool adminless_mode_is(uint8_t mode) {
     file_t *ef = file_search_by_fid(EF_PW_RETRIES, NULL, SPECIFY_EF);
     return ef && file_has_data(ef) && file_get_size(ef) >= ADMINLESS_RETRIES_SIZE && file_get_data(ef)[ADMINLESS_MODE_OFFSET] == mode;
-}
-
-static bool pin_is_factory_default(const file_t *pin, const uint8_t *factory_pin, size_t factory_pin_len) {
-    uint8_t verifier[34];
-
-    if (!pin || !file_has_data(pin)) {
-        return false;
-    }
-    if (file_get_size(pin) == 33) {
-        verifier[0] = factory_pin_len;
-        double_hash_pin(CONST_BYTE_ARRAY(factory_pin, factory_pin_len), verifier + 1);
-        return mbedtls_ct_memcmp(file_get_data(pin), verifier, 33) == 0;
-    }
-    if (file_get_size(pin) == 34) {
-        verifier[0] = factory_pin_len;
-        verifier[1] = 0x1;
-        pin_derive_verifier(CONST_BYTE_ARRAY(factory_pin, factory_pin_len), verifier + 2);
-        return mbedtls_ct_memcmp(file_get_data(pin), verifier, sizeof(verifier)) == 0;
-    }
-    return false;
 }
 
 static bool pw1_and_pw3_are_factory_default(void) {
