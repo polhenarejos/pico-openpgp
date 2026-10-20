@@ -81,6 +81,26 @@ def test_chuid_object_round_trip(managed_piv):
     assert managed_piv.get_object(OBJECT_ID.CHUID) == value
 
 
+def test_card_capability_container_default_and_override(managed_piv):
+    object_id = 0x5FC107
+    default = bytes.fromhex("F000F100F200F50110")
+    override = bytes.fromhex("F000F100F200F50111")
+    try:
+        original = managed_piv.get_object(object_id)
+    except ApduError as error:
+        if error.sw != SW.FILE_NOT_FOUND:
+            raise
+        original = None
+
+    try:
+        managed_piv.put_object(object_id, override)
+        assert managed_piv.get_object(object_id) == override
+        managed_piv.put_object(object_id, b"")
+        assert managed_piv.get_object(object_id) == default
+    finally:
+        managed_piv.put_object(object_id, b"" if original is None else original)
+
+
 def test_populated_chuid_cannot_be_replaced(managed_piv):
     try:
         original = managed_piv.get_object(OBJECT_ID.CHUID)

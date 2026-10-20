@@ -18,6 +18,18 @@
 
 #include "piv.h"
 
+static const uint8_t piv_default_card_capability[] = {
+    0xF0,
+    0x00,
+    0xF1,
+    0x00,
+    0xF2,
+    0x00,
+    0xF5,
+    0x01,
+    0x10,
+};
+
 
 int cmd_piv_get_data(void) {
     if (P1(apdu) != 0x3F || P2(apdu) != 0xFF) {
@@ -40,22 +52,33 @@ int cmd_piv_get_data(void) {
     if ((fid & 0xFFFF00) != 0x5FC100 && fid != EF_PIV_BITGT && fid != EF_PIV_DISCOVERY && fid != PIV_DATA_ADMIN_ID && fid != PIV_DATA_ATTESTATION_ID) {
         return SW_FILE_NOT_FOUND();
     }
-    file_t *ef = NULL;
-    if ((ef = file_search_by_fid((uint16_t)(fid & 0xFFFF), NULL, SPECIFY_EF))) {
+    uint16_t file_id = (uint16_t)(fid & 0xFFFF);
+    bool is_card_capability = file_id == EF_PIV_CAPABILITY;
+    file_t *ef = file_search_by_fid(file_id, NULL, SPECIFY_EF);
+    if (ef || is_card_capability) {
         uint16_t data_len = 0;
         res_APDU_size = 2; // Minimum: TAG+LEN
-        if ((file_get_type(ef) & FILE_DATA_FUNC) == FILE_DATA_FUNC) {
-            int (*file_data_func)(const file_t *) = NULL;
-            memcpy(&file_data_func, &ef->data, sizeof(file_data_func));
-            data_len = file_data_func(ef);
-        }
-        else {
-            if (ef->data) {
-                data_len = MIN(file_get_size(ef), OPENPGP_MAX_OBJECT_SIZE);
-                data_len = MIN(data_len, OPENPGP_MAX_RESPONSE_SIZE - 4);
-                memcpy(res_APDU + res_APDU_size, file_get_data(ef), data_len);
+
+        if (ef) {
+            if ((file_get_type(ef) & FILE_DATA_FUNC) == FILE_DATA_FUNC) {
+                int (*file_data_func)(const file_t *) = NULL;
+                memcpy(&file_data_func, &ef->data, sizeof(file_data_func));
+                data_len = file_data_func(ef);
+            }
+            else {
+                if (ef->data) {
+                    data_len = MIN(file_get_size(ef), OPENPGP_MAX_OBJECT_SIZE);
+                    data_len = MIN(data_len, OPENPGP_MAX_RESPONSE_SIZE - 4);
+                    memcpy(res_APDU + res_APDU_size, file_get_data(ef), data_len);
+                }
             }
         }
+
+        if (data_len == 0 && is_card_capability) {
+            data_len = sizeof(piv_default_card_capability);
+            memcpy(res_APDU + res_APDU_size, piv_default_card_capability, data_len);
+        }
+
         if (data_len == 0) {
             return SW_FILE_NOT_FOUND();
         }
