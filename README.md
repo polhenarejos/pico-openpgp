@@ -46,7 +46,7 @@ During asymmetric key generation for DEC key, Pico OpenPGP also generates a 32 b
 OpenPGP card 3.4 specifications describe the procedure to perform ciphering (encryption and decryption) with AES via PSO:ENCIPHER and PSO:DECIPHER. Both commands are supported by Pico OpenPGP.
 
 ### About Gnuk
-This project was inspired by [Gnuk](https://wiki.debian.org/GNUK "Gnuk"), a same project but focused on STM32 processor family. Despite the initial idea was to port Gnuk to the Raspberry Pico family, the underlaying architecture is widely different (although boh run on ARM). For instance, the Pico has two ARM cores, with an appropiate SDK able to leverage them. Also, Pico has an internal flash storage, which is farly larger compared to STM32 ROM storage. Finally, the Pico has a complete USB interface based on TinyUSB, which difficults to port Gnuk. These are only few examples of the difficulties of porting Gnuk to the Raspberry Pico.
+This project was inspired by [Gnuk](https://wiki.debian.org/GNUK "Gnuk"), a same project but focused on STM32 processor family. Despite the initial idea was to port Gnuk to the Raspberry Pico family, the underlaying architecture is widely different (although both run on ARM). For instance, the Pico has two ARM cores, with an appropiate SDK able to leverage them. Also, Pico has an internal flash storage, which is farly larger compared to STM32 ROM storage. Finally, the Pico has a complete USB interface based on TinyUSB, which difficults to port Gnuk. These are only few examples of the difficulties of porting Gnuk to the Raspberry Pico.
 
 As a consequence, Pico OpenPGP is designed from zero. Well, not strictly from zero, as it borrows some of the cryptographic operations implemented with MbedTLS library.
 
