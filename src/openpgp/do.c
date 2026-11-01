@@ -216,16 +216,9 @@ int parse_keyinfo(const file_t *f, int mode) {
         res_APDU[res_APDU_size++] = EF_KEY_INFO & 0xff;
         res_APDU[res_APDU_size++] = 6;
     }
+    /* Key references per the specification: 01 signature, 02 decryption, 03 authentication
+       (00/01/02 were returned before, and ykman could not find the signature key). */
     file_t *ef = file_search_by_fid(EF_PK_SIG, NULL, SPECIFY_ANY);
-    res_APDU[res_APDU_size++] = 0x00;
-    if (ef && ef->data) {
-        res_APDU[res_APDU_size++] = 0x01;
-    }
-    else {
-        res_APDU[res_APDU_size++] = 0x00;
-    }
-
-    ef = file_search_by_fid(EF_PK_DEC, NULL, SPECIFY_ANY);
     res_APDU[res_APDU_size++] = 0x01;
     if (ef && ef->data) {
         res_APDU[res_APDU_size++] = 0x01;
@@ -234,8 +227,17 @@ int parse_keyinfo(const file_t *f, int mode) {
         res_APDU[res_APDU_size++] = 0x00;
     }
 
-    ef = file_search_by_fid(EF_PK_AUT, NULL, SPECIFY_ANY);
+    ef = file_search_by_fid(EF_PK_DEC, NULL, SPECIFY_ANY);
     res_APDU[res_APDU_size++] = 0x02;
+    if (ef && ef->data) {
+        res_APDU[res_APDU_size++] = 0x01;
+    }
+    else {
+        res_APDU[res_APDU_size++] = 0x00;
+    }
+
+    ef = file_search_by_fid(EF_PK_AUT, NULL, SPECIFY_ANY);
+    res_APDU[res_APDU_size++] = 0x03;
     if (ef && ef->data) {
         res_APDU[res_APDU_size++] = 0x01;
     }
@@ -459,8 +461,8 @@ int parse_algoinfo(const file_t *f, int mode) {
 int parse_app_data(const file_t *f, int mode) {
     (void) f;
     uint16_t fids[] = {
-        6,
-        EF_FULL_AID, EF_HIST_BYTES, EF_EXLEN_INFO, EF_GFM, EF_DISCRETE_DO, EF_KEY_INFO
+        5, /* Key Information (DE) goes inside 73, as in the specification */
+        EF_FULL_AID, EF_HIST_BYTES, EF_EXLEN_INFO, EF_GFM, EF_DISCRETE_DO
     };
     res_APDU[res_APDU_size++] = EF_APP_DATA & 0xff;
     res_APDU[res_APDU_size++] = 0x82;
@@ -476,9 +478,9 @@ int parse_app_data(const file_t *f, int mode) {
 int parse_discrete_do(const file_t *f, int mode) {
     (void) f;
     uint16_t fids[] = {
-        11,
+        12,
         EF_EXT_CAP, EF_ALGO_SIG, EF_ALGO_DEC, EF_ALGO_AUT, EF_PW_STATUS, EF_FP, EF_CA_FP, EF_TS_ALL,
-        EF_UIF_SIG, EF_UIF_DEC, EF_UIF_AUT
+        EF_KEY_INFO, EF_UIF_SIG, EF_UIF_DEC, EF_UIF_AUT
     };
     res_APDU[res_APDU_size++] = EF_DISCRETE_DO & 0xff;
     res_APDU[res_APDU_size++] = 0x82;

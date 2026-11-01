@@ -76,7 +76,11 @@ int cmd_get_data(void) {
         }
         uint16_t fids[] = { 1, ef->fid };
         uint16_t data_len = parse_do(fids, 1);
-        if (!(file_get_type(ef) & FILE_DATA_FLASH)) {
+        /* Per the specification (and as reference cards respond), a constructed DO (65, 6E, 73,
+           7A...: tag bit 0x20) is returned with its tag and a simple DO with its value only. The tag
+           used to be stripped always and then added back to every DO when the client was guessed
+           not to be GnuPG (is_gpg): ykman and other strict tools failed on 6E. */
+        if (!(file_get_type(ef) & FILE_DATA_FLASH) && data_len > 0 && !(res_APDU[0] & 0x20)) {
             uint8_t *p = NULL;
             tlv_item_t item;
             tlv_ctx_t ctxi;
@@ -95,45 +99,6 @@ int cmd_get_data(void) {
                     res_APDU_size -= dec;
                 }
             }
-        }
-        if (is_gpg == false) {
-            uint8_t off = 2;
-            if (P1(apdu) > 0x0) {
-                off++;
-            }
-            if (data_len >= 128) {
-                off++;
-            }
-            if (data_len >= 256) {
-                off++;
-            }
-            if (data_len > OPENPGP_MAX_RESPONSE_SIZE - off) {
-                res_APDU_size = 0;
-                return SW_MEMORY_FAILURE();
-            }
-            res_APDU_size = data_len;
-            memmove(res_APDU + off, res_APDU, data_len);
-            off = 0;
-            if (P1(apdu) > 0x0) {
-                res_APDU[off++] = P1(apdu);
-                res_APDU[off++] = P2(apdu);
-            }
-            else {
-                res_APDU[off++] = P2(apdu);
-            }
-            if (data_len >= 256) {
-                res_APDU[off++] = 0x82;
-                res_APDU[off++] = (data_len >> 8) & 0xff;
-                res_APDU[off++] = data_len & 0xff;
-            }
-            else if (data_len >= 128) {
-                res_APDU[off++] = 0x81;
-                res_APDU[off++] = data_len;
-            }
-            else {
-                res_APDU[off++] = data_len;
-            }
-            res_APDU_size += off;
         }
         // if (apdu.ne > data_len)
         //     apdu.ne = data_len;
