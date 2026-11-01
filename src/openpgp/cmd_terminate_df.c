@@ -108,6 +108,25 @@ static int openpgp_terminate_clear_storage(void) {
         }
     }
 
+    /*
+     * EF_PW_PRIV is kept because PIV shares it (bytes 7-8), but its OpenPGP retry counters
+     * (bytes 4-6: PW1, RC, PW3) were left as they were. After the PIN blocking that precedes a
+     * factory reset they were 0, so the OpenPGP card stayed blocked forever. Reset them to the
+     * factory values (3, 0, 3) without touching the PIV ones.
+     */
+    if (context.value == PICOKEYS_OK) {
+        file_t *pw_status = file_search_by_fid(EF_PW_PRIV, NULL, SPECIFY_EF);
+        if (pw_status && file_has_data(pw_status) && file_get_size(pw_status) >= 7 && file_get_size(pw_status) <= 16) {
+            uint8_t status[16];
+            uint16_t status_len = file_get_size(pw_status);
+            memcpy(status, file_get_data(pw_status), status_len);
+            status[4] = 3;
+            status[5] = 0;
+            status[6] = 3;
+            file_put_data(pw_status, CONST_BYTE_ARRAY(status, status_len));
+        }
+    }
+
     flash_commit();
     file_initialize_flash(false);
     scan_files_openpgp();
